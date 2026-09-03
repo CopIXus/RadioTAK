@@ -1,0 +1,4 @@
+# Shell scripts must be LF — CRLF breaks bash on Raspberry Pi (`$'\r': command not found`).
+*.sh text eol=lf
+bin/radiotak text eol=lf
+bin/radiotak-priv text eol=lf

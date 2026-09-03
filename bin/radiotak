@@ -38,8 +38,8 @@ case "$cmd" in
   update)
     BRANCH="${1:-main}"
     cd "$INSTALL_DIR"
-    git fetch https://github.com/CopIXus/RadioTAK.git "$BRANCH"
-    git checkout --force -B "$BRANCH" FETCH_HEAD
+    git -c "safe.directory=$INSTALL_DIR" fetch https://github.com/CopIXus/RadioTAK.git "$BRANCH"
+    git -c "safe.directory=$INSTALL_DIR" checkout --force -B "$BRANCH" FETCH_HEAD
     if [[ -x "$INSTALL_DIR/.venv/bin/pip" ]]; then
       "$INSTALL_DIR/.venv/bin/pip" install -r requirements.txt -q
       "$INSTALL_DIR/.venv/bin/pip" install -e "$INSTALL_DIR" -q
@@ -49,16 +49,27 @@ case "$cmd" in
     ;;
   reset-password)
     [[ $EUID -eq 0 ]] || { echo "Run as root"; exit 1; }
-    read -r -p "Username [admin]: " USER
-    USER=${USER:-admin}
-    read -r -s -p "New password: " PASS; echo
-    read -r -s -p "Confirm: " PASS2; echo
-    [[ "$PASS" == "$PASS2" ]] || { echo "Mismatch"; exit 1; }
-    HASH=$("$INSTALL_DIR/.venv/bin/python3" -c "from argon2 import PasswordHasher; import sys; print(PasswordHasher().hash(sys.argv[1]))" "$PASS")
-    cat > "$DATA_DIR/auth.json" <<EOF
-{"username":"$USER","password_hash":"$HASH","created_at":"$(date -u +%Y-%m-%dT%H:%M:%SZ)"}
-EOF
-    chmod 600 "$DATA_DIR/auth.json"
+    if [[ -n "${RADIOTAK_ADMIN_PASSWORD:-}" ]]; then
+      USER="${RADIOTAK_ADMIN_USER:-admin}"
+      PASS="$RADIOTAK_ADMIN_PASSWORD"
+    elif (exec <>/dev/tty) 2>/dev/null; then
+      read -r -p "Username [admin]: " USER < /dev/tty || true
+      USER=${USER:-admin}
+      read -r -s -p "New password: " PASS < /dev/tty || { echo "No password entered"; exit 1; }
+      echo
+      read -r -s -p "Confirm: " PASS2 < /dev/tty || { echo "No password entered"; exit 1; }
+      echo
+      [[ "$PASS" == "$PASS2" ]] || { echo "Mismatch"; exit 1; }
+    else
+      echo "Need a terminal, or set RADIOTAK_ADMIN_USER / RADIOTAK_ADMIN_PASSWORD"
+      exit 1
+    fi
+    [[ ${#PASS} -ge 8 ]] || { echo "Use at least 8 characters"; exit 1; }
+    # Write via Python so Argon2 hashes (which contain '$') are never expanded by bash.
+    RADIOTAK_DATA_DIR="$DATA_DIR" "$INSTALL_DIR/.venv/bin/python3" -c \
+      'import sys; from radiotak.auth import save_auth; save_auth(sys.argv[1], sys.argv[2])' \
+      "$USER" "$PASS"
+    unset PASS PASS2 RADIOTAK_ADMIN_PASSWORD
     chown radiotak:radiotak "$DATA_DIR/auth.json" 2>/dev/null || true
     systemctl restart "$SERVICE"
     echo "Password updated"

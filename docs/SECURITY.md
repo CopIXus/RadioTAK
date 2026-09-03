@@ -2,7 +2,7 @@
 
 ## Authentication
 
-- First-run / installer creates admin with Argon2id hash in `/var/lib/radiotak/auth.json`
+- First-run: installer (terminal or `RADIOTAK_ADMIN_PASSWORD`) or the web UI at `/setup` creates admin with Argon2id hash in `/var/lib/radiotak/auth.json`
 - Session cookies: `HttpOnly`, `Secure`, `SameSite=Lax`
 - CSRF tokens on state-changing forms
 - Login rate limiting

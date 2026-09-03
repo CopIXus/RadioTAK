@@ -29,10 +29,10 @@ The installer will:
 
 1. Detect Debian/Raspberry Pi OS 64-bit
 2. Install Python dependencies
-3. Ask you to set an admin username and password
+3. Ask you to set an admin username and password (from the terminal, even when piped via `curl | sudo bash`)
 4. Start the HTTPS console on port **5001**
 
-Then open `https://<pi-ip>:5001` and log in.
+Then open `https://<pi-ip>:5001` and log in. If the installer had no terminal, first visit creates the admin account.
 
 ## Updating
 
@@ -50,8 +50,8 @@ Your config, certificates, and database live in `/var/lib/radiotak/` and are nev
 
 ```bash
 cd $(grep -oP 'WorkingDirectory=\K.*' /etc/systemd/system/radiotak.service)
-git fetch https://github.com/CopIXus/RadioTAK.git main
-git checkout --force -B main FETCH_HEAD
+git -c safe.directory=/opt/radiotak fetch https://github.com/CopIXus/RadioTAK.git main
+git -c safe.directory=/opt/radiotak checkout --force -B main FETCH_HEAD
 sudo systemctl restart radiotak
 ```
 

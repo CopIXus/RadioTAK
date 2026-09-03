@@ -17,6 +17,13 @@ die() { echo -e "${RED}[radiotak]${NC} $*" >&2; exit 1; }
 
 [[ $EUID -eq 0 ]] || die "Run as root (sudo)."
 
+# Git refuses "dubious ownership" when this script runs as root but /opt/radiotak
+# is owned by the radiotak service user (normal after the first install).
+if ! git config --system --get-all safe.directory 2>/dev/null | grep -qx "$INSTALL_DIR"; then
+  git config --system --add safe.directory "$INSTALL_DIR" || true
+fi
+git_ok() { git -c "safe.directory=$INSTALL_DIR" "$@"; }
+
 ARCH=$(uname -m)
 case "$ARCH" in
   aarch64|x86_64) ;;
@@ -48,12 +55,12 @@ chmod 700 "$DATA_DIR/secrets"
 
 if [[ -d "$INSTALL_DIR/.git" ]]; then
   info "Updating existing install at $INSTALL_DIR"
-  git -C "$INSTALL_DIR" fetch "$REPO_URL" "$BRANCH"
-  git -C "$INSTALL_DIR" checkout --force -B "$BRANCH" FETCH_HEAD
+  git_ok -C "$INSTALL_DIR" fetch "$REPO_URL" "$BRANCH"
+  git_ok -C "$INSTALL_DIR" checkout --force -B "$BRANCH" FETCH_HEAD
 else
   info "Cloning $REPO_URL ($BRANCH) → $INSTALL_DIR"
   rm -rf "$INSTALL_DIR"
-  git clone --depth 1 -b "$BRANCH" "$REPO_URL" "$INSTALL_DIR"
+  git_ok clone --depth 1 -b "$BRANCH" "$REPO_URL" "$INSTALL_DIR"
 fi
 
 chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
@@ -65,35 +72,54 @@ fi
 "$INSTALL_DIR/.venv/bin/pip" install --upgrade pip -q
 "$INSTALL_DIR/.venv/bin/pip" install -r "$INSTALL_DIR/requirements.txt" -q
 "$INSTALL_DIR/.venv/bin/pip" install -e "$INSTALL_DIR" -q
+chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
+
+write_admin_auth() {
+  local user="$1" password="$2"
+  # Write via Python so Argon2 hashes (which contain '$') are never expanded by bash.
+  RADIOTAK_DATA_DIR="$DATA_DIR" \
+  RADIOTAK_ADMIN_USER="$user" \
+  RADIOTAK_ADMIN_PASSWORD="$password" \
+    "$INSTALL_DIR/.venv/bin/python3" -c '
+import os
+from radiotak.auth import save_auth
+save_auth(os.environ["RADIOTAK_ADMIN_USER"], os.environ["RADIOTAK_ADMIN_PASSWORD"])
+'
+  chown "$SERVICE_USER:$SERVICE_USER" "$DATA_DIR/auth.json"
+}
+
+# /dev/tty always exists as a device node; it only works with a controlling terminal.
+has_tty() { (exec <>/dev/tty) 2>/dev/null; }
 
 AUTH_FILE="$DATA_DIR/auth.json"
 if [[ ! -f "$AUTH_FILE" ]]; then
-  echo
-  info "Create administrator account"
-  read -r -p " Admin username [admin]: " ADMIN_USER
-  ADMIN_USER=${ADMIN_USER:-admin}
-  while true; do
-    read -r -s -p " Admin password: " ADMIN_PASS; echo
-    read -r -s -p " Confirm password: " ADMIN_PASS2; echo
-    [[ "$ADMIN_PASS" == "$ADMIN_PASS2" ]] || { echo "Passwords do not match"; continue; }
-    [[ ${#ADMIN_PASS} -ge 8 ]] || { echo "Use at least 8 characters"; continue; }
-    break
-  done
-  HASH=$("$INSTALL_DIR/.venv/bin/python3" -c "
-from argon2 import PasswordHasher
-import sys
-print(PasswordHasher().hash(sys.argv[1]))
-" "$ADMIN_PASS")
-  cat > "$AUTH_FILE" <<EOF
-{
-  "username": "$ADMIN_USER",
-  "password_hash": "$HASH",
-  "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-}
-EOF
-  chmod 600 "$AUTH_FILE"
-  chown "$SERVICE_USER:$SERVICE_USER" "$AUTH_FILE"
-  ok "Admin account created"
+  if [[ -n "${RADIOTAK_ADMIN_PASSWORD:-}" ]]; then
+    [[ ${#RADIOTAK_ADMIN_PASSWORD} -ge 8 ]] || die "RADIOTAK_ADMIN_PASSWORD must be at least 8 characters"
+    write_admin_auth "${RADIOTAK_ADMIN_USER:-admin}" "$RADIOTAK_ADMIN_PASSWORD"
+    unset RADIOTAK_ADMIN_PASSWORD
+    ok "Admin account created"
+  elif has_tty; then
+    # Read from the controlling terminal, not stdin — curl|bash otherwise
+    # consumes the rest of this script as the "password" and then dies on EOF.
+    echo
+    info "Create administrator account"
+    read -r -p " Admin username [admin]: " ADMIN_USER < /dev/tty || true
+    ADMIN_USER=${ADMIN_USER:-admin}
+    while true; do
+      read -r -s -p " Admin password: " ADMIN_PASS < /dev/tty || die "No password entered"
+      echo
+      read -r -s -p " Confirm password: " ADMIN_PASS2 < /dev/tty || die "No password entered"
+      echo
+      [[ "$ADMIN_PASS" == "$ADMIN_PASS2" ]] || { echo "Passwords do not match"; continue; }
+      [[ ${#ADMIN_PASS} -ge 8 ]] || { echo "Use at least 8 characters"; continue; }
+      break
+    done
+    write_admin_auth "$ADMIN_USER" "$ADMIN_PASS"
+    unset ADMIN_PASS ADMIN_PASS2
+    ok "Admin account created"
+  else
+    info "No terminal attached — create the admin account in the web UI on first visit"
+  fi
 else
   info "Admin account already exists ($AUTH_FILE)"
 fi
@@ -102,10 +128,19 @@ CERT="$DATA_DIR/tls/cert.pem"
 KEY="$DATA_DIR/tls/key.pem"
 if [[ ! -f "$CERT" ]]; then
   info "Generating self-signed TLS certificate…"
+  SAN_PARTS=(DNS:localhost IP:127.0.0.1)
+  if hn=$(hostname -s 2>/dev/null); then
+    [[ -n "$hn" ]] && SAN_PARTS+=("DNS:$hn")
+  fi
+  for ip in $(hostname -I 2>/dev/null); do
+    SAN_PARTS+=("IP:$ip")
+  done
+  SAN=$(IFS=,; echo "${SAN_PARTS[*]}")
   openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 -nodes \
     -keyout "$KEY" -out "$CERT" \
     -subj "/CN=RadioTAK" \
-    -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" >/dev/null 2>&1
+    -addext "subjectAltName=${SAN}" >/dev/null 2>&1 \
+    || die "Failed to generate TLS certificate"
   chmod 600 "$KEY" "$CERT"
   chown "$SERVICE_USER:$SERVICE_USER" "$KEY" "$CERT"
 fi

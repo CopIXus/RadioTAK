@@ -13,10 +13,12 @@
 curl -fsSL https://raw.githubusercontent.com/CopIXus/RadioTAK/main/install.sh | sudo bash
 ```
 
+The installer reads the admin password from `/dev/tty`, so the `curl | sudo bash` pipe is safe. If there is no terminal, open the URL below and create the account on first visit.
+
 ## After install
 
 1. Open `https://<pi-ip>:5001` (accept self-signed cert)
-2. Log in with the admin account you created
+2. Log in with the admin account you created (or complete first-run setup)
 3. Optionally join Tailscale (System → Tailscale)
 4. Marketplace → install **SDR Location Gateway**
 5. Configure TAK Server(s) and radio allowlist

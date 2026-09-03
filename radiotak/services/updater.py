@@ -54,9 +54,10 @@ def update_now(branch: Optional[str] = None) -> tuple[int, str]:
         return proc.returncode
 
     remote = f"https://github.com/{repo}.git"
-    if run(["git", "fetch", remote, branch]) != 0:
+    git = ["git", "-c", f"safe.directory={install}"]
+    if run([*git, "fetch", remote, branch]) != 0:
         return 1, "\n".join(lines)
-    if run(["git", "checkout", "--force", "-B", branch, "FETCH_HEAD"]) != 0:
+    if run([*git, "checkout", "--force", "-B", branch, "FETCH_HEAD"]) != 0:
         return 1, "\n".join(lines)
 
     venv_pip = install / ".venv" / "bin" / "pip"
