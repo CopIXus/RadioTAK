@@ -1,0 +1,22 @@
+# GitHub Actions workflow for CopIXus/sdrtrunk (place in that repo)
+
+name: Build ARM64
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Build (placeholder)
+        run: |
+          echo "Wire this to the upstream Gradle linuxAarch64 distribution task."
+          echo "Upload sdr-trunk-linux-aarch64-*.zip as a release asset."

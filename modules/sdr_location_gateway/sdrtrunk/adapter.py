@@ -13,8 +13,10 @@ from radiotak.gateway.tak import tak_registry
 from radiotak.services.logging_setup import log_event
 
 
-def replay_jsonl(path: str | Path, send_to_tak: bool = True) -> dict:
+def replay_jsonl(path: str | Path, send_to_tak: bool = True, refresh_timestamps: bool = True) -> dict:
     """Synchronously replay a JSONL fixture through the pipeline."""
+    from datetime import datetime, timezone
+
     path = Path(path)
     Session = get_session_factory()
     stats = {"total": 0, "forwarded": 0, "blocked": 0, "rejected": 0}
@@ -24,6 +26,8 @@ def replay_jsonl(path: str | Path, send_to_tak: bool = True) -> dict:
             if not line or line.startswith("#"):
                 continue
             raw = json.loads(line)
+            if refresh_timestamps:
+                raw["observed_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
             stats["total"] += 1
             db = Session()
             try:
@@ -37,7 +41,6 @@ def replay_jsonl(path: str | Path, send_to_tak: bool = True) -> dict:
                             result.cot_xml, result.cot_uid or "", result.observation.id
                         )
                         if n == 0:
-                            # ensure at least dry-run sink for CLI demos
                             from radiotak.gateway.tak import TakConnectionManager
 
                             mgr = tak_registry.get("replay") or TakConnectionManager(

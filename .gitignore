@@ -54,5 +54,3 @@ logs/
 /sdrtrunk/
 *.zip
 
-# CI (add with a token that has workflow scope)
-.github/workflows/

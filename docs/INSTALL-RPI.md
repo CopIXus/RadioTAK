@@ -38,3 +38,14 @@ sudo radiotak update
 sudo radiotak reset-password
 sudo radiotak diagnostics
 ```
+
+## GitHub Actions
+
+A CI workflow lives at `.github/workflows/ci.yml` in the working tree. Pushing it requires a GitHub token with the `workflow` scope (the Cursor/gh OAuth app used for the initial push did not include that scope). To enable:
+
+```bash
+gh auth refresh -h github.com -s workflow
+git add .github/workflows/ci.yml
+git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor.com>" -m "Add CI workflow"
+git push
+```
