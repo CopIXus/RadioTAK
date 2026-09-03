@@ -1,0 +1,10 @@
+{
+  "id": "sdr_location_gateway",
+  "name": "SDR Location Gateway",
+  "description": "SDRTrunk-based P25/DMR GPS decode → allowlisted CoT to TAK Servers. Includes SDR discovery, playlist wizard, and live event adapters.",
+  "version": "0.1.0",
+  "status": "available",
+  "icon": "📡",
+  "requires": ["sdrtrunk"],
+  "systemd_units": ["sdrtrunk.service"]
+}

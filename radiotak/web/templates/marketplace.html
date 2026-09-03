@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Marketplace — RadioTAK{% endblock %}
+{% block content %}
+<div class="header">
+  <div>
+    <div class="header-title">Marketplace</div>
+    <div class="header-subtitle">Install modules to extend this appliance</div>
+  </div>
+</div>
+
+<div class="cards-grid">
+{% for mid, mod in modules.items() %}
+  <div class="card">
+    <div class="card-title">{{ mod.name }}</div>
+    <div class="card-desc">{{ mod.description }}</div>
+    {% if mod.status == 'coming_soon' %}
+      <div class="status-pill status-idle"><span class="dot"></span>Coming soon</div>
+    {% elif mod.installed %}
+      <div class="status-pill status-running"><span class="dot"></span>Installed</div>
+      <form method="post" action="/marketplace/{{ mid }}/uninstall" style="margin-top:10px">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+        <button class="btn btn-sm btn-danger" type="submit">Uninstall</button>
+      </form>
+    {% else %}
+      <div class="status-pill status-idle"><span class="dot"></span>Not installed</div>
+      <form method="post" action="/marketplace/{{ mid }}/install" style="margin-top:10px">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+        <button class="btn btn-sm btn-primary" type="submit">Install</button>
+      </form>
+    {% endif %}
+  </div>
+{% endfor %}
+</div>
+{% endblock %}

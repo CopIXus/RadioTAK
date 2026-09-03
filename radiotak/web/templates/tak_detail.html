@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}{{ server.name }} — TAK{% endblock %}
+{% block content %}
+<div class="header">
+  <div>
+    <div class="header-title">{{ server.name }}</div>
+    <div class="header-subtitle">{{ server.host }}</div>
+  </div>
+  <a class="btn btn-sm" href="/tak">Back</a>
+</div>
+
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<div class="section-title">Enroll (username / password)</div>
+<form method="post" action="/tak/{{ server.id }}/enroll" style="max-width:520px;margin-bottom:32px">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+  <div class="form-field"><label>Username</label><input name="username" value="{{ server.username or '' }}" required/></div>
+  <div class="form-field"><label>Password / token</label><input name="password" type="password" required autocomplete="new-password"/></div>
+  <div class="form-field">
+    <label><input type="checkbox" name="tls_verify" value="1" {% if server.tls_verify %}checked{% endif %}/> Verify TLS</label>
+  </div>
+  <button class="btn btn-primary" type="submit">Enroll &amp; store certificate</button>
+</form>
+
+<div class="section-title">Import PKCS#12</div>
+<form method="post" action="/tak/{{ server.id }}/import-p12" enctype="multipart/form-data" style="max-width:520px;margin-bottom:32px">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+  <div class="form-field"><label>.p12 / .pfx file</label><input type="file" name="p12" accept=".p12,.pfx" required/></div>
+  <div class="form-field"><label>Password</label><input name="password" type="password"/></div>
+  <button class="btn" type="submit">Import</button>
+</form>
+
+<div class="section-title">Channels (groups)</div>
+<form method="post" action="/tak/{{ server.id }}/channels" style="max-width:640px">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+  {% if groups %}
+  {% for g in groups %}
+    {% set gname = g.name if g.name is defined else g.get('name') %}
+    <label style="display:block;margin:6px 0;font-size:13px">
+      <input type="checkbox" name="groups" value="{{ gname }}"
+        {% if gname in (server.active_groups or []) %}checked{% endif %}/>
+      {{ gname }}
+    </label>
+  {% endfor %}
+  <button class="btn btn-primary" type="submit" style="margin-top:12px">Save active channels</button>
+  {% else %}
+  <div class="alert alert-info">Enroll a certificate first, then refresh to load groups from Marti. You can also type channel names below.</div>
+  <div class="form-field"><label>Active groups (comma-separated)</label>
+    <input name="groups_text" value="{{ (server.active_groups or []) | join(', ') }}"/>
+  </div>
+  <button class="btn btn-primary" type="submit">Save</button>
+  {% endif %}
+</form>
+{% endblock %}

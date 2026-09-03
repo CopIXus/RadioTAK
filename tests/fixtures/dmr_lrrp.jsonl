@@ -1,0 +1,1 @@
+{"schema":"sdr2tak.location.v1","decoder":"sdrtrunk","protocol":"DMR","system_id":"DMR-1","radio_id":"1042","latitude":36.31890,"longitude":-82.35001,"emergency":false,"observed_at":"2026-09-03T15:42:23.000Z","raw_event_type":"LRRP"}

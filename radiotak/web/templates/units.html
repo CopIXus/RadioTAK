@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Units — RadioTAK{% endblock %}
+{% block content %}
+<div class="header">
+  <div>
+    <div class="header-title">Radio units</div>
+    <div class="header-subtitle">Allowlist — unknown radios are never forwarded by default</div>
+  </div>
+</div>
+
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+
+<div class="section-title">Approved / mapped</div>
+<table class="table">
+  <thead>
+    <tr><th>Forward</th><th>Radio ID</th><th>Callsign</th><th>Agency</th><th>Last GPS</th><th>System</th><th></th></tr>
+  </thead>
+  <tbody>
+  {% for u in approved %}
+    <tr>
+      <td>{% if u.forward_to_tak %}YES{% else %}NO{% endif %}</td>
+      <td>{{ u.radio_id }}</td>
+      <td>{{ u.callsign or '—' }}</td>
+      <td>{{ u.agency or '—' }}</td>
+      <td>{% if u.last_latitude %}{{ '%.5f'|format(u.last_latitude) }}, {{ '%.5f'|format(u.last_longitude) }}{% else %}—{% endif %}</td>
+      <td>{{ u.system_id or '—' }}</td>
+      <td><a class="btn btn-sm" href="/units/{{ u.id }}">Edit</a></td>
+    </tr>
+  {% else %}
+    <tr><td colspan="7" class="dim">No approved units yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<div class="section-title" style="margin-top:32px">Observed / not forwarded</div>
+<table class="table">
+  <thead>
+    <tr><th>Radio ID</th><th>Count</th><th>Last seen</th><th>System</th><th></th></tr>
+  </thead>
+  <tbody>
+  {% for u in observed %}
+    <tr>
+      <td>{{ u.radio_id }}</td>
+      <td>{{ u.observation_count }}</td>
+      <td>{{ u.last_observed_at or '—' }}</td>
+      <td>{{ u.system_id or '—' }}</td>
+      <td><a class="btn btn-sm" href="/units/{{ u.id }}">Map / enable</a></td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5">No unknown radios observed yet. Replay a fixture or connect SDRTrunk.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<div class="section-title" style="margin-top:32px">Add unit</div>
+<form method="post" action="/units/add" style="max-width:520px">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+  <div class="form-field"><label>Radio ID</label><input name="radio_id" required/></div>
+  <div class="form-field"><label>System ID</label><input name="system_id"/></div>
+  <div class="form-field"><label>Callsign</label><input name="callsign"/></div>
+  <div class="form-field"><label>Agency</label><input name="agency"/></div>
+  <div class="form-field"><label><input type="checkbox" name="forward_to_tak" value="1"/> Forward to TAK</label></div>
+  <button class="btn btn-primary" type="submit">Save</button>
+</form>
+{% endblock %}

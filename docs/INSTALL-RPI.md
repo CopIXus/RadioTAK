@@ -1,0 +1,40 @@
+# Install on Raspberry Pi
+
+## Requirements
+
+- Raspberry Pi 5 (8 GB recommended for SDRTrunk)
+- Raspberry Pi OS 64-bit (Bookworm) or Debian 12 aarch64
+- Ethernet preferred
+- Root/sudo access
+
+## One-line install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/CopIXus/RadioTAK/main/install.sh | sudo bash
+```
+
+## After install
+
+1. Open `https://<pi-ip>:5001` (accept self-signed cert)
+2. Log in with the admin account you created
+3. Optionally join Tailscale (System → Tailscale)
+4. Marketplace → install **SDR Location Gateway**
+5. Configure TAK Server(s) and radio allowlist
+
+## Paths
+
+| Path | Purpose |
+|------|---------|
+| `/opt/radiotak` | Application (git) |
+| `/var/lib/radiotak` | Persistent state |
+| `/etc/systemd/system/radiotak.service` | Console service |
+
+## CLI
+
+```bash
+sudo radiotak status
+sudo radiotak logs
+sudo radiotak update
+sudo radiotak reset-password
+sudo radiotak diagnostics
+```

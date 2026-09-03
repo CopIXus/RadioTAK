@@ -1,0 +1,19 @@
+[Unit]
+Description=RadioTAK Console
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=radiotak
+Group=radiotak
+WorkingDirectory=/opt/radiotak
+Environment=RADIOTAK_DATA_DIR=/var/lib/radiotak
+Environment=RADIOTAK_INSTALL_DIR=/opt/radiotak
+ExecStart=/opt/radiotak/.venv/bin/python -m radiotak.main
+Restart=always
+RestartSec=3
+WatchdogSec=120
+
+[Install]
+WantedBy=multi-user.target

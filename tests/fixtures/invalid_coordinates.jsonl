@@ -1,0 +1,2 @@
+{"schema":"sdr2tak.location.v1","decoder":"sdrtrunk","protocol":"P25","radio_id":"1","latitude":0,"longitude":0,"observed_at":"2026-09-03T15:42:17.315Z"}
+{"schema":"sdr2tak.location.v1","decoder":"sdrtrunk","protocol":"P25","radio_id":"2","latitude":999,"longitude":-82.0,"observed_at":"2026-09-03T15:42:17.315Z"}

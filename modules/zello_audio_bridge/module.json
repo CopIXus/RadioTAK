@@ -1,0 +1,9 @@
+{
+  "id": "zello_audio_bridge",
+  "name": "Zello Audio Bridge",
+  "description": "Push authorized talkgroup audio (and optional locations/text) to Zello channels via the official Channel API. Coming soon.",
+  "version": "0.0.0",
+  "status": "coming_soon",
+  "icon": "🎙️",
+  "requires": ["sdr_location_gateway", "jmbe"]
+}

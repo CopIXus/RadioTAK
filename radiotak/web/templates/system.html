@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}System — RadioTAK{% endblock %}
+{% block content %}
+<div class="header">
+  <div>
+    <div class="header-title">System</div>
+    <div class="header-subtitle">Health, updates, diagnostics</div>
+  </div>
+</div>
+
+{% if message %}<div class="alert alert-ok"><pre style="white-space:pre-wrap;font:inherit">{{ message }}</pre></div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<div class="cards-grid">
+  <div class="card">
+    <div class="card-title">Host</div>
+    <div class="card-desc">
+      {{ info.pi_model or info.os }}<br/>
+      {{ info.hostname }} · {{ info.arch }}<br/>
+      IPs: {{ info.ips | join(', ') or '—' }}<br/>
+      NTP: {{ info.ntp }}
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Software</div>
+    <div class="card-desc">
+      Installed: {{ version }}<br/>
+      Branch: {{ branch }}<br/>
+      Latest release: {{ latest or '—' }}
+    </div>
+  </div>
+</div>
+
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:24px">
+  <form method="post" action="/system/update">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+    <button class="btn btn-primary" type="submit">Update Now</button>
+  </form>
+  <form method="post" action="/system/restart">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+    <button class="btn" type="submit">Restart RadioTAK</button>
+  </form>
+  <a class="btn" href="/system/diagnostics">Download diagnostics</a>
+  <form method="post" action="/system/purge">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+    <button class="btn" type="submit">Purge old logs/DB</button>
+  </form>
+</div>
+{% endblock %}

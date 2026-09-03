@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Edit unit — RadioTAK{% endblock %}
+{% block content %}
+<div class="header">
+  <div>
+    <div class="header-title">Unit {{ unit.radio_id }}</div>
+    <div class="header-subtitle">Authorization and CoT mapping</div>
+  </div>
+  <a class="btn btn-sm" href="/units">Back</a>
+</div>
+<form method="post" action="/units/{{ unit.id }}" style="max-width:520px">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+  <div class="form-field"><label>Callsign</label><input name="callsign" value="{{ unit.callsign or '' }}"/></div>
+  <div class="form-field"><label>Display name</label><input name="display_name" value="{{ unit.display_name or '' }}"/></div>
+  <div class="form-field"><label>Agency</label><input name="agency" value="{{ unit.agency or '' }}"/></div>
+  <div class="form-field"><label>Unit</label><input name="unit" value="{{ unit.unit or '' }}"/></div>
+  <div class="form-field"><label>CoT type</label><input name="cot_type" value="{{ unit.cot_type or 'a-f-G-U-C' }}"/></div>
+  <div class="form-field"><label>Stale seconds</label><input name="stale_seconds" type="number" value="{{ unit.stale_seconds or 120 }}"/></div>
+  <div class="form-field"><label>Remarks</label><textarea name="remarks" rows="3">{{ unit.remarks or '' }}</textarea></div>
+  <div class="form-field"><label><input type="checkbox" name="enabled" value="1" {% if unit.enabled %}checked{% endif %}/> Enabled</label></div>
+  <div class="form-field"><label><input type="checkbox" name="forward_to_tak" value="1" {% if unit.forward_to_tak %}checked{% endif %}/> Forward to TAK</label></div>
+  <button class="btn btn-primary" type="submit">Save</button>
+</form>
+{% endblock %}

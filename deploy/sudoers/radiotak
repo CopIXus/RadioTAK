@@ -1,0 +1,1 @@
+radiotak ALL=(root) NOPASSWD: /usr/local/sbin/radiotak-priv, /opt/radiotak/bin/radiotak-priv

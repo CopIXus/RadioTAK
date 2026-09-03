@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Console — RadioTAK{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+{% endblock %}
+{% block content %}
+<div class="header">
+  <div>
+    <div class="header-title">Console</div>
+    <div class="header-subtitle">Gateway health and live locations</div>
+  </div>
+  <a class="btn btn-sm" href="/system">System</a>
+</div>
+
+<div class="metrics-bar">
+  <div class="metric-card">
+    <div class="metric-label">CPU</div>
+    <div class="metric-value" id="cpu-value">{{ metrics.cpu_percent }}%</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Memory</div>
+    <div class="metric-value" id="ram-value">{{ metrics.ram_percent }}%</div>
+    <div class="metric-detail">{{ metrics.ram_used_gb }} / {{ metrics.ram_total_gb }} GB</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Disk</div>
+    <div class="metric-value" id="disk-value">{{ metrics.disk_percent }}%</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Uptime</div>
+    <div class="metric-value" id="uptime-value">{{ metrics.uptime }}</div>
+    {% if metrics.temp_c %}<div class="metric-detail">{{ '%.1f'|format(metrics.temp_c) }} °C</div>{% endif %}
+  </div>
+</div>
+
+<div class="cards-grid">
+  <div class="card">
+    <div class="card-title">SDR</div>
+    <div class="card-desc">{{ sdr_summary }}</div>
+    <div class="status-pill {{ sdr_status_class }}"><span class="dot"></span>{{ sdr_status }}</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Decoder</div>
+    <div class="card-desc">{{ decoder_summary }}</div>
+    <div class="status-pill {{ decoder_status_class }}"><span class="dot"></span>{{ decoder_status }}</div>
+  </div>
+  <div class="card">
+    <div class="card-title">TAK</div>
+    <div class="card-desc">{{ tak_summary }}</div>
+    <div class="status-pill {{ tak_status_class }}"><span class="dot"></span>{{ tak_status }}</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Locations</div>
+    <div class="card-desc">
+      Observed {{ counts.observed }} · Approved {{ counts.approved }}<br/>
+      Forwarded {{ counts.forwarded }} · Blocked {{ counts.blocked }}
+    </div>
+  </div>
+</div>
+
+<div class="section-title">Recent authorized units</div>
+<div id="mini-map"></div>
+{% endblock %}
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const map = L.map('mini-map').setView([39.5, -98.35], 4);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 18, attribution: '&copy; OpenStreetMap'
+}).addTo(map);
+const points = {{ latest_json | safe }};
+const markers = [];
+points.forEach(p => {
+  if (p.lat == null) return;
+  const m = L.marker([p.lat, p.lon]).addTo(map)
+    .bindPopup((p.callsign || p.radio_id) + '<br/>' + p.lat.toFixed(5) + ', ' + p.lon.toFixed(5));
+  markers.push(m);
+});
+if (markers.length) {
+  map.fitBounds(L.featureGroup(markers).getBounds().pad(0.2));
+}
+setInterval(async () => {
+  try {
+    const r = await fetch('/api/v1/status');
+    const d = await r.json();
+    if (d.metrics) {
+      document.getElementById('cpu-value').textContent = d.metrics.cpu_percent + '%';
+      document.getElementById('ram-value').textContent = d.metrics.ram_percent + '%';
+      document.getElementById('disk-value').textContent = d.metrics.disk_percent + '%';
+      document.getElementById('uptime-value').textContent = d.metrics.uptime;
+    }
+  } catch (e) {}
+}, 5000);
+</script>
+{% endblock %}

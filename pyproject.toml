@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "radiotak"
+version = "0.1.0"
+description = "RadioTAK — Raspberry Pi SDR location gateway console for TAK"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "CopIX" }]
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.34",
+  "jinja2>=3.1",
+  "python-multipart>=0.0.20",
+  "itsdangerous>=2.2",
+  "argon2-cffi>=23.1",
+  "sqlalchemy>=2.0",
+  "alembic>=1.15",
+  "pydantic>=2.11",
+  "pydantic-settings>=2.8",
+  "httpx>=0.28",
+  "websockets>=15.0",
+  "psutil>=7.0",
+  "pyyaml>=6.0",
+  "cryptography>=44.0",
+  "aiofiles>=24.1",
+  "pytak>=7.0",
+]
+
+[project.scripts]
+radiotak-app = "radiotak.main:run"
+
+[tool.setuptools.packages.find]
+include = ["radiotak*", "modules*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP"]

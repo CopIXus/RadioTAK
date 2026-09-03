@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>{% block title %}{{ title or 'RadioTAK' }}{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/css/app.css"/>
+  <style>:root { --cyan: {{ accent or '#06b6d4' }}; --accent: {{ accent or '#3b82f6' }}; }</style>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <div class="top-bar"></div>
+  {% if not hide_sidebar %}
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span>{{ title or 'RadioTAK' }}</span>
+      <small>v{{ version }} · {{ branch }}</small>
+    </div>
+    <a class="nav-item {% if nav=='dashboard' %}active{% endif %}" href="/"><span class="nav-icon">▣</span><span class="label">Console</span></a>
+    <a class="nav-item {% if nav=='marketplace' %}active{% endif %}" href="/marketplace"><span class="nav-icon">▦</span><span class="label">Marketplace</span></a>
+    <a class="nav-item {% if nav=='tak' %}active{% endif %}" href="/tak"><span class="nav-icon">⇄</span><span class="label">TAK Servers</span></a>
+    <a class="nav-item {% if nav=='units' %}active{% endif %}" href="/units"><span class="nav-icon">◎</span><span class="label">Units</span></a>
+    <a class="nav-item {% if nav=='events' %}active{% endif %}" href="/events"><span class="nav-icon">☰</span><span class="label">Live Events</span></a>
+    <a class="nav-item {% if nav=='map' %}active{% endif %}" href="/map"><span class="nav-icon">⌖</span><span class="label">Map</span></a>
+    {% if sdr_installed %}
+    <a class="nav-item {% if nav=='sdr' %}active{% endif %}" href="/modules/sdr"><span class="nav-icon">電波</span><span class="label">SDR</span></a>
+    {% endif %}
+    <a class="nav-item {% if nav=='tailscale' %}active{% endif %}" href="/tailscale"><span class="nav-icon">☁</span><span class="label">Tailscale</span></a>
+    <a class="nav-item {% if nav=='system' %}active{% endif %}" href="/system"><span class="nav-icon">⚙</span><span class="label">System</span></a>
+    <a class="nav-item {% if nav=='settings' %}active{% endif %}" href="/settings"><span class="nav-icon">✎</span><span class="label">Settings</span></a>
+    <div style="flex:1"></div>
+    <a class="nav-item" href="/logout"><span class="nav-icon">⏻</span><span class="label">Logout</span></a>
+  </aside>
+  {% endif %}
+  <main class="main">
+    {% block content %}{% endblock %}
+    <div class="footer">RadioTAK · CopIX · Authorized telemetry only</div>
+  </main>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

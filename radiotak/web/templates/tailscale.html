@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Tailscale — RadioTAK{% endblock %}
+{% block content %}
+<div class="header">
+  <div>
+    <div class="header-title">Tailscale</div>
+    <div class="header-subtitle">Remote access for update and configuration</div>
+  </div>
+</div>
+{% if message %}<div class="alert alert-ok"><pre style="white-space:pre-wrap;font:inherit">{{ message }}</pre></div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<div class="card" style="margin-bottom:24px;max-width:560px">
+  <div class="card-title">Status</div>
+  <div class="card-desc">
+    Installed: {{ status.installed }}<br/>
+    Backend: {{ status.backend or '—' }}<br/>
+    Hostname: {{ status.hostname or '—' }}<br/>
+    IPs: {{ (status.ips or []) | join(', ') or '—' }}
+  </div>
+</div>
+
+{% if not status.installed %}
+<form method="post" action="/tailscale/install" style="margin-bottom:24px">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+  <button class="btn btn-primary" type="submit">Install Tailscale</button>
+</form>
+{% endif %}
+
+<form method="post" action="/tailscale/up" style="max-width:520px">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+  <div class="form-field"><label>Auth key</label><input name="auth_key" type="password" required placeholder="tskey-auth-…"/ autocomplete="off"></div>
+  <div class="form-field"><label>Hostname</label><input name="hostname" value="{{ hostname or '' }}" placeholder="radiotak-01"/></div>
+  <div class="form-field"><label><input type="checkbox" name="ssh" value="1" checked/> Enable Tailscale SSH</label></div>
+  <button class="btn btn-primary" type="submit">Join tailnet</button>
+</form>
+
+<form method="post" action="/tailscale/down" style="margin-top:16px">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+  <button class="btn btn-danger" type="submit">Disconnect</button>
+</form>
+{% endblock %}

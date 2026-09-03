@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}TAK Servers — RadioTAK{% endblock %}
+{% block content %}
+<div class="header">
+  <div>
+    <div class="header-title">TAK Servers</div>
+    <div class="header-subtitle">Enroll certificates and select channels</div>
+  </div>
+</div>
+
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<div class="cards-grid">
+{% for s in servers %}
+  <div class="card">
+    <div class="card-title">{{ s.name }}</div>
+    <div class="card-desc">{{ s.host }}:{{ s.cot_port }}{% if not s.enabled %} · disabled{% endif %}</div>
+    <div class="status-pill {% if s.status=='connected' %}status-running{% elif 'error' in (s.status or '') %}status-stopped{% else %}status-idle{% endif %}">
+      <span class="dot"></span>{{ s.status or 'disconnected' }}
+    </div>
+    {% if s.certificate_not_after %}
+    <div class="card-desc" style="margin-top:8px">Cert expires {{ s.certificate_not_after }}</div>
+    {% endif %}
+    {% if s.active_groups %}
+    <div class="card-desc">Channels: {{ s.active_groups | join(', ') }}</div>
+    {% endif %}
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+      <a class="btn btn-sm" href="/tak/{{ s.id }}">Configure</a>
+      <form method="post" action="/tak/{{ s.id }}/test">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+        <button class="btn btn-sm" type="submit">Test</button>
+      </form>
+    </div>
+  </div>
+{% else %}
+  <div class="alert alert-info">No TAK servers configured yet.</div>
+{% endfor %}
+</div>
+
+<div class="section-title">Add TAK Server</div>
+<form method="post" action="/tak/add" style="max-width:520px">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+  <div class="form-field"><label>Name</label><input name="name" required placeholder="TN TAK"/></div>
+  <div class="form-field"><label>Host</label><input name="host" required placeholder="tak.example.net"/></div>
+  <div class="form-field"><label>CoT TLS port</label><input name="cot_port" type="number" value="8089"/></div>
+  <div class="form-field"><label>Enrollment port</label><input name="enrollment_port" type="number" value="8446"/></div>
+  <div class="form-field"><label>API port</label><input name="api_port" type="number" value="8443"/></div>
+  <div class="form-field"><label>Callsign</label><input name="callsign" value="RadioTAK"/></div>
+  <button class="btn btn-primary" type="submit">Add server</button>
+</form>
+{% endblock %}

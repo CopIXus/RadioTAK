@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+.env
+*.egg
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.cursor/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Runtime / local state (never in git)
+.data/
+.data-test/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+auth.json
+settings.json
+secrets/
+*.pem
+*.p12
+*.pfx
+*.key
+*.crt
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Local SDRTrunk download (runtime under data dir; not source tree)
+/sdrtrunk/
+*.zip
+
+# CI (add with a token that has workflow scope)
+.github/workflows/

@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Allow-listed privilege helper — only invoked via sudoers
+set -euo pipefail
+
+INSTALL_DIR="${RADIOTAK_INSTALL_DIR:-/opt/radiotak}"
+DATA_DIR="${RADIOTAK_DATA_DIR:-/var/lib/radiotak}"
+
+die() { echo "radiotak-priv: $*" >&2; exit 1; }
+
+cmd=${1:-}
+shift || true
+
+case "$cmd" in
+  systemctl)
+    action=${1:-}; unit=${2:-}
+    [[ "$action" =~ ^(start|stop|restart|status|enable|disable)$ ]] || die "bad systemctl action"
+    [[ "$unit" =~ ^(radiotak|sdrtrunk|xvfb-sdrtrunk)([.]service)?$ ]] || die "unit not allowed"
+    systemctl "$action" "${unit%.service}.service"
+    ;;
+  reboot)
+    /sbin/reboot
+    ;;
+  install-tailscale)
+    if command -v tailscale >/dev/null 2>&1; then
+      echo "tailscale already installed"
+      exit 0
+    fi
+    curl -fsSL https://tailscale.com/install.sh | sh
+    ;;
+  tailscale)
+    # remaining args passed to tailscale; reject shell metacharacters by using "$@"
+    exec /usr/bin/tailscale "$@"
+    ;;
+  module-install)
+    mid=${1:-}
+    [[ -n "$mid" ]] || die "module id required"
+    [[ "$mid" =~ ^[a-z0-9_]+$ ]] || die "invalid module id"
+    script="$INSTALL_DIR/modules/$mid/install.sh"
+    [[ -x "$script" || -f "$script" ]] || die "no install.sh for $mid"
+    bash "$script"
+    mkdir -p "$DATA_DIR/modules/$mid"
+    echo 1 > "$DATA_DIR/modules/$mid/installed"
+    chown -R radiotak:radiotak "$DATA_DIR/modules/$mid" 2>/dev/null || true
+    ;;
+  module-uninstall)
+    mid=${1:-}
+    [[ "$mid" =~ ^[a-z0-9_]+$ ]] || die "invalid module id"
+    script="$INSTALL_DIR/modules/$mid/uninstall.sh"
+    if [[ -f "$script" ]]; then bash "$script"; fi
+    rm -f "$DATA_DIR/modules/$mid/installed"
+    ;;
+  apt-install)
+    # space-separated package list — only allowlist letters/digits/+-./
+    pkgs=("$@")
+    for p in "${pkgs[@]}"; do
+      [[ "$p" =~ ^[a-zA-Z0-9.+_-]+$ ]] || die "invalid package $p"
+    done
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get install -y "${pkgs[@]}"
+    ;;
+  *)
+    die "unknown command: $cmd"
+    ;;
+esac

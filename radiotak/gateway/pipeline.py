@@ -1,0 +1,206 @@
+"""Ingest pipeline: validate → allowlist → dedupe → CoT → TAK queue."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import math
+import time
+from dataclasses import dataclass, field
+from typing import Any, Optional
+
+from sqlalchemy.orm import Session
+
+from radiotak.db import ForwardingStatus, LocationObservation, utcnow
+from radiotak.gateway import LocationEventIn, stable_cot_uid
+from radiotak.gateway.cot import build_cot_xml
+from radiotak.gateway.identities import is_forward_allowed, observe_or_create
+from radiotak.services.logging_setup import log_event
+from radiotak.services.settings_store import load_settings_file
+
+
+def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    r = 6371000.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlmb = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlmb / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+@dataclass
+class PipelineResult:
+    observation: Optional[LocationObservation]
+    forwarded: bool
+    reason: str
+    cot_xml: Optional[str] = None
+    cot_uid: Optional[str] = None
+
+
+@dataclass
+class DedupeState:
+    last_sent: dict[str, tuple[float, float, float]] = field(default_factory=dict)
+    # key -> (lat, lon, monotonic_ts)
+
+
+class LocationPipeline:
+    def __init__(self) -> None:
+        self.dedupe = DedupeState()
+        self._listeners: list = []
+
+    def add_listener(self, callback) -> None:  # noqa: ANN001
+        self._listeners.append(callback)
+
+    def _emit(self, event: dict[str, Any]) -> None:
+        for cb in list(self._listeners):
+            try:
+                cb(event)
+            except Exception:  # noqa: BLE001
+                pass
+
+    def process_dict(self, db: Session, raw: dict[str, Any]) -> PipelineResult:
+        try:
+            event = LocationEventIn.model_validate(raw)
+        except Exception as exc:  # noqa: BLE001
+            log_event("pipeline", "schema_reject", detail=str(exc))
+            self._emit({"type": "reject", "reason": f"schema: {exc}", "raw": raw})
+            return PipelineResult(None, False, f"schema: {exc}")
+
+        return self.process_event(db, event, raw)
+
+    def process_event(
+        self, db: Session, event: LocationEventIn, raw: Optional[dict] = None
+    ) -> PipelineResult:
+        settings = load_settings_file()
+        fwd = settings.get("forwarding", {})
+        identity = observe_or_create(
+            db,
+            radio_id=event.radio_id,
+            system_id=event.system_id,
+            alias=event.source_alias,
+            lat=event.latitude,
+            lon=event.longitude,
+        )
+        allowed, reason = is_forward_allowed(identity)
+        cot_uid = stable_cot_uid(event.system_id, event.radio_id)
+        payload_hash = hashlib.sha256(
+            json.dumps(raw or event.model_dump(mode="json"), sort_keys=True, default=str).encode()
+        ).hexdigest()
+
+        obs = LocationObservation(
+            source="decoder",
+            decoder=event.decoder,
+            protocol=event.protocol,
+            system_id=event.system_id,
+            system_name=event.system_name,
+            site_id=event.site_id,
+            frequency_hz=event.frequency_hz,
+            talkgroup_id=event.talkgroup,
+            radio_id=event.radio_id,
+            radio_alias=identity.callsign or event.source_alias,
+            latitude=event.latitude,
+            longitude=event.longitude,
+            altitude_m=event.altitude_m,
+            speed_mps=event.speed_mps,
+            heading_deg=event.heading_deg,
+            accuracy_m=event.accuracy_m,
+            emergency=event.emergency,
+            signal_quality=event.rssi_dbm,
+            observed_at=event.observed_at,
+            received_at=utcnow(),
+            raw_event_type=event.raw_event_type,
+            raw_payload_hash=payload_hash,
+            cot_uid=cot_uid,
+        )
+
+        if not allowed:
+            obs.forwarding_status = ForwardingStatus.BLOCKED.value
+            obs.forwarding_reason = reason
+            db.add(obs)
+            db.commit()
+            db.refresh(obs)
+            self._emit(
+                {
+                    "type": "blocked",
+                    "radio_id": event.radio_id,
+                    "reason": reason,
+                    "lat": event.latitude,
+                    "lon": event.longitude,
+                    "protocol": event.protocol,
+                    "callsign": identity.callsign,
+                }
+            )
+            return PipelineResult(obs, False, reason)
+
+        # Drop stale observations
+        age = (utcnow() - event.observed_at).total_seconds()
+        max_age = float(fwd.get("stale_seconds", 120)) * 2
+        if age > max_age and not event.emergency:
+            obs.forwarding_status = ForwardingStatus.DROPPED.value
+            obs.forwarding_reason = "TOO OLD"
+            db.add(obs)
+            db.commit()
+            return PipelineResult(obs, False, "TOO OLD")
+
+        key = cot_uid
+        now_m = time.monotonic()
+        min_interval = float(fwd.get("min_interval_seconds", 2))
+        min_move = float(fwd.get("min_movement_meters", 5))
+        heartbeat = float(fwd.get("stationary_heartbeat_seconds", 45))
+        last = self.dedupe.last_sent.get(key)
+        if last and fwd.get("duplicate_suppression", True) and not event.emergency:
+            plat, plon, pts = last
+            dt = now_m - pts
+            dist = _haversine_m(plat, plon, event.latitude, event.longitude)
+            if dt < min_interval:
+                obs.forwarding_status = ForwardingStatus.DROPPED.value
+                obs.forwarding_reason = "RATE LIMITED"
+                db.add(obs)
+                db.commit()
+                return PipelineResult(obs, False, "RATE LIMITED")
+            if dist < min_move and dt < heartbeat:
+                obs.forwarding_status = ForwardingStatus.DROPPED.value
+                obs.forwarding_reason = "DUPLICATE / STATIONARY"
+                db.add(obs)
+                db.commit()
+                return PipelineResult(obs, False, "DUPLICATE / STATIONARY")
+
+        cot_xml = build_cot_xml(
+            radio_id=event.radio_id,
+            latitude=event.latitude,
+            longitude=event.longitude,
+            observed_at=event.observed_at,
+            system_id=event.system_id,
+            callsign=identity.callsign or event.source_alias or event.radio_id,
+            cot_type=identity.cot_type or "a-f-G-U-C",
+            stale_seconds=identity.stale_seconds or int(fwd.get("stale_seconds", 120)),
+            altitude_m=event.altitude_m,
+            accuracy_m=event.accuracy_m,
+            default_ce_m=float(fwd.get("default_ce_meters", 20)),
+            remarks=identity.remarks,
+            uid=cot_uid,
+        )
+        obs.forwarding_status = ForwardingStatus.PENDING.value
+        obs.forwarding_reason = "QUEUED"
+        db.add(obs)
+        db.commit()
+        db.refresh(obs)
+
+        self.dedupe.last_sent[key] = (event.latitude, event.longitude, now_m)
+        self._emit(
+            {
+                "type": "queued",
+                "radio_id": event.radio_id,
+                "callsign": identity.callsign,
+                "lat": event.latitude,
+                "lon": event.longitude,
+                "protocol": event.protocol,
+                "cot_uid": cot_uid,
+                "observation_id": obs.id,
+            }
+        )
+        return PipelineResult(obs, True, "QUEUED", cot_xml=cot_xml, cot_uid=cot_uid)
+
+
+# Module singleton
+pipeline = LocationPipeline()

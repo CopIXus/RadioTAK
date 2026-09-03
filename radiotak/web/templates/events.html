@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Live Events — RadioTAK{% endblock %}
+{% block content %}
+<div class="header">
+  <div>
+    <div class="header-title">Live events</div>
+    <div class="header-subtitle">Decoder and forwarding stream</div>
+  </div>
+</div>
+<div class="event-stream" id="events">
+  {% for e in history %}
+  <div class="event-line">
+    <span class="dim">{{ e.type }}</span>
+    {{ e.protocol or '' }} {{ e.radio_id or '' }}
+    {% if e.lat %}{{ e.lat }}, {{ e.lon }}{% endif %}
+    {% if e.reason %}<span class="{% if e.type=='blocked' %}bad{% else %}ok{% endif %}">{{ e.reason }}</span>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const box = document.getElementById('events');
+const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+const ws = new WebSocket(proto + '://' + location.host + '/api/v1/ws/events');
+ws.onmessage = (msg) => {
+  const e = JSON.parse(msg.data);
+  const div = document.createElement('div');
+  div.className = 'event-line';
+  const cls = e.type === 'blocked' ? 'bad' : (e.type === 'queued' ? 'ok' : 'dim');
+  div.innerHTML = `<span class="dim">${e.type || ''}</span> ${e.protocol || ''} ${e.radio_id || ''} `
+    + (e.lat != null ? `${e.lat}, ${e.lon} ` : '')
+    + (e.reason ? `<span class="${cls}">${e.reason}</span>` : '');
+  box.prepend(div);
+};
+</script>
+{% endblock %}

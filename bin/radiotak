@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# RadioTAK operator CLI
+set -euo pipefail
+
+INSTALL_DIR="${RADIOTAK_INSTALL_DIR:-/opt/radiotak}"
+DATA_DIR="${RADIOTAK_DATA_DIR:-/var/lib/radiotak}"
+SERVICE="radiotak"
+
+usage() {
+  cat <<EOF
+Usage: radiotak <command>
+
+  start | stop | restart | status
+  logs [--follow]
+  update [branch]
+  reset-password
+  replay <file.jsonl>
+  diagnostics
+  help
+EOF
+}
+
+cmd=${1:-help}
+shift || true
+
+case "$cmd" in
+  start) systemctl start "$SERVICE" ;;
+  stop) systemctl stop "$SERVICE" ;;
+  restart) systemctl restart "$SERVICE" ;;
+  status) systemctl status "$SERVICE" --no-pager ;;
+  logs)
+    if [[ "${1:-}" == "--follow" || "${1:-}" == "-f" ]]; then
+      journalctl -u "$SERVICE" -f
+    else
+      journalctl -u "$SERVICE" -n 200 --no-pager
+    fi
+    ;;
+  update)
+    BRANCH="${1:-main}"
+    cd "$INSTALL_DIR"
+    git fetch https://github.com/CopIXus/RadioTAK.git "$BRANCH"
+    git checkout --force -B "$BRANCH" FETCH_HEAD
+    if [[ -x "$INSTALL_DIR/.venv/bin/pip" ]]; then
+      "$INSTALL_DIR/.venv/bin/pip" install -r requirements.txt -q
+      "$INSTALL_DIR/.venv/bin/pip" install -e "$INSTALL_DIR" -q
+    fi
+    systemctl restart "$SERVICE"
+    echo "Updated to $(cat VERSION 2>/dev/null || echo unknown) ($BRANCH)"
+    ;;
+  reset-password)
+    [[ $EUID -eq 0 ]] || { echo "Run as root"; exit 1; }
+    read -r -p "Username [admin]: " USER
+    USER=${USER:-admin}
+    read -r -s -p "New password: " PASS; echo
+    read -r -s -p "Confirm: " PASS2; echo
+    [[ "$PASS" == "$PASS2" ]] || { echo "Mismatch"; exit 1; }
+    HASH=$("$INSTALL_DIR/.venv/bin/python3" -c "from argon2 import PasswordHasher; import sys; print(PasswordHasher().hash(sys.argv[1]))" "$PASS")
+    cat > "$DATA_DIR/auth.json" <<EOF
+{"username":"$USER","password_hash":"$HASH","created_at":"$(date -u +%Y-%m-%dT%H:%M:%SZ)"}
+EOF
+    chmod 600 "$DATA_DIR/auth.json"
+    chown radiotak:radiotak "$DATA_DIR/auth.json" 2>/dev/null || true
+    systemctl restart "$SERVICE"
+    echo "Password updated"
+    ;;
+  replay)
+    FILE=${1:-}
+    [[ -n "$FILE" ]] || { echo "Usage: radiotak replay <file.jsonl>"; exit 1; }
+    export RADIOTAK_DATA_DIR="$DATA_DIR"
+    export RADIOTAK_INSTALL_DIR="$INSTALL_DIR"
+    "$INSTALL_DIR/.venv/bin/python" -m radiotak.cli_replay "$FILE"
+    ;;
+  diagnostics)
+    export RADIOTAK_DATA_DIR="$DATA_DIR"
+    export RADIOTAK_INSTALL_DIR="$INSTALL_DIR"
+    OUT="/tmp/radiotak-diagnostics-$(date +%Y%m%d%H%M%S).zip"
+    "$INSTALL_DIR/.venv/bin/python" -c "
+from radiotak.services.diagnostics import build_diagnostics_zip
+from pathlib import Path
+Path('$OUT').write_bytes(build_diagnostics_zip())
+print('$OUT')
+"
+    ;;
+  help|--help|-h) usage ;;
+  *) usage; exit 1 ;;
+esac

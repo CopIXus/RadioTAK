@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Map — RadioTAK{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+{% endblock %}
+{% block content %}
+<div class="header">
+  <div>
+    <div class="header-title">Map</div>
+    <div class="header-subtitle">Latest approved radio positions</div>
+  </div>
+</div>
+<div id="map"></div>
+{% endblock %}
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const map = L.map('map').setView([39.5, -98.35], 4);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 18, attribution: '&copy; OpenStreetMap'
+}).addTo(map);
+const points = {{ points_json | safe }};
+const markers = [];
+points.forEach(p => {
+  const m = L.marker([p.lat, p.lon]).addTo(map).bindPopup(
+    `<b>${p.callsign || p.radio_id}</b><br/>${p.radio_id}<br/>${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`
+    + (p.observed_at ? `<br/>${p.observed_at}` : '')
+  );
+  markers.push(m);
+});
+if (markers.length) map.fitBounds(L.featureGroup(markers).getBounds().pad(0.2));
+</script>
+{% endblock %}
