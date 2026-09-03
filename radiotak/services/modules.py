@@ -37,6 +37,9 @@ def list_modules() -> dict[str, dict[str, Any]]:
         data["id"] = mid
         data["path"] = str(path)
         data["installed"] = (state_dir() / mid / "installed").exists()
+        err_path = state_dir() / mid / "last-error.txt"
+        if not data["installed"] and err_path.exists():
+            data["last_error"] = err_path.read_text(encoding="utf-8", errors="replace")[-4000:]
         result[mid] = data
     return result
 
@@ -87,9 +90,15 @@ def install_module(module_id: str) -> tuple[int, str]:
     if code == 0 or get_platform().__class__.__name__ == "DevPlatform":
         # DevPlatform always succeeds — mark installed for UI testing
         mark_installed(module_id)
+        err_path = state_dir() / module_id / "last-error.txt"
+        if err_path.exists():
+            err_path.unlink()
         append_install_log(module_id, "Installed.")
         return 0, out
     append_install_log(module_id, f"Failed (exit {code})")
+    err_dir = state_dir() / module_id
+    err_dir.mkdir(parents=True, exist_ok=True)
+    (err_dir / "last-error.txt").write_text(out or f"exit {code}", encoding="utf-8")
     return code, out
 
 

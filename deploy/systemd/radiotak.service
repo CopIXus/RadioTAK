@@ -13,7 +13,6 @@ Environment=RADIOTAK_INSTALL_DIR=/opt/radiotak
 ExecStart=/opt/radiotak/.venv/bin/python -m radiotak.main
 Restart=always
 RestartSec=3
-WatchdogSec=120
 
 [Install]
 WantedBy=multi-user.target

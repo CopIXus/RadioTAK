@@ -7,14 +7,60 @@ DATA_DIR="${RADIOTAK_DATA_DIR:-/var/lib/radiotak}"
 SDR_DIR="$DATA_DIR/sdrtrunk"
 ARCH=$(uname -m)
 
+die() { echo "sdr-install: $*" >&2; exit 1; }
+
+pkg_available() {
+  local cand
+  cand=$(apt-cache policy "$1" 2>/dev/null | awk '/Candidate:/ {print $2; exit}')
+  [[ -n "$cand" && "$cand" != "(none)" ]]
+}
+
+pick_pkg() {
+  local p
+  for p in "$@"; do
+    if pkg_available "$p"; then
+      printf '%s\n' "$p"
+      return 0
+    fi
+  done
+  return 1
+}
+
 export DEBIAN_FRONTEND=noninteractive
-apt-get install -y -qq xvfb x11vnc openjdk-17-jre-headless wget unzip \
-  libgtk-3-0 libasound2t64 2>/dev/null || apt-get install -y -qq xvfb x11vnc openjdk-17-jre-headless wget unzip libgtk-3-0
+
+# Debian 13 (trixie) dropped OpenJDK 17 and renamed GTK/ALSA with the t64 ABI.
+JDK=$(pick_pkg openjdk-21-jre-headless openjdk-17-jre-headless default-jre-headless) \
+  || die "No Java JRE package found (tried openjdk-21/17 and default-jre-headless)"
+GTK=$(pick_pkg libgtk-3-0t64 libgtk-3-0) || die "No GTK3 package found"
+ALSA=$(pick_pkg libasound2t64 libasound2) || true
+
+echo "Installing packages: xvfb x11vnc wget unzip $JDK $GTK ${ALSA:-}"
+apt-get install -y -qq xvfb x11vnc wget unzip "$JDK" "$GTK" ${ALSA:+"$ALSA"} \
+  || die "apt-get install failed"
 
 mkdir -p "$SDR_DIR"
 cp "$INSTALL_DIR/deploy/udev/99-radiotak-sdr.rules" /etc/udev/rules.d/ 2>/dev/null || true
+
+# Kernel DVB driver claims RTL-SDR dongles (e.g. Nooelec NESDR) as TV tuners.
+# Blacklist first, then unload, then re-trigger udev so userspace can open the stick.
+cat > /etc/modprobe.d/radiotak-rtl-blacklist.conf <<'EOF'
+blacklist dvb_usb_rtl28xxu
+blacklist rtl2832_sdr
+blacklist rtl2832
+blacklist dvb_usb_v2
+EOF
+for m in dvb_usb_rtl28xxu rtl2832_sdr rtl2832 dvb_usb_v2 dvb_core; do
+  rmmod "$m" 2>/dev/null || true
+done
+# Unbind if rmmod was blocked by an open handle.
+if [[ -d /sys/bus/usb/drivers/dvb_usb_rtl28xxu ]]; then
+  for unbind in /sys/bus/usb/drivers/dvb_usb_rtl28xxu/*/unbind; do
+    [[ -f "$unbind" ]] || continue
+    basename "$(dirname "$unbind")" >"$unbind" 2>/dev/null || true
+  done
+fi
 udevadm control --reload-rules 2>/dev/null || true
-echo "blacklist dvb_usb_rtl28xxu" > /etc/modprobe.d/radiotak-rtl-blacklist.conf
+udevadm trigger --subsystem-match=usb 2>/dev/null || true
 
 # Prefer CopIXus patched release; fall back to upstream DSheirer release
 TAG="v0.6.1"
@@ -31,7 +77,7 @@ if [[ ! -d "$DEST" ]]; then
   TMP=/tmp/sdrtrunk.zip
   if ! wget -q -O "$TMP" "$URL_FORK"; then
     echo "Fork release not found — using upstream"
-    wget -q -O "$TMP" "$URL_UP"
+    wget -O "$TMP" "$URL_UP" || die "Failed to download SDRTrunk from $URL_UP"
   fi
   unzip -q -o "$TMP" -d "$SDR_DIR"
   # Normalize extracted folder name
@@ -40,7 +86,10 @@ if [[ ! -d "$DEST" ]]; then
     mv "$EXTRACTED" "$DEST"
   fi
   rm -f "$TMP"
+  [[ -x "$DEST/bin/sdr-trunk" || -f "$DEST/bin/sdr-trunk" ]] || die "SDRTrunk binary missing after extract"
 fi
+
+chown -R radiotak:radiotak "$SDR_DIR" "$DATA_DIR/modules" 2>/dev/null || true
 
 # systemd units
 cat > /etc/systemd/system/sdrtrunk.service <<EOF

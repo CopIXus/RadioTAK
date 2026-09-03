@@ -167,7 +167,6 @@ Environment=RADIOTAK_BIND_HTTPS=true
 ExecStart=$INSTALL_DIR/.venv/bin/python -m radiotak.main
 Restart=always
 RestartSec=3
-WatchdogSec=120
 LimitNOFILE=65535
 
 [Install]

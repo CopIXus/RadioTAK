@@ -120,8 +120,9 @@ class LinuxPlatform(Platform):
     def run_priv(self, *args: str) -> tuple[int, str]:
         helper = shutil.which("radiotak-priv") or "/opt/radiotak/bin/radiotak-priv"
         cmd = ["sudo", "-n", helper, *args]
+        timeout = 900 if args and args[0] == "module-install" else 300
         try:
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300, check=False)
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
             out = (proc.stdout or "") + (proc.stderr or "")
             return proc.returncode, out.strip()
         except Exception as exc:  # noqa: BLE001

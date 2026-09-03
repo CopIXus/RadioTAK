@@ -23,6 +23,9 @@
       </form>
     {% else %}
       <div class="status-pill status-idle"><span class="dot"></span>Not installed</div>
+      {% if mod.last_error %}
+      <div class="alert alert-error" style="margin-top:10px;white-space:pre-wrap;font-size:12px">{{ mod.last_error }}</div>
+      {% endif %}
       <form method="post" action="/marketplace/{{ mid }}/install" style="margin-top:10px">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
         <button class="btn btn-sm btn-primary" type="submit">Install</button>
