@@ -35,9 +35,12 @@ class Alert:
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         if self.created_at is not None:
-            d["created_at_iso"] = datetime.fromtimestamp(self.created_at, tz=UTC).isoformat()
+            dt = datetime.fromtimestamp(self.created_at, tz=UTC)
+            d["created_at_iso"] = dt.isoformat()
+            d["created_at_display"] = dt.strftime("%Y-%m-%d %H:%M:%S UTC")
         else:
             d["created_at_iso"] = None
+            d["created_at_display"] = None
         return d
 
 
@@ -72,7 +75,10 @@ class AlertStore:
         return True
 
     def note_seen(self, alert: Alert) -> None:
-        if alert.id not in self._seen:
+        first = self._seen.get(alert.id)
+        if first is None:
+            first = alert.created_at or time.time()
+            self._seen[alert.id] = first
             status_bus.publish(
                 {
                     "type": "alert",
@@ -81,10 +87,10 @@ class AlertStore:
                     "title": alert.title,
                     "detail": alert.detail,
                     "href": alert.href,
-                    "ts": time.time(),
+                    "ts": first,
                 }
             )
-        self._seen[alert.id] = time.time()
+        alert.created_at = first
 
     def prune_seen(self, active_ids: set[str]) -> None:
         for key in list(self._seen):
@@ -324,7 +330,7 @@ def collect_alerts(
             if status == "connected":
                 any_connected = True
             err = s.get("last_error")
-            if err:
+            if err and status != "connected":
                 alerts.append(
                     Alert(
                         id=f"tak.error.{sid or name}",

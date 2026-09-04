@@ -72,3 +72,54 @@ def test_decoder_stopped_when_system_configured():
     assert "decoder.stopped" in ids
     assert "tak.disconnected" in ids
     assert "units.none_approved" in ids
+
+
+def test_tak_connected_does_not_alert():
+    alerts = collect_alerts(
+        metrics={"cpu_percent": 10, "ram_percent": 40, "disk_percent": 50},
+        gauges={"last_event_age_s": 2},
+        sdr_installed=True,
+        decoder_running=True,
+        has_radio_system=True,
+        tak_servers=[
+            {
+                "id": "1",
+                "name": "TN TAK",
+                "enabled": True,
+                "status": "connected",
+                "last_error": "Marti activebits 400 while connecting",
+            }
+        ],
+        stats={"observed": 1, "approved": 1},
+    )
+    ids = {a["id"] for a in alerts}
+    assert "tak.disconnected" not in ids
+    assert not any(a["id"].startswith("tak.error.") for a in alerts)
+
+
+def test_alert_timestamp_persists_while_condition_active():
+    from radiotak.services import alerts as alerts_mod
+
+    prev = alerts_mod.alert_store
+    alerts_mod.alert_store = AlertStore()
+    try:
+        kwargs = dict(
+            metrics={"cpu_percent": 10, "ram_percent": 40, "disk_percent": 50},
+            gauges={},
+            sdr_installed=False,
+            decoder_running=False,
+            has_radio_system=False,
+            tak_servers=[],
+            stats={},
+        )
+        first = collect_alerts(**kwargs)
+        row = next(a for a in first if a["id"] == "tak.not_configured")
+        assert row["created_at"] is not None
+        assert row["created_at_iso"]
+        assert row["created_at_display"]
+        ts = row["created_at"]
+        second = collect_alerts(**kwargs)
+        again = next(a for a in second if a["id"] == "tak.not_configured")
+        assert again["created_at"] == ts
+    finally:
+        alerts_mod.alert_store = prev

@@ -90,10 +90,14 @@ def observe_call(
 
 def hear_status(identity: RadioIdentity) -> dict:
     """Operator-facing GPS vs encrypted-vs-silent decoder state."""
+    from radiotak.services.traffic_keys import encrypted_badge
+
     has_gps = identity.last_latitude is not None and identity.last_longitude is not None
     encrypted = bool(getattr(identity, "last_encrypted", False))
     key_loaded = bool(getattr(identity, "last_key_loaded", False))
     tg = getattr(identity, "last_talkgroup_id", None)
+    alg = getattr(identity, "last_encryption_algorithm", None)
+    kid = getattr(identity, "last_encryption_key_id", None)
     gps = f"{identity.last_latitude:.5f}, {identity.last_longitude:.5f}" if has_gps else None
     if encrypted and not has_gps:
         label = f"Encrypted TG {tg} — no GPS" if tg else "Encrypted — no GPS"
@@ -118,8 +122,11 @@ def hear_status(identity: RadioIdentity) -> dict:
         "last_talkgroup_id": tg,
         "last_encrypted": encrypted,
         "last_key_loaded": key_loaded,
-        "last_encryption_algorithm": getattr(identity, "last_encryption_algorithm", None),
-        "last_encryption_key_id": getattr(identity, "last_encryption_key_id", None),
+        "last_encryption_algorithm": alg,
+        "last_encryption_key_id": kid,
+        "encryption_badge": (
+            encrypted_badge(algid=alg, key_id=kid, key_loaded=key_loaded) if encrypted else None
+        ),
         "has_gps": has_gps,
     }
 

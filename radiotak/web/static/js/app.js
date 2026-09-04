@@ -208,6 +208,27 @@
     });
   }
 
+  window.RadioTakFormatAlertTime = function (iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  };
+
+  window.RadioTakLocalizeAlertTimes = function (root) {
+    qsa('time[data-alert-ts]', root || document).forEach(function (el) {
+      var formatted = window.RadioTakFormatAlertTime(el.getAttribute('datetime'));
+      if (formatted) el.textContent = formatted;
+    });
+  };
+
   window.RadioTakSetAlertBadge = function (count) {
     var n = Number(count) || 0;
     ['#nav-alert-badge', '#bottom-alert-badge'].forEach(function (sel) {
@@ -291,6 +312,7 @@
     wireBusy();
     wireSidebar();
     wireTabs();
+    window.RadioTakLocalizeAlertTimes();
     pollVersion();
     pollAlertsBadge();
     setInterval(pollVersion, 120000);

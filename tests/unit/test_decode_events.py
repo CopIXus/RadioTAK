@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from datetime import UTC
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -58,6 +58,13 @@ def test_encrypted_call_creates_unit_without_gps(db_env):
     assert result.observation is None
     assert "ENCRYPTED" in result.reason
     assert "no matching key" in result.reason
+    assert "AES-256 0x84" in result.reason
+    assert "KID 1" in result.reason
+    assert seen[0]["encryption_badge"] == "Encrypted · AES-256 0x84 · KID 1"
+    assert seen[0]["algorithm_name"] == "AES-256"
+    assert seen[0]["ts"] == pytest.approx(
+        datetime(2026, 9, 4, 15, 0, tzinfo=UTC).timestamp()
+    )
     identity = db_env.scalar(select(RadioIdentity).where(RadioIdentity.radio_id == "5550001"))
     assert identity.radio_id == "5550001"
     assert identity.last_encrypted is True
@@ -134,3 +141,47 @@ def test_encrypted_then_gps_keeps_encrypted_badge(db_env):
     assert identity.last_encrypted is True
     assert status["has_gps"] is True
     assert status["hear_kind"] == "encrypted-gps"
+
+
+def test_adp_from_details_when_json_ids_missing(db_env):
+    from radiotak.gateway.pipeline import LocationPipeline
+
+    pipe = LocationPipeline()
+    seen = []
+    pipe.add_listener(seen.append)
+    result = pipe.process_dict(
+        db_env,
+        {
+            "schema": "sdr2tak.decode.v1",
+            "radio_id": "4061799",
+            "talkgroup": "30008",
+            "protocol": "P25",
+            "encrypted": True,
+            "details": "CALL_ENCRYPTED ALG: 0xAA KEY ID: 12",
+            "observed_at": "2026-09-04T15:01:00Z",
+        },
+    )
+    assert "ADP 0xAA" in result.reason
+    assert "KID 12" in result.reason
+    assert "no matching key" in result.reason
+    assert seen[0]["algorithm_id"] == "AA"
+    assert seen[0]["key_id"] == "12"
+    assert "ADP 0xAA" in seen[0]["encryption_badge"]
+
+
+def test_encrypted_without_cipher_ids(db_env):
+    from radiotak.gateway.pipeline import LocationPipeline
+
+    pipe = LocationPipeline()
+    result = pipe.process_dict(
+        db_env,
+        {
+            "schema": "sdr2tak.decode.v1",
+            "radio_id": "4062000",
+            "talkgroup": "30151",
+            "encrypted": True,
+            "observed_at": "2026-09-04T15:02:00Z",
+        },
+    )
+    assert "cipher ID not in this event" in result.reason
+    assert "no matching key" not in result.reason

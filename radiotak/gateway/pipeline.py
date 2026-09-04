@@ -61,11 +61,22 @@ class LocationPipeline:
         self._listeners.append(callback)
 
     def _emit(self, event: dict[str, Any]) -> None:
+        if event.get("ts") is None:
+            event["ts"] = time.time()
         for cb in list(self._listeners):
             try:
                 cb(event)
             except Exception:  # noqa: BLE001
                 pass
+
+    @staticmethod
+    def _unix_ts(value: Any = None) -> float:
+        ts = getattr(value, "timestamp", None)
+        if callable(ts):
+            return float(ts())
+        if isinstance(value, (int, float)):
+            return float(value)
+        return time.time()
 
     def process_dict(self, db: Session, raw: dict[str, Any]) -> PipelineResult:
         schema = str(raw.get("schema") or "")
@@ -88,15 +99,25 @@ class LocationPipeline:
         return self.process_event(db, event, raw)
 
     def process_decode(self, db: Session, event: DecodeEventIn) -> PipelineResult:
-        key_loaded = bool(event.key_loaded)
-        if not key_loaded and (event.algorithm_id or event.algorithm_id_hex) and event.key_id:
-            try:
-                from radiotak.services.traffic_keys import matching_key
+        from radiotak.services.traffic_keys import (
+            describe_cipher,
+            encrypted_badge,
+            encrypted_reason,
+            matching_key,
+            resolve_encryption_ids,
+        )
 
-                key_loaded = (
-                    matching_key(db, event.algorithm_id or event.algorithm_id_hex, event.key_id)
-                    is not None
-                )
+        algid, kid = resolve_encryption_ids(
+            algorithm_id=event.algorithm_id,
+            algorithm_id_hex=event.algorithm_id_hex,
+            key_id=event.key_id,
+            details=event.details,
+        )
+        cipher = describe_cipher(algid)
+        key_loaded = bool(event.key_loaded)
+        if not key_loaded and algid is not None and kid is not None:
+            try:
+                key_loaded = matching_key(db, algid, kid) is not None
             except Exception:  # noqa: BLE001
                 key_loaded = bool(event.key_loaded)
 
@@ -107,33 +128,40 @@ class LocationPipeline:
             alias=event.source_alias,
             talkgroup=event.talkgroup,
             encrypted=event.encrypted,
-            algorithm_id=event.algorithm_id_hex or event.algorithm_id,
-            key_id=event.key_id,
+            algorithm_id=cipher["algid_hex"],
+            key_id=str(kid) if kid is not None else None,
             key_loaded=key_loaded,
         )
         tg = event.talkgroup or identity.last_talkgroup_id
         if event.encrypted:
-            reason = f"ENCRYPTED TG {tg}" if tg else "ENCRYPTED CALL"
-            if key_loaded:
-                reason += " · key on file"
-            else:
-                reason += " · no matching key"
+            reason = encrypted_reason(
+                talkgroup=tg, algid=algid, key_id=kid, key_loaded=key_loaded
+            )
             event_type = "encrypted"
         else:
             reason = f"HEARD TG {tg} · no GPS" if tg else "HEARD · no GPS"
             event_type = "heard"
         payload = {
+            **hear_status(identity),
             "type": event_type,
             "radio_id": event.radio_id,
             "callsign": identity.callsign,
             "talkgroup": tg,
             "protocol": event.protocol,
+            "system_name": event.system_name,
             "encrypted": event.encrypted,
             "key_loaded": key_loaded,
-            "algorithm_id": event.algorithm_id_hex or event.algorithm_id,
-            "key_id": event.key_id,
+            "algorithm_id": cipher["algid_hex"],
+            "algorithm_name": cipher["name"],
+            "cipher_label": cipher["label"],
+            "key_id": str(kid) if kid is not None else None,
+            "encryption_badge": (
+                encrypted_badge(algid=algid, key_id=kid, key_loaded=key_loaded)
+                if event.encrypted
+                else None
+            ),
             "reason": reason,
-            **hear_status(identity),
+            "ts": self._unix_ts(event.observed_at),
         }
         self._emit(payload)
         return PipelineResult(None, False, reason, heard=True)
@@ -198,6 +226,7 @@ class LocationPipeline:
                     "lon": event.longitude,
                     "protocol": event.protocol,
                     "callsign": identity.callsign,
+                    "ts": self._unix_ts(event.observed_at),
                 }
             )
             return PipelineResult(obs, False, reason)
@@ -310,6 +339,7 @@ class LocationPipeline:
                 "cot_uid": cot_uid,
                 "observation_id": obs.id,
                 "servers_queued": queued or len(servers),
+                "ts": self._unix_ts(event.observed_at),
             }
         )
         return PipelineResult(obs, True, "QUEUED", cot_xml=first_xml, cot_uid=cot_uid)

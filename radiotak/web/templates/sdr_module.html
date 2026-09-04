@@ -244,8 +244,28 @@
   </div>
 </div>
 
-<div class="section-title">Traffic keys</div>
-<p class="card-desc" style="margin-bottom:12px">If the agency gives you a keyfill, store the traffic encryption keys here. RadioTAK matches heard ALGID / Key ID on encrypted calls so Live Events can show <strong>encrypted, key on file</strong> vs <strong>encrypted, no matching key</strong>. SDRTrunk still cannot decrypt audio or GPS from those keys — only the system owner’s radios can. Load only keys you are authorized to hold.</p>
+<div class="section-title" id="traffic-keys">Traffic keys</div>
+<p class="card-desc" style="margin-bottom:12px">If the agency gives you a keyfill, store the traffic encryption keys here. RadioTAK matches heard ALGID / Key ID on encrypted calls so Live Events can show <strong>encrypted, key on file</strong> vs <strong>encrypted, no matching key</strong>. The ALGID and Key ID on those events are the labels you give the radio shop / KMF — they name the key slot; they are not the key. SDRTrunk still cannot decrypt audio or GPS from those keys — only the system owner’s radios can. Load only keys you are authorized to hold.</p>
+{% if heard_keysets | default([]) %}
+<p class="card-desc" style="margin-bottom:8px"><strong>Heard keysets</strong> — distinct cipher / key-slot / talkgroup combinations from encrypted calls. Prefill the form, then paste the authorized hex from keyfill.</p>
+<table class="table" style="margin-bottom:20px">
+  <thead>
+    <tr><th>Cipher</th><th>ALGID</th><th>Key ID</th><th>Talkgroup</th><th>Status</th><th></th></tr>
+  </thead>
+  <tbody>
+  {% for h in heard_keysets %}
+    <tr>
+      <td>{{ h.name }}</td>
+      <td>0x{{ h.algid_hex }}</td>
+      <td>{{ h.key_id }}</td>
+      <td>{% if h.talkgroup %}TG {{ h.talkgroup }}{% else %}—{% endif %}</td>
+      <td>{% if h.key_loaded %}<span class="dim">key on file</span>{% else %}no matching key{% endif %}</td>
+      <td>{% if not h.key_loaded %}<a class="btn btn-sm" href="{{ h.fill_href }}">Fill form</a>{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
 {% if traffic_keys %}
 <table class="table" style="margin-bottom:20px">
   <thead>
@@ -276,11 +296,11 @@
 <div class="form-panel" style="max-width:560px">
   <form method="post" action="/modules/sdr/keys" data-busy="Storing key…">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
-    {{ field('label', 'Label', placeholder='County AES TEK 1', help_key='sdr.traffic_key') }}
+    {{ field('label', 'Label', value=form_label | default(''), placeholder='County AES TEK 1', help_key='sdr.traffic_key') }}
     {{ select('protocol', 'Protocol', [('P25', 'P25'), ('DMR', 'DMR')], value='P25') }}
-    {{ select('algorithm', 'Algorithm', key_algorithms, value='AES-256', help_key='sdr.traffic_alg') }}
-    {{ field('algorithm_id', 'ALGID (Other only)', placeholder='0x84', help_key='sdr.traffic_algid') }}
-    {{ field('key_id', 'Key ID (KID)', required=True, placeholder='1', help_key='sdr.traffic_kid') }}
+    {{ select('algorithm', 'Algorithm', key_algorithms, value=form_alg | default('AES-256'), help_key='sdr.traffic_alg') }}
+    {{ field('algorithm_id', 'ALGID (Other only)', value=form_algid | default(''), placeholder='0x84', help_key='sdr.traffic_algid') }}
+    {{ field('key_id', 'Key ID (KID)', value=form_kid | default(''), required=True, placeholder='1', help_key='sdr.traffic_kid') }}
     {{ field('key_hex', 'Key (hex)', type='password', required=True, placeholder='64 hex digits for AES-256', help_key='sdr.traffic_hex', autocomplete='off') }}
     <button class="btn btn-primary" type="submit">Store key</button>
   </form>

@@ -43,6 +43,9 @@
       <span class="ops-alert-source">{{ a.source }}</span>
       <strong class="ops-alert-title">{{ a.title }}</strong>
       {% if a.acked %}<span class="badge">Dismissed</span>{% endif %}
+      {% if a.created_at_iso %}
+      <time class="ops-alert-time" datetime="{{ a.created_at_iso }}" data-alert-ts>{{ a.created_at_display or a.created_at_iso }}</time>
+      {% endif %}
       <p class="ops-alert-detail">{{ a.detail }}</p>
       {% if a.action %}<p class="ops-alert-action">{{ a.action }}</p>{% endif %}
     </div>

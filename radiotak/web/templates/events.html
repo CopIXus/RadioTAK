@@ -14,15 +14,18 @@
 
 <div class="event-stream" id="events" aria-live="polite">
   {% for e in history %}
-  <div class="event-line{% if e.encrypted or e.type=='encrypted' %} encrypted{% endif %}">
+  <div class="event-line{% if e.encrypted or e.type=='encrypted' %} encrypted{% endif %}"{% if e.ts %} data-ts="{{ e.ts }}"{% endif %}>
+    <time class="event-ts" data-event-ts></time>
+    <span class="event-body">
     <span class="dim">{{ e.type }}</span>
     {{ e.protocol or '' }} {{ e.radio_id or '' }}
     {% if e.talkgroup %}TG {{ e.talkgroup }}{% endif %}
     {% if e.encrypted or e.type=='encrypted' %}
-    <span class="badge badge-encrypted">Encrypted{% if e.key_loaded %} · key on file{% endif %}</span>
+    <span class="badge badge-encrypted">{{ e.encryption_badge or 'Encrypted' }}</span>
     {% endif %}
     {% if e.lat %}{{ e.lat }}, {{ e.lon }}{% endif %}
     {% if e.reason %}<span class="{% if e.type=='blocked' %}bad{% elif e.type=='encrypted' %}warn{% elif e.type=='queued' %}ok{% else %}dim{% endif %}">{{ e.reason }}</span>{% endif %}
+    </span>
   </div>
   {% else %}
   <div class="empty-state">No events yet. <a href="/modules/sdr">Add a radio system on the SDR page</a> and start the decoder. Encrypted talkgroups show up here even when the radio is not sending GPS.</div>
@@ -41,33 +44,94 @@
   var ws = null;
   var proto = location.protocol === 'https:' ? 'wss' : 'ws';
 
+  function pad2(n) {
+    return n < 10 ? '0' + n : String(n);
+  }
+
+  function parseTs(raw) {
+    if (raw == null || raw === '') return null;
+    var n = Number(raw);
+    if (!isNaN(n) && n > 0) return n < 1e12 ? n * 1000 : n;
+    var d = new Date(raw);
+    return isNaN(d.getTime()) ? null : d.getTime();
+  }
+
+  function relativeAgo(msAgo) {
+    var sec = Math.max(0, Math.round(msAgo / 1000));
+    if (sec < 45) return 'just now';
+    var mins = Math.round(sec / 60);
+    if (mins < 60) return mins === 1 ? '1min ago' : mins + 'mins ago';
+    var hours = Math.round(sec / 3600);
+    if (hours < 24) return hours === 1 ? '1h ago' : hours + 'h ago';
+    var days = Math.round(sec / 86400);
+    return days === 1 ? '1d ago' : days + 'd ago';
+  }
+
+  function formatStamp(ms) {
+    var d = new Date(ms);
+    var clock = d.getFullYear() + '-' + pad2(d.getMonth() + 1) + pad2(d.getDate())
+      + ' ' + pad2(d.getHours()) + pad2(d.getMinutes());
+    return clock + ' (' + relativeAgo(Date.now() - ms) + ')';
+  }
+
+  function fillStamp(line) {
+    var el = line.querySelector('[data-event-ts]');
+    if (!el) return;
+    var ms = parseTs(line.getAttribute('data-ts'));
+    if (ms == null) {
+      el.textContent = '';
+      el.removeAttribute('datetime');
+      el.removeAttribute('title');
+      return;
+    }
+    el.dateTime = new Date(ms).toISOString();
+    el.title = new Date(ms).toLocaleString();
+    el.textContent = formatStamp(ms);
+  }
+
+  function refreshStamps() {
+    if (!box) return;
+    box.querySelectorAll('.event-line[data-ts]').forEach(fillStamp);
+  }
+
   function appendEvent(e) {
+    var empty = box.querySelector('.empty-state');
+    if (empty) empty.remove();
     var div = document.createElement('div');
     var encrypted = !!(e.encrypted || e.type === 'encrypted');
     div.className = 'event-line' + (encrypted ? ' encrypted' : '');
+    if (e.ts != null) div.setAttribute('data-ts', String(e.ts));
+    var tsEl = document.createElement('time');
+    tsEl.className = 'event-ts';
+    tsEl.setAttribute('data-event-ts', '');
+    div.appendChild(tsEl);
+    var body = document.createElement('span');
+    body.className = 'event-body';
     var typeSpan = document.createElement('span');
     typeSpan.className = 'dim';
     typeSpan.textContent = e.type || '';
-    div.appendChild(typeSpan);
+    body.appendChild(typeSpan);
     var bits = [' ', e.protocol || '', ' ', e.radio_id || '', ' '];
     if (e.talkgroup) bits.push('TG ', String(e.talkgroup), ' ');
-    div.appendChild(document.createTextNode(bits.join('')));
+    body.appendChild(document.createTextNode(bits.join('')));
     if (encrypted) {
       var enc = document.createElement('span');
       enc.className = 'badge badge-encrypted';
-      enc.textContent = e.key_loaded ? 'Encrypted · key on file' : 'Encrypted';
-      div.appendChild(enc);
-      div.appendChild(document.createTextNode(' '));
+      enc.textContent = e.encryption_badge || (e.key_loaded ? 'Encrypted · key on file' : 'Encrypted');
+      body.appendChild(enc);
+      body.appendChild(document.createTextNode(' '));
     }
     if (e.lat != null) {
-      div.appendChild(document.createTextNode(String(e.lat) + ', ' + String(e.lon) + ' '));
+      body.appendChild(document.createTextNode(String(e.lat) + ', ' + String(e.lon) + ' '));
     }
     if (e.reason) {
       var reason = document.createElement('span');
       reason.className = e.type === 'blocked' ? 'bad' : (e.type === 'encrypted' ? 'warn' : (e.type === 'queued' ? 'ok' : 'dim'));
       reason.textContent = e.reason;
-      div.appendChild(reason);
+      body.appendChild(reason);
     }
+    div.appendChild(body);
+    fillStamp(div);
     box.prepend(div);
     while (box.children.length > 200) box.lastChild.remove();
   }
@@ -96,6 +160,8 @@
     };
   }
 
+  refreshStamps();
+  setInterval(refreshStamps, 15000);
   if (reconnectBtn) reconnectBtn.addEventListener('click', connect);
   connect();
 })();

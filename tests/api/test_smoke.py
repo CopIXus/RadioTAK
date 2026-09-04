@@ -303,6 +303,17 @@ def test_store_traffic_key_hides_hex(client):
     assert b"A1A1A1" not in listed.content
 
 
+def test_sdr_traffic_key_form_prefills_from_query(client):
+    _login(client)
+    page = client.get("/modules/sdr?alg=ADP&kid=12")
+    assert page.status_code == 200
+    assert b'id="traffic-keys"' in page.content
+    assert b'value="12"' in page.content
+    assert b"ADP KID 12" in page.content
+    assert b'selected' in page.content
+    assert b"Motorola ADP" in page.content
+
+
 def test_tak_enroll_page_has_password_reveal(client):
     import re
 

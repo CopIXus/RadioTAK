@@ -9,7 +9,8 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy import select
 
-from radiotak.db import RadioSystem, SdrDevice, get_session_factory
+from radiotak.db import RadioIdentity, RadioSystem, SdrDevice, get_session_factory
+from radiotak.gateway.events import event_bus
 from radiotak.platform import get_platform
 from radiotak.services import modules as modules_svc
 from radiotak.services import traffic_keys as keys_svc
@@ -95,8 +96,23 @@ def _page(request: Request, **extra):
         saved = list(db.scalars(select(SdrDevice).order_by(SdrDevice.name)))
         systems = list(db.scalars(select(RadioSystem).order_by(RadioSystem.name)))
         keys = keys_svc.list_keys(db)
+        identities = list(db.scalars(select(RadioIdentity)))
+        heard_keysets = keys_svc.collect_heard_keysets(
+            identities=identities, events=list(event_bus.history)
+        )
+        for item in heard_keysets:
+            if keys_svc.matching_key(db, item["algid"], item["key_id"]):
+                item["key_loaded"] = True
     finally:
         db.close()
+    form_alg = (request.query_params.get("alg") or "AES-256").strip().upper()
+    if form_alg not in {k for k, _ in keys_svc.algorithm_choices()}:
+        form_alg = "AES-256"
+    form_kid = (request.query_params.get("kid") or "").strip()
+    form_algid = (request.query_params.get("algid") or "").strip()
+    form_label = ""
+    if form_kid and request.query_params.get("alg"):
+        form_label = f"{form_alg} KID {form_kid}"
     tuner_count = _tuner_count(devices)
     flags = [is_listening(s) for s in systems]
     states = assign_listen_states(flags, tuner_count)
@@ -149,6 +165,11 @@ def _page(request: Request, **extra):
             cc_markers_hz=cc_markers,
             traffic_keys=keys,
             key_algorithms=keys_svc.algorithm_choices(),
+            heard_keysets=heard_keysets,
+            form_alg=form_alg,
+            form_kid=form_kid,
+            form_algid=form_algid,
+            form_label=form_label,
             **extra,
         ),
     )

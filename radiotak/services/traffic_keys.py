@@ -12,6 +12,7 @@ import os
 import re
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -22,18 +23,261 @@ from radiotak.services.secrets import SecretStore
 
 # P25 ALGID (TIA-102) plus Motorola ADP.
 ALGORITHMS: dict[str, dict[str, Any]] = {
-    "DES-OFB": {"algid": 0x81, "bytes": 8, "label": "DES-OFB (P25 0x81)"},
+    "DES-OFB": {"algid": 0x81, "bytes": 8, "label": "DES-OFB / DES-XL (P25 0x81)"},
     "AES-256": {"algid": 0x84, "bytes": 32, "label": "AES-256 (P25 0x84)"},
     "AES-128": {"algid": 0x85, "bytes": 16, "label": "AES-128 (P25 0x85)"},
     "ADP": {"algid": 0xAA, "bytes": 5, "label": "Motorola ADP / RC4 (0xAA)"},
     "OTHER": {"algid": None, "bytes": None, "label": "Other (enter ALGID + hex)"},
 }
 
+# Short names for Live Events / Units. Unknown IDs stay "ALGID 0xNN".
+ALGID_NAMES: dict[int, str] = {
+    0x80: "Clear",
+    0x81: "DES-OFB / DES-XL",
+    0x84: "AES-256",
+    0x85: "AES-128",
+    0xAA: "ADP",
+}
+ALGID_STORE: dict[int, str] = {
+    0x81: "DES-OFB",
+    0x84: "AES-256",
+    0x85: "AES-128",
+    0xAA: "ADP",
+}
+# TIA-102 registry values used when deciding decimal vs hex (e.g. "84" vs 132).
+_KNOWN_ALGIDS = frozenset(
+    {0x80, 0x81, 0x83, 0x84, 0x85, 0x86, 0x89, 0x9F, 0xAA, *ALGID_NAMES}
+)
+
 _HEX_RE = re.compile(r"[^0-9A-Fa-f]")
+_ALG_KEY = re.compile(
+    r"(?:ALG(?:ORITHM)?(?:\s*ID)?|ALGID)\s*[:=]\s*(?:0x)?([0-9A-Fa-f]+)"
+    r".*?(?:KEY(?:\s*ID)?|KID)\s*[:=]\s*(?:0x)?([0-9A-Fa-f]+)",
+    re.IGNORECASE | re.DOTALL,
+)
+_ALG_ONLY = re.compile(
+    r"(?:ALG(?:ORITHM)?(?:\s*ID)?|ALGID)\s*[:=]\s*(?:0x)?([0-9A-Fa-f]+)",
+    re.IGNORECASE,
+)
+_KID_ONLY = re.compile(
+    r"(?:KEY(?:\s*ID)?|KID)\s*[:=]\s*(?:0x)?([0-9A-Fa-f]+)",
+    re.IGNORECASE,
+)
 
 
 def algorithm_choices() -> list[tuple[str, str]]:
     return [(key, meta["label"]) for key, meta in ALGORITHMS.items()]
+
+
+def coerce_algid(raw: str | int | None) -> int | None:
+    """Parse an ALGID from decoder JSON (decimal, 0x-prefixed, or 2-digit hex)."""
+    if raw is None or raw == "":
+        return None
+    if isinstance(raw, bool):
+        return None
+    if isinstance(raw, int):
+        return raw if 0 <= raw <= 0xFFFF else None
+    text = str(raw).strip()
+    if not text:
+        return None
+    if text.lower().startswith("0x"):
+        try:
+            value = int(text, 16)
+        except ValueError:
+            return None
+        return value if 0 <= value <= 0xFFFF else None
+    try:
+        dec = int(text, 10)
+    except ValueError:
+        try:
+            value = int(text, 16)
+        except ValueError:
+            return None
+        return value if 0 <= value <= 0xFFFF else None
+    if dec in _KNOWN_ALGIDS or dec > 255:
+        return dec if 0 <= dec <= 0xFFFF else None
+    if re.fullmatch(r"[0-9A-Fa-f]{1,2}", text):
+        hx = int(text, 16)
+        if hx in _KNOWN_ALGIDS:
+            return hx
+    return dec if 0 <= dec <= 0xFFFF else None
+
+
+def coerce_kid(raw: str | int | None) -> int | None:
+    if raw is None or raw == "":
+        return None
+    if isinstance(raw, bool):
+        return None
+    try:
+        return parse_int_id(raw, name="Key ID")
+    except ValueError:
+        return None
+
+
+def parse_ids_from_details(details: str | None) -> tuple[int | None, int | None]:
+    """Pull ALGID / KID from SDRTrunk call-details text when JSON fields are empty."""
+    if not details:
+        return None, None
+    match = _ALG_KEY.search(details)
+    if match:
+        return coerce_algid(match.group(1)), coerce_kid(match.group(2))
+    alg_m = _ALG_ONLY.search(details)
+    kid_m = _KID_ONLY.search(details)
+    alg = coerce_algid(alg_m.group(1)) if alg_m else None
+    kid = coerce_kid(kid_m.group(1)) if kid_m else None
+    return alg, kid
+
+
+def resolve_encryption_ids(
+    *,
+    algorithm_id: str | int | None = None,
+    algorithm_id_hex: str | int | None = None,
+    key_id: str | int | None = None,
+    details: str | None = None,
+) -> tuple[int | None, int | None]:
+    """Prefer structured decoder fields; fall back to the details string."""
+    alg = coerce_algid(algorithm_id)
+    if alg is None:
+        alg = coerce_algid(algorithm_id_hex)
+    kid = coerce_kid(key_id)
+    if alg is None or kid is None:
+        d_alg, d_kid = parse_ids_from_details(details)
+        if alg is None:
+            alg = d_alg
+        if kid is None:
+            kid = d_kid
+    return alg, kid
+
+
+def describe_cipher(algid: str | int | None) -> dict[str, Any]:
+    parsed = coerce_algid(algid)
+    if parsed is None:
+        return {
+            "algorithm": None,
+            "name": None,
+            "algid": None,
+            "algid_hex": None,
+            "label": "",
+        }
+    hex_s = f"{parsed:02X}"
+    store = ALGID_STORE.get(parsed)
+    if parsed in ALGID_NAMES:
+        name = ALGID_NAMES[parsed]
+        label = f"{name} 0x{hex_s}"
+    else:
+        name = f"ALGID 0x{hex_s}"
+        label = name
+    return {
+        "algorithm": store or "OTHER",
+        "name": name,
+        "algid": parsed,
+        "algid_hex": hex_s,
+        "label": label,
+    }
+
+
+def encrypted_badge(
+    *,
+    algid: str | int | None,
+    key_id: str | int | None,
+    key_loaded: bool = False,
+) -> str:
+    bits = ["Encrypted"]
+    cipher = describe_cipher(algid)
+    if cipher["label"]:
+        bits.append(cipher["label"])
+    kid = coerce_kid(key_id)
+    if kid is not None:
+        bits.append(f"KID {kid}")
+    if key_loaded:
+        bits.append("key on file")
+    return " · ".join(bits)
+
+
+def encrypted_reason(
+    *,
+    talkgroup: str | None,
+    algid: str | int | None,
+    key_id: str | int | None,
+    key_loaded: bool,
+) -> str:
+    tg = (str(talkgroup).strip() if talkgroup is not None else "") or None
+    head = f"ENCRYPTED TG {tg}" if tg else "ENCRYPTED CALL"
+    cipher = describe_cipher(algid)
+    kid = coerce_kid(key_id)
+    if cipher["algid"] is None and kid is None:
+        return f"{head} · cipher ID not in this event"
+    slot_bits: list[str] = []
+    if cipher["label"]:
+        slot_bits.append(cipher["label"])
+    if kid is not None:
+        slot_bits.append(f"KID {kid}")
+    slot = " ".join(slot_bits)
+    status = "key on file" if key_loaded else "no matching key"
+    return f"{head} · {slot} · {status}"
+
+
+def collect_heard_keysets(
+    *,
+    identities: list[Any] | None = None,
+    events: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    buckets: dict[tuple[int, int, str], dict[str, Any]] = {}
+
+    def _add(
+        alg_raw: str | int | None,
+        kid_raw: str | int | None,
+        talkgroup: str | None,
+        key_loaded: bool = False,
+    ) -> None:
+        algid = coerce_algid(alg_raw)
+        kid = coerce_kid(kid_raw)
+        if algid is None or kid is None:
+            return
+        tg = str(talkgroup).strip() if talkgroup else ""
+        key = (algid, kid, tg)
+        cipher = describe_cipher(algid)
+        rec = buckets.get(key)
+        if rec:
+            rec["key_loaded"] = rec["key_loaded"] or bool(key_loaded)
+            return
+        algo = cipher["algorithm"] or "OTHER"
+        query = f"alg={quote(algo)}&kid={kid}"
+        if algo == "OTHER":
+            query += f"&algid={quote('0x' + cipher['algid_hex'])}"
+        buckets[key] = {
+            "algorithm": algo,
+            "name": cipher["name"],
+            "algid": algid,
+            "algid_hex": cipher["algid_hex"],
+            "key_id": kid,
+            "talkgroup": tg or None,
+            "label": cipher["label"],
+            "key_loaded": bool(key_loaded),
+            "fill_href": f"/modules/sdr?{query}#traffic-keys",
+        }
+
+    for ident in identities or []:
+        if not getattr(ident, "last_encrypted", False):
+            continue
+        _add(
+            getattr(ident, "last_encryption_algorithm", None),
+            getattr(ident, "last_encryption_key_id", None),
+            getattr(ident, "last_talkgroup_id", None),
+            bool(getattr(ident, "last_key_loaded", False)),
+        )
+    for event in events or []:
+        if not (event.get("encrypted") or event.get("type") == "encrypted"):
+            continue
+        _add(
+            event.get("algorithm_id"),
+            event.get("key_id"),
+            event.get("talkgroup"),
+            bool(event.get("key_loaded")),
+        )
+    return sorted(
+        buckets.values(), key=lambda row: (row["algid"], row["key_id"], row["talkgroup"] or "")
+    )
 
 
 def decoder_keyfile_path(settings=None) -> Path:

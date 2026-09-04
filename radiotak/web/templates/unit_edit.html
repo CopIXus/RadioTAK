@@ -24,9 +24,13 @@
   <div class="card-title">Last heard</div>
   <div class="card-desc">
     {% if unit.last_encrypted %}
-    <span class="badge badge-encrypted">Encrypted{% if unit.last_talkgroup_id %} TG {{ unit.last_talkgroup_id }}{% endif %}{% if unit.last_key_loaded %} · key on file{% endif %}</span>
-    {% if unit.last_encryption_algorithm %}ALGID {{ unit.last_encryption_algorithm }}{% endif %}
-    {% if unit.last_encryption_key_id %}KID {{ unit.last_encryption_key_id }}{% endif %}
+    <span class="badge badge-encrypted">{{ unit.encryption_badge or 'Encrypted' }}{% if unit.last_talkgroup_id %} TG {{ unit.last_talkgroup_id }}{% endif %}</span>
+    {% if unit.last_encryption_algorithm or unit.last_encryption_key_id %}
+    <div style="margin-top:8px">Give the radio shop / KMF
+      {% if unit.last_encryption_algorithm %}ALGID 0x{{ unit.last_encryption_algorithm }}{% endif %}
+      {% if unit.last_encryption_key_id %}Key ID {{ unit.last_encryption_key_id }}{% endif %}
+      — these labels name the key slot; they are not the key.</div>
+    {% endif %}
     {% if not unit.has_gps %}<span class="dim"> — decoder is hearing this radio, but GPS is inside the encrypted payload</span>{% endif %}
     {% elif unit.hear_kind == 'heard' %}
     <span class="badge badge-heard">{{ unit.hear_label }}</span>

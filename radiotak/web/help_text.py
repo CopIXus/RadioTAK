@@ -175,20 +175,20 @@ HELP: dict[str, dict[str, str]] = {
     },
     "sdr.traffic_alg": {
         "label": "Algorithm",
-        "what": "P25/DMR encryption algorithm. Sets the ALGID used to match encrypted calls (AES-256 = 0x84, DES-OFB = 0x81, ADP = 0xAA).",
-        "where": "From the radio shop / keyloader. Use Other only if you have a non-standard ALGID.",
+        "what": "P25/DMR encryption algorithm. Sets the ALGID used to match encrypted calls (AES-256 = 0x84, DES-OFB / DES-XL = 0x81, ADP = 0xAA). Live Events show this name when the call header advertises it.",
+        "where": "From the radio shop / keyloader, or copied from an Encrypted Live Event / Heard keysets row. Use Other only if you have a non-standard ALGID.",
         "example": "AES-256",
     },
     "sdr.traffic_algid": {
         "label": "ALGID",
-        "what": "Numeric algorithm ID from the air interface. Required only when Algorithm is Other.",
-        "where": "Shown on encrypted Live Events and in SDRTrunk call details.",
+        "what": "Numeric algorithm ID from the air interface (clear header). Required only when Algorithm is Other. This labels the cipher; it is not the key.",
+        "where": "Encrypted Live Events, Units, Heard keysets, or SDRTrunk call details.",
         "example": "0x84",
     },
     "sdr.traffic_kid": {
         "label": "Key ID",
-        "what": "16-bit Key ID (KID) the system uses for this TEK. Encrypted calls advertise this on the air.",
-        "where": "Keyloader / radio programming, or the KID shown on an Encrypted Live Event.",
+        "what": "16-bit Key ID (KID) the system uses for this TEK. Encrypted calls advertise this on the air in the clear. Give this number to the radio shop / KMF with the ALGID — it names the slot, not the key bits.",
+        "where": "Keyloader / radio programming, Encrypted Live Events, Units, or Heard keysets on this page.",
         "example": "1",
     },
     "sdr.traffic_hex": {

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from collections import deque
 from typing import Any
 
@@ -13,6 +14,8 @@ class EventBus:
         self._subscribers: set[asyncio.Queue] = set()
 
     def publish(self, event: dict[str, Any]) -> None:
+        if event.get("ts") is None:
+            event["ts"] = time.time()
         self.history.append(event)
         dead: list[asyncio.Queue] = []
         for q in self._subscribers:

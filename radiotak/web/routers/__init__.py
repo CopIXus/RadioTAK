@@ -107,7 +107,37 @@ def _primary_tak_server(db) -> TakServer | None:
     return db.scalar(select(TakServer).order_by(TakServer.name).limit(1))
 
 
+def _live_tak_status(
+    server_id: str, db_status: str | None, db_error: str | None
+) -> tuple[str, str | None]:
+    """Prefer the in-memory manager state over the last persisted DB row.
+
+    Connection managers update ``state`` as soon as TLS comes up, but the
+    ``tak_servers.status`` column is only written at start/restart. Alerts and
+    the pipeline strip used the stale column and showed "not connected" while
+    the TAK Servers page (which already overlays live state) showed connected.
+    """
+    mgr = tak_registry.get(server_id)
+    if not mgr:
+        return (db_status or "disconnected"), db_error
+    status = mgr.state.value
+    err = db_error
+    if mgr.state == ConnectionState.CONNECTED:
+        if err and "activebits" in err:
+            err = None
+    elif mgr.last_error:
+        err = mgr.last_error
+    return status, err
+
+
+def _any_tak_connected(servers: list[TakServer]) -> bool:
+    return any(
+        _live_tak_status(s.id, s.status, s.last_error)[0] == "connected" for s in servers
+    )
+
+
 def _tak_server_view(server: TakServer) -> SimpleNamespace:
+    status, last_error = _live_tak_status(server.id, server.status, server.last_error)
     return SimpleNamespace(
         id=server.id,
         name=server.name,
@@ -133,8 +163,8 @@ def _tak_server_view(server: TakServer) -> SimpleNamespace:
         presence_lat=server.presence_lat,
         presence_lon=server.presence_lon,
         active_groups=server.active_groups,
-        status=server.status,
-        last_error=server.last_error,
+        status=status,
+        last_error=last_error,
         certificate_subject=server.certificate_subject,
         certificate_issuer=server.certificate_issuer,
         certificate_not_before=server.certificate_not_before,
@@ -433,13 +463,14 @@ def _tak_alert_rows(servers: list[TakServer]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for s in servers:
         cert = s.certificate_not_after
+        status, last_error = _live_tak_status(s.id, s.status, s.last_error)
         rows.append(
             {
                 "id": s.id,
                 "name": s.name,
                 "enabled": s.enabled,
-                "status": s.status,
-                "last_error": s.last_error,
+                "status": status,
+                "last_error": last_error,
                 "certificate_not_after": cert.isoformat() if cert else None,
             }
         )
@@ -567,7 +598,7 @@ async def dashboard(request: Request, _user=Depends(require_auth)):
     novnc = cfg.get("novnc") or {}
     sdr_on = modules_svc.is_installed("sdr_location_gateway")
     decoder_on = bool(sdr_on and get_platform().service_active("sdrtrunk"))
-    connected = any(s.status == "connected" for s in servers)
+    connected = _any_tak_connected(servers)
     metrics = get_platform().system_info()
     gauges = hearing_gauges.snapshot()
     alerts = collect_alerts(
@@ -837,18 +868,7 @@ async def tak_list(request: Request, _user=Depends(require_auth)):
     db = Session()
     try:
         rows = list(db.scalars(select(TakServer).order_by(TakServer.name)))
-        servers = []
-        for s in rows:
-            v = _tak_server_view(s)
-            mgr = tak_registry.get(s.id)
-            if mgr:
-                v.status = mgr.state.value
-                if mgr.state == ConnectionState.CONNECTED:
-                    if v.last_error and "activebits" in v.last_error:
-                        v.last_error = None
-                elif mgr.last_error:
-                    v.last_error = mgr.last_error
-            servers.append(v)
+        servers = [_tak_server_view(s) for s in rows]
     finally:
         db.close()
     return TEMPLATES.TemplateResponse(
@@ -1658,7 +1678,7 @@ async def status(_user=Depends(require_auth)):
         stats=stats,
         spectrum=spectrum,
     )
-    connected = any(s.status == "connected" for s in servers)
+    connected = _any_tak_connected(servers)
     return {
         "version": updater_svc.current_version(),
         "metrics": metrics,

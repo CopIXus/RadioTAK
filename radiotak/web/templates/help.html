@@ -61,7 +61,7 @@
     <p>For trunked P25/DMR enter the <strong>control channel (CC)</strong> in MHz — not random voice channels. Use RadioReference or agency programming as reference.</p>
     <p>Use <strong>Listen / Stop</strong> on each radio system to include it in the decoder playlist. <strong>Green</strong> means that system has a dongle. <strong>Yellow</strong> means it is on but waiting for another SDR. One RTL-SDR typically runs one trunked system at a time.</p>
     <p><strong>Write playlist &amp; restart</strong> applies frequency changes. Start/Stop controls the decoder service directly.</p>
-    <p><strong>Traffic keys</strong> store authorized TEKs (ALGID + Key ID + hex) from the agency keyfill. Encrypted calls are flagged on Live Events even without keys. A matching key is labeled “key on file”; SDRTrunk still does not decrypt that audio or embedded GPS.</p>
+    <p><strong>Traffic keys</strong> store authorized TEKs (ALGID + Key ID + hex) from the agency keyfill. Encrypted calls are flagged on Live Events with the cipher name (ADP, AES-256, DES-OFB / DES-XL) and Key ID even without keys. Those labels are what you give the radio shop / KMF — they name the key slot; they are not the key. A matching stored key is labeled “key on file”; SDRTrunk still does not decrypt that audio or embedded GPS.</p>
   </div>
 </div>
 

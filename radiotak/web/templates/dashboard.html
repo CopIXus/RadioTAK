@@ -48,6 +48,9 @@
         <span class="ops-alert-sev">{{ a.severity }}</span>
         <span class="ops-alert-source">{{ a.source }}</span>
         <strong class="ops-alert-title">{{ a.title }}</strong>
+        {% if a.created_at_iso %}
+        <time class="ops-alert-time" datetime="{{ a.created_at_iso }}" data-alert-ts>{{ a.created_at_display or a.created_at_iso }}</time>
+        {% endif %}
         <p class="ops-alert-detail">{{ a.detail }}</p>
         {% if a.action %}<p class="ops-alert-action">{{ a.action }}</p>{% endif %}
       </div>
@@ -257,6 +260,10 @@
         '<span class="ops-alert-sev">' + a.severity + '</span> ' +
         '<span class="ops-alert-source">' + (a.source || '') + '</span> ' +
         '<strong class="ops-alert-title">' + (a.title || '') + '</strong>' +
+        (a.created_at_iso
+          ? '<time class="ops-alert-time" datetime="' + a.created_at_iso + '" data-alert-ts>' +
+            (a.created_at_display || a.created_at_iso) + '</time>'
+          : '') +
         '<p class="ops-alert-detail">' + (a.detail || '') + '</p>' +
         (a.action ? '<p class="ops-alert-action">' + a.action + '</p>' : '') +
         '</div><div class="ops-alert-actions">' +
@@ -265,6 +272,9 @@
         '</div></div>'
       );
     }).join('');
+    if (typeof window.RadioTakLocalizeAlertTimes === 'function') {
+      window.RadioTakLocalizeAlertTimes(list);
+    }
   }
 
   function renderOps(rows) {

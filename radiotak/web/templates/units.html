@@ -37,7 +37,7 @@
           <td>{{ u.agency or '—' }}</td>
           <td>
             {% if u.last_encrypted %}
-            <span class="badge badge-encrypted" title="{{ u.hear_label }}">Encrypted{% if u.last_talkgroup_id %} TG {{ u.last_talkgroup_id }}{% endif %}{% if u.last_key_loaded %} · key on file{% endif %}</span>
+            <span class="badge badge-encrypted" title="{{ u.hear_label }}">{{ u.encryption_badge or 'Encrypted' }}{% if u.last_talkgroup_id %} TG {{ u.last_talkgroup_id }}{% endif %}</span>
             {% endif %}
             {% if u.has_gps %}
             <span class="badge badge-gps">{{ '%.5f'|format(u.last_latitude) }}, {{ '%.5f'|format(u.last_longitude) }}</span>
@@ -70,7 +70,7 @@
           <span>System {{ u.system_id or '—' }}</span>
           <span>
             {% if u.last_encrypted %}
-            <span class="badge badge-encrypted">Encrypted{% if u.last_talkgroup_id %} TG {{ u.last_talkgroup_id }}{% endif %}</span>
+            <span class="badge badge-encrypted">{{ u.encryption_badge or 'Encrypted' }}{% if u.last_talkgroup_id %} TG {{ u.last_talkgroup_id }}{% endif %}</span>
             {% endif %}
             {% if u.has_gps %}
             <span class="badge badge-gps">GPS</span>
@@ -100,7 +100,7 @@
           <td>{{ u.last_observed_at or '—' }}</td>
           <td>
             {% if u.last_encrypted %}
-            <span class="badge badge-encrypted">Encrypted{% if u.last_talkgroup_id %} TG {{ u.last_talkgroup_id }}{% endif %}{% if u.last_key_loaded %} · key on file{% endif %}</span>
+            <span class="badge badge-encrypted">{{ u.encryption_badge or 'Encrypted' }}{% if u.last_talkgroup_id %} TG {{ u.last_talkgroup_id }}{% endif %}</span>
             {% if not u.has_gps %}<span class="dim"> no GPS</span>{% endif %}
             {% elif u.has_gps %}
             <span class="badge badge-gps">GPS</span>
@@ -136,7 +136,7 @@
           <span>Last {{ u.last_observed_at or '—' }}</span>
           <span>System {{ u.system_id or '—' }}</span>
           <span>
-            {% if u.last_encrypted %}<span class="badge badge-encrypted">Encrypted</span>{% endif %}
+            {% if u.last_encrypted %}<span class="badge badge-encrypted">{{ u.encryption_badge or 'Encrypted' }}</span>{% endif %}
             {% if u.has_gps %}<span class="badge badge-gps">GPS</span>{% endif %}
           </span>
         </div>

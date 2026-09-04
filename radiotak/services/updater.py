@@ -29,6 +29,57 @@ _job_thread: threading.Thread | None = None
 EmitFn = Callable[[str], None]
 
 
+def parse_version_stamp(value: str | None) -> tuple[int, int, int] | None:
+    """Parse YY.MMDD.HHMM into a comparable tuple, or None if not a stamp."""
+    raw = (value or "").strip()
+    if not _STAMP_RE.match(raw):
+        return None
+    yy, mmdd, hhmm = raw.split(".")
+    return int(yy), int(mmdd), int(hhmm)
+
+
+def version_is_newer(candidate: str | None, baseline: str | None) -> bool:
+    """True when candidate is a strictly newer YY.MMDD.HHMM stamp than baseline."""
+    ca = parse_version_stamp(candidate)
+    ba = parse_version_stamp(baseline)
+    if ca is None or ba is None:
+        return False
+    return ca > ba
+
+
+def stamp_from_iso(date_s: str | None) -> str | None:
+    """Convert an ISO-8601 timestamp (git %cI or GitHub API) to YY.MMDD.HHMM UTC."""
+    raw = (date_s or "").strip()
+    if not raw:
+        return None
+    if raw.endswith("Z"):
+        raw = raw[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    stamp = dt.astimezone(UTC).strftime("%y.%m%d.%H%M")
+    return stamp if _STAMP_RE.match(stamp) else None
+
+
+def compute_update_available(
+    *,
+    installed: str | None,
+    latest: str | None,
+    local_sha: str | None,
+    remote_sha: str | None,
+    remote_ahead_by: int | None = None,
+) -> bool:
+    """GitHub has a newer build only when it is actually ahead of this install."""
+    if local_sha and remote_sha and local_sha.lower() == remote_sha.lower():
+        return False
+    if remote_ahead_by is not None:
+        return remote_ahead_by > 0
+    return version_is_newer(latest, installed)
+
+
 def _git(install: Path, *args: str) -> tuple[int, str]:
     cmd = ["git", "-c", f"safe.directory={install}", *args]
     proc = subprocess.run(cmd, cwd=str(install), capture_output=True, text=True, check=False)
@@ -37,21 +88,19 @@ def _git(install: Path, *args: str) -> tuple[int, str]:
 
 
 def version_stamp_now() -> str:
-    """Wall-clock YY.MMDD.HHMM in the local timezone."""
-    from datetime import datetime
-
-    return datetime.now().strftime("%y.%m%d.%H%M")
+    """Wall-clock YY.MMDD.HHMM in UTC."""
+    return datetime.now(UTC).strftime("%y.%m%d.%H%M")
 
 
 def version_stamp_from_git(install: Path | None = None) -> str | None:
-    """Return YY.MMDD.HHMM from HEAD committer date, or None."""
+    """Return YY.MMDD.HHMM (UTC) from HEAD committer date, or None."""
     settings = get_settings()
     root = install or settings.install_dir
-    code, out = _git(root, "log", "-1", "--format=%cd", "--date=format:%y.%m%d.%H%M")
+    code, out = _git(root, "log", "-1", "--format=%cI")
     if code != 0:
         return None
-    stamp = out.splitlines()[0].strip() if out else ""
-    return stamp if _STAMP_RE.match(stamp) else None
+    iso = out.splitlines()[0].strip() if out else ""
+    return stamp_from_iso(iso)
 
 
 def write_version_stamp(install: Path | None = None, *, use_now: bool = False) -> str:
@@ -135,26 +184,29 @@ async def remote_head(repo: str | None = None, branch: str | None = None) -> dic
             data = cre.json()
             sha = data.get("sha")
             html_url = data.get("html_url") or html_url
-            # Prefer committer date → YY.MMDD.HHMM in UTC-less local wall clock of commit.
             date_s = (data.get("commit") or {}).get("committer", {}).get("date")
-            if date_s:
-                # 2026-09-04T12:27:00Z → convert via git-style local isn't available; use VERSION file.
-                pass
-        ver_url = f"https://raw.githubusercontent.com/{repo}/{branch}/VERSION"
-        vre = await client.get(ver_url)
-        if vre.status_code == 200:
-            stamp = vre.text.strip() or None
-        if not stamp and sha:
-            # Fallback: abbreviated date from API commit if VERSION missing.
-            date_s = (
-                (cre.json().get("commit") or {}).get("committer", {}).get("date")
-                if cre.status_code == 200
-                else None
-            )
-            if date_s and len(date_s) >= 16:
-                # YYYY-MM-DDTHH:MM → YY.MMDD.HHMM (UTC)
-                stamp = f"{date_s[2:4]}.{date_s[5:7]}{date_s[8:10]}.{date_s[11:13]}{date_s[14:16]}"
+            stamp = stamp_from_iso(date_s)
+        if not stamp:
+            ver_url = f"https://raw.githubusercontent.com/{repo}/{branch}/VERSION"
+            vre = await client.get(ver_url)
+            if vre.status_code == 200:
+                stamp = vre.text.strip() or None
         return {"sha": sha, "version": stamp, "html_url": html_url, "branch": branch, "repo": repo}
+
+
+async def remote_ahead_by(repo: str, local_sha: str, remote_sha: str) -> int | None:
+    """How many commits GitHub is ahead of local. None if compare is unavailable."""
+    url = f"https://api.github.com/repos/{repo}/compare/{local_sha}...{remote_sha}"
+    headers = {"Accept": "application/vnd.github+json"}
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(url, headers=headers)
+        if resp.status_code != 200:
+            return None
+        ahead = resp.json().get("ahead_by")
+        return int(ahead) if ahead is not None else None
+    except (httpx.HTTPError, TypeError, ValueError):
+        return None
 
 
 async def check_for_update(force: bool = False) -> dict[str, Any]:
@@ -183,13 +235,20 @@ async def check_for_update(force: bool = False) -> dict[str, Any]:
         payload["remote_sha"] = remote.get("sha")
         payload["html_url"] = remote.get("html_url")
         latest = remote.get("version") or installed
-        payload["latest"] = latest
         remote_sha = remote.get("sha")
+        if local_sha and remote_sha and local_sha.lower() == remote_sha.lower():
+            latest = installed
+        payload["latest"] = latest
+        ahead = None
         if remote_sha and local_sha and remote_sha.lower() != local_sha.lower():
-            payload["update_available"] = True
-        elif latest and installed and latest != installed:
-            # VERSION differs even if SHA compare unavailable
-            payload["update_available"] = True
+            ahead = await remote_ahead_by(payload["repo"], local_sha, remote_sha)
+        payload["update_available"] = compute_update_available(
+            installed=installed,
+            latest=latest,
+            local_sha=local_sha,
+            remote_sha=remote_sha,
+            remote_ahead_by=ahead,
+        )
     except Exception:  # noqa: BLE001
         pass
 
