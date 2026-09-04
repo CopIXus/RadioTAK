@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from radiotak.db import ForwardingStatus, LocationObservation, TakServer, utcnow
 from radiotak.gateway import LocationEventIn, stable_cot_uid
 from radiotak.gateway.cot import build_cot_xml
+from radiotak.gateway.constants import DEFAULT_STALE_SECONDS, DETECTION_COT_TYPE
 from radiotak.gateway.identities import is_forward_allowed, observe_or_create
 from radiotak.gateway.marker_style import resolve_style
 from radiotak.gateway.tak import tak_registry
@@ -135,7 +136,7 @@ class LocationPipeline:
             return PipelineResult(obs, False, reason)
 
         age = (utcnow() - event.observed_at).total_seconds()
-        max_age = float(fwd.get("stale_seconds", 120)) * 2
+        max_age = float(fwd.get("stale_seconds", DEFAULT_STALE_SECONDS)) * 2
         if age > max_age and not event.emergency:
             obs.forwarding_status = ForwardingStatus.DROPPED.value
             obs.forwarding_reason = "TOO OLD"
@@ -176,7 +177,7 @@ class LocationPipeline:
                 radio_id=event.radio_id,
                 source_alias=event.source_alias,
             )
-            stale_s = style["stale_seconds"] or int(fwd.get("stale_seconds", 120))
+            stale_s = style["stale_seconds"] or int(fwd.get("stale_seconds", DEFAULT_STALE_SECONDS))
             ce_m = (
                 event.accuracy_m
                 if event.accuracy_m is not None
@@ -217,8 +218,8 @@ class LocationPipeline:
                 observed_at=event.observed_at,
                 system_id=event.system_id,
                 callsign=identity.callsign or event.source_alias or event.radio_id,
-                cot_type=identity.cot_type or "a-f-G-U-C",
-                stale_seconds=identity.stale_seconds or int(fwd.get("stale_seconds", 120)),
+                cot_type=identity.cot_type or DETECTION_COT_TYPE,
+                stale_seconds=identity.stale_seconds or int(fwd.get("stale_seconds", DEFAULT_STALE_SECONDS)),
                 altitude_m=event.altitude_m,
                 accuracy_m=event.accuracy_m,
                 default_ce_m=float(fwd.get("default_ce_meters", 20)),

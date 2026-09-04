@@ -9,4 +9,4 @@ RadioTAK supports infra-TAK-style branding on a **top identification bar**. Prod
 - Agency logo appears on the banner (both sides)
 - Public routes: `GET /branding/logo`, `GET /branding/favicon` (favicon is the RadioTAK product mark)
 
-Marker appearance for CoT push is configured **per TAK server** (TAK → Configure → Marker Appearance): callsign, CoT type, iconset path, color, how, CE feet.
+Marker appearance for CoT push is configured **per TAK server** (TAK → Configure → Marker Appearance): radio callsign, CoT type (default named marker, not an ATAK contact), iconset path, color, how, CE feet, and optional RadioTAK user position. Radio marker stale time is under Settings → Forwarding (default 20 minutes).

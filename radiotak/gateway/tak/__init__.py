@@ -4,11 +4,19 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
+
+from radiotak.gateway.constants import (
+    DEFAULT_STALE_SECONDS,
+    PRESENCE_INTERVAL_SECONDS,
+    PRESENCE_STALE_SECONDS,
+)
+from radiotak.gateway.cot import build_disconnect_xml, build_presence_xml
 
 log = logging.getLogger("radiotak.tak")
 
@@ -46,6 +54,7 @@ class TakConnectionManager:
     server_id: str
     host: str
     cot_port: int = 8089
+    api_port: int = 8443
     callsign: str = "RadioTAK"
     device_uid: Optional[str] = None
     cert_path: Optional[str] = None
@@ -55,8 +64,12 @@ class TakConnectionManager:
     reconnect_min: float = 2.0
     reconnect_max: float = 60.0
     queue_max: int = 200
-    stale_drop_seconds: float = 120.0
+    stale_drop_seconds: float = float(DEFAULT_STALE_SECONDS)
     dry_run: bool = False  # when True, "send" succeeds without network
+    active_groups: list[str] = field(default_factory=list)
+    presence_lat: float = 0.0
+    presence_lon: float = 0.0
+    app_version: str = "0.0.0"
 
     state: ConnectionState = ConnectionState.DISCONNECTED
     last_error: Optional[str] = None
@@ -65,9 +78,22 @@ class TakConnectionManager:
     _task: Optional[asyncio.Task] = None
     _stop: asyncio.Event = field(default_factory=asyncio.Event)
 
-    def enqueue(self, xml: str, uid: str, observation_id: Optional[str] = None) -> None:
-        import time
+    def presence_uid(self) -> str:
+        return self.device_uid or f"RadioTAK-{self.server_id[:8]}"
 
+    def _presence_xml(self) -> str:
+        groups = [g for g in (self.active_groups or []) if g]
+        return build_presence_xml(
+            uid=self.presence_uid(),
+            callsign=self.callsign or "RadioTAK",
+            latitude=self.presence_lat or 0.0,
+            longitude=self.presence_lon or 0.0,
+            stale_seconds=PRESENCE_STALE_SECONDS,
+            group_name=groups[0] if groups else None,
+            version=self.app_version,
+        )
+
+    def enqueue(self, xml: str, uid: str, observation_id: Optional[str] = None) -> None:
         self.metrics.cot_generated += 1
         if len(self._queue) >= self.queue_max:
             self._queue.popleft()
@@ -104,33 +130,69 @@ class TakConnectionManager:
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, self.reconnect_max)
 
-    async def _connect_and_pump(self) -> None:
-        import time
+    async def _apply_groups(self) -> None:
+        if not self.active_groups or not self.cert_path or not self.key_path:
+            return
+        try:
+            from radiotak.gateway.tak.marti import set_active_groups
 
+            await set_active_groups(
+                self.host,
+                list(self.active_groups),
+                api_port=self.api_port,
+                client_uid=self.presence_uid(),
+                cert=(self.cert_path, self.key_path),
+                verify=False,
+            )
+            log.info("Marti groups applied for %s uid=%s", self.server_id, self.presence_uid())
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Marti groups apply failed for %s (will retry on reconnect): %s", self.server_id, exc)
+
+    def _mark_sent(self, latency_ms: int = 1) -> None:
+        self.metrics.cot_sent += 1
+        self.metrics.last_successful_send = datetime.now(timezone.utc)
+        self.metrics.last_latency_ms = latency_ms
+
+    async def _drain_queue(self, writer=None) -> None:  # noqa: ANN001
+        if not self._queue:
+            return
+        item = self._queue.popleft()
+        if time.time() - item.enqueued_at > self.stale_drop_seconds:
+            self.metrics.cot_dropped += 1
+            return
+        t0 = time.time()
+        if writer is not None:
+            writer.write(item.xml.encode("utf-8") + b"\n")
+            await writer.drain()
+        self._mark_sent(int((time.time() - t0) * 1000) or 1)
+
+    async def _write_xml(self, xml: str, writer=None) -> None:  # noqa: ANN001
+        t0 = time.time()
+        if writer is not None:
+            writer.write(xml.encode("utf-8") + b"\n")
+            await writer.drain()
+        self.metrics.cot_generated += 1
+        self._mark_sent(int((time.time() - t0) * 1000) or 1)
+
+    async def _connect_and_pump(self) -> None:
         if self.dry_run or not self.host:
             self.state = ConnectionState.CONNECTED
             self.last_error = None
+            last_presence = 0.0
             while not self._stop.is_set():
-                if self._queue:
-                    item = self._queue.popleft()
-                    if time.time() - item.enqueued_at > self.stale_drop_seconds:
-                        self.metrics.cot_dropped += 1
-                        continue
-                    # dry-run send
-                    self.metrics.cot_sent += 1
-                    self.metrics.last_successful_send = datetime.now(timezone.utc)
-                    self.metrics.last_latency_ms = 1
+                now = time.monotonic()
+                if now - last_presence >= PRESENCE_INTERVAL_SECONDS:
+                    await self._write_xml(self._presence_xml())
+                    last_presence = now
+                await self._drain_queue()
                 await asyncio.sleep(0.05)
             return
 
-        # Live path using PyTAK when credentials exist
         try:
             import pytak  # noqa: F401
         except ImportError as exc:
             raise RuntimeError("pytak not installed") from exc
 
-        # Minimal TLS send loop — full PyTAK QueueWorker wiring can be expanded later.
-        # For MVP with certs present, use asyncio open_connection with SSL context.
         import ssl
 
         ctx = ssl.create_default_context(cafile=self.ca_path) if self.ca_path else ssl.create_default_context()
@@ -144,20 +206,25 @@ class TakConnectionManager:
         self.state = ConnectionState.CONNECTED
         self.last_error = None
         try:
+            await self._write_xml(self._presence_xml(), writer)
+            await self._apply_groups()
+            await self._write_xml(self._presence_xml(), writer)
+            last_presence = time.monotonic()
             while not self._stop.is_set():
-                if self._queue:
-                    item = self._queue.popleft()
-                    if time.time() - item.enqueued_at > self.stale_drop_seconds:
-                        self.metrics.cot_dropped += 1
-                        continue
-                    t0 = time.time()
-                    writer.write(item.xml.encode("utf-8") + b"\n")
-                    await writer.drain()
-                    self.metrics.cot_sent += 1
-                    self.metrics.last_successful_send = datetime.now(timezone.utc)
-                    self.metrics.last_latency_ms = int((time.time() - t0) * 1000)
+                now = time.monotonic()
+                if now - last_presence >= PRESENCE_INTERVAL_SECONDS:
+                    await self._write_xml(self._presence_xml(), writer)
+                    last_presence = now
+                await self._drain_queue(writer)
                 await asyncio.sleep(0.05)
         finally:
+            try:
+                await self._write_xml(
+                    build_disconnect_xml(uid=self.presence_uid(), callsign=self.callsign or "RadioTAK"),
+                    writer,
+                )
+            except Exception:  # noqa: BLE001
+                pass
             writer.close()
             try:
                 await writer.wait_closed()

@@ -29,7 +29,10 @@ After certificate enrollment, RadioTAK queries Marti:
 
 - `GET /Marti/api/groups/all` (mTLS on API port, typically **8443**)
 - Selected groups stored on the server record
-- On connect: `PUT /Marti/api/groups/active` (fallback `activebits`)
+- Applied after the CoT TLS session is connected: `PUT /Marti/api/groups/active` (fallback `activebits` with integer bit positions from `/groups/all`)
+- A HTTP 400 from those endpoints while RadioTAK is disconnected is expected; channels remain saved locally
+
+On connect RadioTAK sends a self SA (type `a-f-G-U-C`) using the **gateway callsign** and device UID so TAK Server lists it as a connected client. Radio detections use a non-contact CoT type (default `a-n-G`) with a callsign label and a configurable stale time (default 20 minutes).
 
 ## Certificate warnings
 

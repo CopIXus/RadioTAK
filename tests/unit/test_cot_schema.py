@@ -31,6 +31,41 @@ def test_cot_contains_callsign_and_coords():
     assert 'lat="36.295310"' in xml
     assert 'lon="-82.279220"' in xml
     assert 'stale="2026-09-03T15:44:17Z"' in xml
+    assert 'type="a-n-G"' in xml
+    assert "endpoint=" not in xml
+    assert "__group" not in xml
+
+
+def test_detection_default_stale_is_20_minutes():
+    xml = build_cot_xml(
+        radio_id="1",
+        latitude=36.0,
+        longitude=-82.0,
+        observed_at=datetime(2026, 9, 3, 15, 42, 17, tzinfo=timezone.utc),
+        callsign="Engine 4",
+    )
+    assert 'stale="2026-09-03T16:02:17Z"' in xml
+    assert 'callsign="Engine 4"' in xml
+    assert "endpoint=" not in xml
+
+
+def test_presence_is_sa_contact():
+    from radiotak.gateway.cot import build_presence_xml
+
+    xml = build_presence_xml(
+        uid="RadioTAK-edc90911",
+        callsign="CarterCo-RadioTAK",
+        latitude=36.3,
+        longitude=-82.3,
+        group_name="TN Law Enforcement Mutual Aid",
+        version="26.0904.0943",
+    )
+    assert 'uid="RadioTAK-edc90911"' in xml
+    assert 'type="a-f-G-U-C"' in xml
+    assert 'callsign="CarterCo-RadioTAK"' in xml
+    assert 'endpoint="*:-1:stcp"' in xml
+    assert 'name="TN Law Enforcement Mutual Aid"' in xml
+    assert 'platform="RadioTAK"' in xml
 
 
 def test_schema_rejects_null_island():

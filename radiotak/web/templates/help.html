@@ -31,8 +31,8 @@
   </div>
   <div class="help-card-body">
     <p>Each TAK server supports username/password enrollment against Marti TLS (default port <strong>8446</strong>), PKCS#12 import, or PEM cert/key upload. Uncheck Verify TLS if the enrollment certificate is self-signed.</p>
-    <p>After enrollment, RadioTAK queries Marti on port <strong>8443</strong> for groups/channels. Select active channels on the server detail page.</p>
-    <p>CoT streaming uses TLS port <strong>8089</strong> by default. Use <strong>Test</strong> on the TAK list to queue a test marker.</p>
+    <p>After enrollment, RadioTAK queries Marti on port <strong>8443</strong> for groups/channels. Select active channels on the server detail page. Channel membership is pushed to TAK Server after the CoT stream is connected — a 400 from <code class="block">/groups/activebits</code> while disconnected is expected and is not a failed enrollment.</p>
+    <p>CoT streaming uses TLS port <strong>8089</strong> by default. When connected, RadioTAK publishes a presence user with the <strong>gateway callsign</strong> so it appears in the TAK Server client dashboard. Radio detections are named map markers and are not ATAK contacts unless you choose a friendly-unit CoT type. Use <strong>Test</strong> on the TAK list to queue a test marker.</p>
     <p>Certificate expiry warnings appear at 30 / 14 / 7 days. Re-enroll before expiry to avoid forwarding interruption.</p>
   </div>
 </div>
@@ -45,6 +45,7 @@
   <div class="help-card-body">
     <p>Radios heard by the decoder appear under <strong>Observed</strong>. Only <strong>Approved</strong> units are forwarded to TAK unless Settings → Forwarding allows unknown radios.</p>
     <p>Approve a unit to add it to the allowlist, then edit callsign, CoT type, team, and role. Per-unit settings override TAK server defaults.</p>
+    <p>Each forwarded radio is published as a named marker (callsign or radio ID). By default that marker is <strong>not</strong> an ATAK contact. Radio locations stay on the map until they stale — default <strong>20 minutes</strong>, configurable under Settings → Forwarding.</p>
     <p>Default policy is <strong>deny</strong> for unknown radios — this keeps your TAK map free of unauthorized subscribers.</p>
   </div>
 </div>
@@ -109,8 +110,8 @@ sudo radiotak diagnostics</pre>
     <span class="dim">▼</span>
   </div>
   <div class="help-card-body">
-    <p>Each TAK server has default marker settings: callsign, CoT type, iconset path, color, <code class="block">how</code>, and circular error (CE).</p>
-    <p>Unit-level edits override server defaults. Colors use <code class="block">#RRGGBB</code> hex and appear on ATAK/iTAK and the RadioTAK map.</p>
+    <p>Each TAK server has default marker settings: radio callsign, CoT type, iconset path, color, <code class="block">how</code>, circular error (CE), and optional RadioTAK user position.</p>
+    <p>Unit-level edits override server defaults. Default radio CoT type is <code class="block">a-n-G</code> (named marker, not a contact). Colors use <code class="block">#RRGGBB</code> hex and appear on ATAK/iTAK and the RadioTAK map.</p>
     <p>Iconset path format: <code class="block">uuid:Group/name</code> — inspect an existing marker in CloudTAK/ATAK for reference.</p>
   </div>
 </div>

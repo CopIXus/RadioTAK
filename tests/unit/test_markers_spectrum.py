@@ -55,6 +55,28 @@ def test_resolve_style_unit_overrides_server():
     assert style["cot_type"] == "a-f-G-E-V-C"
     assert style["marker_color"] == "#1100ff"
     assert style["iconset_path"] == "uuid:Hiking/star"
+    assert style["stale_seconds"] == 90
+
+
+def test_resolve_style_zero_stale_uses_global():
+    server = SimpleNamespace(
+        default_callsign="Radio",
+        cot_type_default="a-n-G",
+        iconset_path="",
+        marker_color="#06b6d4",
+        cot_how="m-g",
+        default_ce_feet=2000,
+        callsign="GW",
+    )
+    identity = SimpleNamespace(
+        callsign="Engine 4",
+        cot_type="",
+        remarks=None,
+        stale_seconds=0,
+    )
+    style = resolve_style(server=server, identity=identity, radio_id="9")
+    assert style["cot_type"] == "a-n-G"
+    assert style["stale_seconds"] is None
 
 
 def test_spectrum_parse_and_downsample():

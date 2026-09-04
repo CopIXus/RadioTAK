@@ -63,11 +63,19 @@
       <form method="post" action="/tak/{{ server.id }}/marker" id="marker-form" data-busy="Saving…">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
         {{ field('default_callsign', 'Default radio callsign', value=server.default_callsign or 'Radio', help_key='tak.default_callsign') }}
-        {{ field('cot_type_default', 'CoT type', value=server.cot_type_default or 'a-f-G-U-C', help_key='tak.cot_type') }}
+        {{ select('cot_type_default', 'Radio CoT type', [
+          ('a-n-G', 'Neutral ground (named marker, not a contact)'),
+          ('a-u-G', 'Unknown ground (named marker, not a contact)'),
+          ('a-f-G-E-V', 'Friendly vehicle'),
+          ('a-h-G', 'Hostile ground'),
+          ('a-f-G-U-C', 'Friendly unit (shows as ATAK contact)'),
+        ], value=server.cot_type_default or 'a-n-G', help_key='tak.cot_type') }}
         {{ field('iconset_path', 'Iconset path', value=server.iconset_path or '', help_key='tak.iconset_path', placeholder='uuid:Group/name') }}
         {{ field('marker_color', 'Marker color', value=server.marker_color or '#06b6d4', help_key='tak.marker_color') }}
         {{ field('cot_how', 'CoT how', value=server.cot_how or 'm-g', help_key='tak.cot_how') }}
         {{ field('default_ce_feet', 'Default CE (feet)', type='number', value=server.default_ce_feet or 2000, step='1', help_key='tak.default_ce_feet') }}
+        {{ field('presence_lat', 'RadioTAK user latitude', value=server.presence_lat if server.presence_lat is not none else '', help_key='tak.presence_lat', placeholder='optional') }}
+        {{ field('presence_lon', 'RadioTAK user longitude', value=server.presence_lon if server.presence_lon is not none else '', help_key='tak.presence_lon', placeholder='optional') }}
         <div class="marker-swatch">
           <span class="dot" id="marker-swatch-dot" style="background:{{ server.marker_color or '#06b6d4' }}"></span>
           <span class="dim" id="marker-swatch-label">Live preview</span>
@@ -84,7 +92,7 @@
       <form method="post" action="/tak/{{ server.id }}/channels" data-busy="Saving channels…">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
         {% if groups %}
-        <p class="card-desc" style="margin-bottom:12px">Select groups from Marti. Saved groups are used on connect.</p>
+        <p class="card-desc" style="margin-bottom:12px">Select groups from Marti. Saved locally and applied to TAK Server after RadioTAK is connected on the CoT port.</p>
         {% for g in groups %}
           {% set gname = g.name if g.name is defined else g.get('name') %}
           <label style="display:block;margin:6px 0;font-size:13px">

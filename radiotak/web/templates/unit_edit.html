@@ -3,12 +3,12 @@
 {% block title %}Edit unit — {{ title or 'RadioTAK' }}{% endblock %}
 {% block content %}
 {% set cot_types = [
-  ('a-f-G-U-C', 'Friendly ground unit (combat)'),
+  ('a-n-G', 'Neutral ground (named marker, not a contact)'),
+  ('a-u-G', 'Unknown ground (named marker, not a contact)'),
   ('a-f-G-E-V', 'Friendly ground equipment (vehicle)'),
-  ('a-f-G-U-C-I', 'Friendly ground unit (C2)'),
-  ('a-u-G', 'Unknown ground'),
-  ('a-n-G', 'Neutral ground'),
   ('a-h-G', 'Hostile ground'),
+  ('a-f-G-U-C', 'Friendly ground unit (shows as ATAK contact)'),
+  ('a-f-G-U-C-I', 'Friendly ground unit (C2 / contact)'),
 ] %}
 
 <div class="header">
@@ -28,8 +28,8 @@
   {{ field('unit', 'Unit', value=unit.unit or '') }}
   {{ field('team', 'Team', value=unit.team or '') }}
   {{ field('role', 'Role', value=unit.role or '') }}
-  {{ select('cot_type', 'CoT type', cot_types, value=unit.cot_type or 'a-f-G-U-C', help_key='unit.cot_type') }}
-  {{ field('stale_seconds', 'Stale seconds', type='number', value=unit.stale_seconds or 120, help_key='unit.stale_seconds') }}
+  {{ select('cot_type', 'CoT type', cot_types, value=unit.cot_type or 'a-n-G', help_key='unit.cot_type') }}
+  {{ field('stale_seconds', 'Stale seconds (0 = use Settings)', type='number', value=unit.stale_seconds or 0, help_key='unit.stale_seconds', min='0') }}
   {{ field('remarks', 'Remarks', value=unit.remarks or '', rows=3) }}
   {{ check('enabled', 'Enabled', checked=unit.enabled) }}
   {{ check('forward_to_tak', 'Forward to TAK', checked=unit.forward_to_tak) }}

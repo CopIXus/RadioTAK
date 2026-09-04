@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import shutil
 import time
@@ -36,6 +37,7 @@ from radiotak.db import (
     TakServer,
     get_session_factory,
 )
+from radiotak.gateway.constants import DEFAULT_STALE_SECONDS, DETECTION_COT_TYPE
 from radiotak.gateway.events import event_bus
 from radiotak.gateway.marker_style import resolve_style
 from radiotak.gateway.tak import ConnectionState, TakConnectionManager, tak_registry
@@ -61,6 +63,7 @@ from radiotak.web.deps import TEMPLATES, base_context, redirect, require_auth, v
 
 pages = APIRouter()
 api = APIRouter(prefix="/api/v1")
+log = logging.getLogger("radiotak.web")
 
 _HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{3,8}$")
 
@@ -110,6 +113,8 @@ def _tak_server_view(server: TakServer) -> SimpleNamespace:
         marker_color=server.marker_color,
         cot_how=server.cot_how,
         default_ce_feet=server.default_ce_feet,
+        presence_lat=server.presence_lat,
+        presence_lon=server.presence_lon,
         active_groups=server.active_groups,
         status=server.status,
         last_error=server.last_error,
@@ -617,7 +622,19 @@ async def tak_list(request: Request, _user=Depends(require_auth)):
     Session = get_session_factory()
     db = Session()
     try:
-        servers = list(db.scalars(select(TakServer).order_by(TakServer.name)))
+        rows = list(db.scalars(select(TakServer).order_by(TakServer.name)))
+        servers = []
+        for s in rows:
+            v = _tak_server_view(s)
+            mgr = tak_registry.get(s.id)
+            if mgr:
+                v.status = mgr.state.value
+                if mgr.state == ConnectionState.CONNECTED:
+                    if v.last_error and "activebits" in v.last_error:
+                        v.last_error = None
+                elif mgr.last_error:
+                    v.last_error = mgr.last_error
+            servers.append(v)
     finally:
         db.close()
     return TEMPLATES.TemplateResponse(
@@ -843,7 +860,10 @@ async def tak_channels(
             return redirect("/tak")
         server.active_groups = selected
         cert, key = _cert_paths(server_id, server)
-        if selected and PathExists(cert) and PathExists(key):
+        server.last_error = None
+        mgr = tak_registry.get(server_id)
+        connected = bool(mgr and mgr.state == ConnectionState.CONNECTED)
+        if selected and PathExists(cert) and PathExists(key) and connected:
             try:
                 await set_active_groups(
                     server.host,
@@ -853,9 +873,11 @@ async def tak_channels(
                     cert=(str(cert), str(key)),
                     verify=False,
                 )
-                server.last_error = None
             except Exception as exc:  # noqa: BLE001
-                server.last_error = str(exc)
+                # Saved locally; Marti often 400s until the CoT stream is up.
+                log.warning("Marti group push deferred: %s", exc)
+        if mgr:
+            mgr.active_groups = list(selected)
         db.commit()
     finally:
         db.close()
@@ -867,11 +889,13 @@ async def tak_marker(
     server_id: str,
     request: Request,
     default_callsign: str = Form("Radio"),
-    cot_type_default: str = Form("a-f-G-U-C"),
+    cot_type_default: str = Form(DETECTION_COT_TYPE),
     iconset_path: str = Form(""),
     marker_color: str = Form("#06b6d4"),
     cot_how: str = Form("m-g"),
     default_ce_feet: float = Form(2000),
+    presence_lat: str = Form(""),
+    presence_lon: str = Form(""),
     csrf_token: str = Form(""),
     _user=Depends(require_auth),
 ):
@@ -885,12 +909,21 @@ async def tak_marker(
         if not server:
             return redirect("/tak")
         server.default_callsign = default_callsign.strip() or "Radio"
-        server.cot_type_default = cot_type_default.strip() or "a-f-G-U-C"
+        server.cot_type_default = cot_type_default.strip() or DETECTION_COT_TYPE
         server.iconset_path = iconset_path.strip() or None
         server.marker_color = marker_color.strip()
         server.cot_how = cot_how.strip() or "m-g"
         server.default_ce_feet = float(default_ce_feet)
+        try:
+            server.presence_lat = float(presence_lat) if presence_lat.strip() else None
+            server.presence_lon = float(presence_lon) if presence_lon.strip() else None
+        except ValueError:
+            return redirect(f"/tak/{server_id}?err={quote('Invalid gateway latitude/longitude')}")
         db.commit()
+        mgr = tak_registry.get(server_id)
+        if mgr:
+            mgr.presence_lat = float(server.presence_lat or 0.0)
+            mgr.presence_lon = float(server.presence_lon or 0.0)
         write_audit("tak_marker", actor=_actor(request), target=server_id)
     finally:
         db.close()
@@ -1041,7 +1074,13 @@ async def unit_edit_get(unit_id: str, request: Request, _user=Depends(require_au
         unit = _unit_view(row)
     finally:
         db.close()
-    return TEMPLATES.TemplateResponse(request, "unit_edit.html", base_context(request, nav="units", unit=unit))
+    fwd = load_settings_file().get("forwarding") or {}
+    default_stale = int(fwd.get("stale_seconds") or DEFAULT_STALE_SECONDS)
+    return TEMPLATES.TemplateResponse(
+        request,
+        "unit_edit.html",
+        base_context(request, nav="units", unit=unit, default_stale=default_stale),
+    )
 
 
 @pages.post("/units/{unit_id}")
@@ -1054,8 +1093,8 @@ async def unit_edit_post(
     unit: str = Form(""),
     team: str = Form(""),
     role: str = Form(""),
-    cot_type: str = Form("a-f-G-U-C"),
-    stale_seconds: int = Form(120),
+    cot_type: str = Form(DETECTION_COT_TYPE),
+    stale_seconds: int = Form(0),
     remarks: str = Form(""),
     enabled: Optional[str] = Form(None),
     forward_to_tak: Optional[str] = Form(None),
@@ -1074,8 +1113,8 @@ async def unit_edit_post(
             row.unit = unit or None
             row.team = team.strip() or None
             row.role = role.strip() or None
-            row.cot_type = cot_type or "a-f-G-U-C"
-            row.stale_seconds = stale_seconds
+            row.cot_type = cot_type or DETECTION_COT_TYPE
+            row.stale_seconds = max(0, int(stale_seconds))
             row.remarks = remarks or None
             row.enabled = bool(enabled)
             row.forward_to_tak = bool(forward_to_tak)
@@ -1241,7 +1280,7 @@ async def settings_save(request: Request, _user=Depends(require_auth)):
             "unknown_radios": form.get("unknown_radios") or "deny",
             "duplicate_suppression": bool(form.get("duplicate_suppression")),
             "min_interval_seconds": int(form.get("min_interval_seconds") or 2),
-            "stale_seconds": int(form.get("stale_seconds") or 120),
+            "stale_seconds": int(form.get("stale_seconds") or DEFAULT_STALE_SECONDS),
             "min_movement_meters": int(form.get("min_movement_meters") or 5),
             "stationary_heartbeat_seconds": int(form.get("stationary_heartbeat_seconds") or 45),
             "default_ce_meters": int(form.get("default_ce_meters") or 20),

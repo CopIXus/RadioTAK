@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from radiotak.config import Settings, get_settings, reload_settings
+from radiotak.gateway.constants import DEFAULT_STALE_SECONDS
 
 DEFAULTS: dict[str, Any] = {
     "theme": "dark",
@@ -27,7 +28,7 @@ DEFAULTS: dict[str, Any] = {
         "duplicate_suppression": True,
         "min_interval_seconds": 2,
         "stationary_heartbeat_seconds": 45,
-        "stale_seconds": 120,
+        "stale_seconds": DEFAULT_STALE_SECONDS,
         "min_movement_meters": 5,
         "default_ce_meters": 20,
     },
@@ -76,9 +77,13 @@ def load_settings_file(settings: Optional[Settings] = None) -> dict[str, Any]:
         data = {}
     merged = dict(DEFAULTS)
     merged.update(data)
+    migrated = False
     if "forwarding" in data and isinstance(data["forwarding"], dict):
         fwd = dict(DEFAULTS["forwarding"])
         fwd.update(data["forwarding"])
+        if not data.get("_stale_default_v2") and fwd.get("stale_seconds") == 120:
+            fwd["stale_seconds"] = DEFAULT_STALE_SECONDS
+            migrated = True
         merged["forwarding"] = fwd
     if "customization" in data and isinstance(data["customization"], dict):
         cust = dict(DEFAULTS["customization"])
@@ -92,6 +97,12 @@ def load_settings_file(settings: Optional[Settings] = None) -> dict[str, Any]:
         nv = dict(DEFAULTS["novnc"])
         nv.update(data["novnc"])
         merged["novnc"] = nv
+    if migrated:
+        merged["_stale_default_v2"] = True
+        try:
+            save_settings_file(merged, settings)
+        except OSError:
+            pass
     return merged
 
 

@@ -101,10 +101,10 @@ class RadioIdentity(Base):
     display_name: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     agency: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     unit: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
-    cot_type: Mapped[str] = mapped_column(String(64), default="a-f-G-U-C")
+    cot_type: Mapped[str] = mapped_column(String(64), default="a-n-G")
     team: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     role: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
-    stale_seconds: Mapped[int] = mapped_column(Integer, default=120)
+    stale_seconds: Mapped[int] = mapped_column(Integer, default=0)
     remarks: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     last_latitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     last_longitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
@@ -141,11 +141,13 @@ class TakServer(Base):
     device_uid: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     # Marker / CoT appearance (per TAK server)
     default_callsign: Mapped[Optional[str]] = mapped_column(String(128), nullable=True, default="Radio")
-    cot_type_default: Mapped[str] = mapped_column(String(64), default="a-f-G-U-C")
+    cot_type_default: Mapped[str] = mapped_column(String(64), default="a-n-G")
     iconset_path: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     marker_color: Mapped[str] = mapped_column(String(16), default="#06b6d4")
     cot_how: Mapped[str] = mapped_column(String(32), default="m-g")
     default_ce_feet: Mapped[float] = mapped_column(Float, default=2000.0)
+    presence_lat: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    presence_lon: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     auto_connect: Mapped[bool] = mapped_column(Boolean, default=True)
     auto_reconnect: Mapped[bool] = mapped_column(Boolean, default=True)
     reconnect_min_seconds: Mapped[int] = mapped_column(Integer, default=2)
@@ -275,7 +277,7 @@ def _sqlite_add_missing_columns(engine) -> None:
     """Best-effort ALTER TABLE for new columns on existing SQLite DBs."""
     statements = [
         "ALTER TABLE tak_servers ADD COLUMN default_callsign VARCHAR(128) DEFAULT 'Radio'",
-        "ALTER TABLE tak_servers ADD COLUMN cot_type_default VARCHAR(64) DEFAULT 'a-f-G-U-C'",
+        "ALTER TABLE tak_servers ADD COLUMN cot_type_default VARCHAR(64) DEFAULT 'a-n-G'",
         "ALTER TABLE tak_servers ADD COLUMN iconset_path VARCHAR(512)",
         "ALTER TABLE tak_servers ADD COLUMN marker_color VARCHAR(16) DEFAULT '#06b6d4'",
         "ALTER TABLE tak_servers ADD COLUMN cot_how VARCHAR(32) DEFAULT 'm-g'",
@@ -288,6 +290,26 @@ def _sqlite_add_missing_columns(engine) -> None:
                 conn.exec_driver_sql(sql)
             except Exception:  # noqa: BLE001
                 pass
+        presence_added = False
+        try:
+            conn.exec_driver_sql("ALTER TABLE tak_servers ADD COLUMN presence_lat FLOAT")
+            presence_added = True
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            conn.exec_driver_sql("ALTER TABLE tak_servers ADD COLUMN presence_lon FLOAT")
+        except Exception:  # noqa: BLE001
+            pass
+        if presence_added:
+            for sql in (
+                "UPDATE tak_servers SET cot_type_default = 'a-n-G' WHERE cot_type_default = 'a-f-G-U-C'",
+                "UPDATE radio_identities SET cot_type = 'a-n-G' WHERE cot_type = 'a-f-G-U-C'",
+                "UPDATE radio_identities SET stale_seconds = 0 WHERE stale_seconds = 120",
+            ):
+                try:
+                    conn.exec_driver_sql(sql)
+                except Exception:  # noqa: BLE001
+                    pass
 
 
 def get_db():

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from radiotak.gateway.constants import DETECTION_COT_TYPE
+
 FEET_TO_METERS = 0.3048
 
 
@@ -23,8 +25,8 @@ def resolve_style(
     unit_callsign = getattr(identity, "callsign", None) if identity is not None else None
     callsign = unit_callsign or source_alias or srv_callsign or radio_id or "Radio"
 
-    unit_type = getattr(identity, "cot_type", None) if identity is not None else None
-    cot_type = unit_type or getattr(server, "cot_type_default", None) or "a-f-G-U-C"
+    unit_type = (getattr(identity, "cot_type", None) or "").strip() if identity is not None else ""
+    cot_type = unit_type or getattr(server, "cot_type_default", None) or DETECTION_COT_TYPE
 
     icon = getattr(server, "iconset_path", None) or ""
     color = getattr(server, "marker_color", None) or "#06b6d4"
@@ -33,7 +35,13 @@ def resolve_style(
     if ce_feet is None:
         ce_feet = 2000
     remarks = getattr(identity, "remarks", None) if identity is not None else None
-    stale = getattr(identity, "stale_seconds", None) if identity is not None else None
+    unit_stale = getattr(identity, "stale_seconds", None) if identity is not None else None
+    try:
+        stale = int(unit_stale) if unit_stale else None
+    except (TypeError, ValueError):
+        stale = None
+    if stale is not None and stale <= 0:
+        stale = None
 
     return {
         "callsign": callsign,

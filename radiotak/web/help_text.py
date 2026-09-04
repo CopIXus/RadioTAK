@@ -37,9 +37,9 @@ HELP: dict[str, dict[str, str]] = {
     },
     "tak.callsign": {
         "label": "Gateway callsign",
-        "what": "Callsign used for RadioTAK's own presence / test CoT on this server.",
-        "where": "Operator choice; appears as the sender identity for gateway traffic.",
-        "example": "RadioTAK",
+        "what": "Callsign TAK Server shows for this RadioTAK connection in the connected-clients dashboard.",
+        "where": "Operator choice; sent as RadioTAK's own SA presence when the CoT stream connects.",
+        "example": "CarterCo-RadioTAK",
     },
     "tak.default_callsign": {
         "label": "Default radio callsign",
@@ -48,10 +48,10 @@ HELP: dict[str, dict[str, str]] = {
         "example": "Radio",
     },
     "tak.cot_type": {
-        "label": "CoT type",
-        "what": "Cursor-on-Target type string for markers pushed to this TAK server.",
-        "where": "ATAK CoT types (e.g. a-f-G-U-C) or unit-level override on Units → Edit.",
-        "example": "a-f-G-U-C",
+        "label": "Radio CoT type",
+        "what": "CoT type for radio detection markers. Neutral/unknown ground types show a name on the map but do not appear in ATAK Contacts. Friendly unit (a-f-G-U-C) does show as a contact.",
+        "where": "TAK → Configure → Marker Appearance, or override per radio on Units → Edit.",
+        "example": "a-n-G",
     },
     "tak.iconset_path": {
         "label": "Iconset path",
@@ -76,6 +76,18 @@ HELP: dict[str, dict[str, str]] = {
         "what": "Circular error / position accuracy written to CoT when the radio report has none.",
         "where": "Converted to meters for the CoT point ce attribute (2000 ft ≈ 609.6 m).",
         "example": "2000",
+    },
+    "tak.presence_lat": {
+        "label": "RadioTAK user latitude",
+        "what": "Map position for the RadioTAK gateway user. Leave blank if you only need the callsign in the TAK Server client list.",
+        "where": "TAK → Configure → Marker Appearance. Same WGS-84 latitude ATAK uses.",
+        "example": "36.297",
+    },
+    "tak.presence_lon": {
+        "label": "RadioTAK user longitude",
+        "what": "Map position for the RadioTAK gateway user. Leave blank if you only need the callsign in the TAK Server client list.",
+        "where": "TAK → Configure → Marker Appearance.",
+        "example": "-82.342",
     },
     "tak.username": {
         "label": "Enrollment username",
@@ -109,15 +121,15 @@ HELP: dict[str, dict[str, str]] = {
     },
     "unit.cot_type": {
         "label": "Unit CoT type",
-        "what": "Per-radio CoT type override. Leave default to use the TAK server setting.",
-        "where": "Units → Edit; standard CoT affiliations like a-f-G-U-C.",
-        "example": "a-f-G-U-C",
+        "what": "Per-radio CoT type. Neutral/unknown ground types label the marker without adding an ATAK contact. Use a-f-G-U-C only if this radio should appear in Contacts.",
+        "where": "Units → Edit; overrides TAK server Marker Appearance when set.",
+        "example": "a-n-G",
     },
     "unit.stale_seconds": {
-        "label": "Stale seconds",
-        "what": "How long the CoT marker stays fresh on TAK before going stale.",
-        "where": "Unit edit or global Settings → Forwarding.",
-        "example": "120",
+        "label": "Radio marker stale",
+        "what": "How long a radio location stays on ATAK after the last GPS report, then stales out. Settings default is 1200 seconds (20 minutes). On a unit, 0 means use Settings.",
+        "where": "Settings → Forwarding for the default; Units → Edit to override one radio.",
+        "example": "1200",
     },
     "sdr.gain": {
         "label": "Gain (dB)",

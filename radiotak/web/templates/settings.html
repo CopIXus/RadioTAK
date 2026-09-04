@@ -33,7 +33,7 @@
   {{ select('unknown_radios', 'Unknown radios', [('deny', 'Deny (allowlist only)'), ('observe', 'Observe only'), ('forward', 'Forward all')], value=fwd.unknown_radios | default('deny'), help_key='settings.unknown_radios') }}
   {{ check('duplicate_suppression', 'Duplicate suppression', checked=fwd.duplicate_suppression | default(true)) }}
   {{ field('min_interval_seconds', 'Min interval (sec)', type='number', value=fwd.min_interval_seconds | default(2), help_key='settings.min_interval') }}
-  {{ field('stale_seconds', 'Stale seconds', type='number', value=fwd.stale_seconds | default(120), help_key='unit.stale_seconds') }}
+  {{ field('stale_seconds', 'Radio marker stale (seconds)', type='number', value=fwd.stale_seconds | default(1200), help_key='unit.stale_seconds', min='30') }}
   {{ field('min_movement_meters', 'Min movement (m)', type='number', value=fwd.min_movement_meters | default(5)) }}
   {{ field('stationary_heartbeat_seconds', 'Stationary heartbeat (sec)', type='number', value=fwd.stationary_heartbeat_seconds | default(45)) }}
   {{ field('default_ce_meters', 'Default CE (meters)', type='number', value=fwd.default_ce_meters | default(20)) }}
