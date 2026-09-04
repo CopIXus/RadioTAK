@@ -8,8 +8,8 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
-# SDRTrunk 0.6.x Jackson playlist version
-PLAYLIST_VERSION = "2"
+# SDRTrunk 0.6.x Jackson playlist version (0.6.1 writes version="4")
+PLAYLIST_VERSION = "4"
 
 _DECODE = {
     "P25": ("decodeConfigP25Phase1", {"modulation": "C4FM", "traffic_channel_pool_size": "3", "ignore_data_calls": "false"}),
@@ -24,7 +24,8 @@ def playlist_dir(settings=None) -> Path:
         from radiotak.config import get_settings
 
         settings = get_settings()
-    return settings.data_dir / ".sdrtrunk" / "playlist"
+    # SDRTrunk HOME=/var/lib/radiotak → application root SDRTrunk/playlist
+    return settings.data_dir / "SDRTrunk" / "playlist"
 
 
 def default_playlist_path(settings=None) -> Path:
@@ -187,6 +188,58 @@ def write_p25_playlist(
     )
 
 
+def is_listening(row) -> bool:
+    """True when the system is included and auto-started in the decoder playlist."""
+    if not getattr(row, "enabled", True):
+        return False
+    cfg = getattr(row, "config", None) or {}
+    return bool(cfg.get("auto_start", True))
+
+
+def set_row_listening(row, on: bool) -> None:
+    """Flip both enabled and auto_start so Listen is a single operator control."""
+    on = bool(on)
+    row.enabled = on
+    cfg = dict(getattr(row, "config", None) or {})
+    cfg["auto_start"] = on
+    row.config = cfg
+
+
+def assign_listen_states(listening: list[bool], tuner_count: int) -> list[str]:
+    """Map each row to off / active / starved given how many dongles are present.
+
+    Listening systems consume tuners in list order (same as the SDR table / playlist).
+    Extra listening systems beyond tuner_count are starved until another SDR is plugged in.
+    """
+    slots = max(0, int(tuner_count))
+    used = 0
+    states: list[str] = []
+    for on in listening:
+        if not on:
+            states.append("off")
+            continue
+        if used < slots:
+            states.append("active")
+            used += 1
+        else:
+            states.append("starved")
+    return states
+
+
+def apply_tuner_slots(systems: list[dict[str, Any]], tuner_count: int) -> list[dict[str, Any]]:
+    """Only the first tuner_count auto-start systems keep auto_start for the playlist."""
+    slots = max(0, int(tuner_count))
+    used = 0
+    for sys in systems:
+        if not sys.get("auto_start"):
+            continue
+        if used < slots:
+            used += 1
+        else:
+            sys["auto_start"] = False
+    return systems
+
+
 def systems_from_db_rows(rows, devices=None) -> list[dict[str, Any]]:
     preferred = _preferred_tuner_from_devices(devices)
     out: list[dict[str, Any]] = []
@@ -248,13 +301,16 @@ def write_tuner_preferences(devices, settings=None) -> Path | None:
     return path
 
 
-def rebuild_default_playlist(rows, settings=None, devices=None) -> Path:
+def rebuild_default_playlist(rows, settings=None, devices=None, tuner_count: int | None = None) -> Path:
     if settings is None:
         from radiotak.config import get_settings
 
         settings = get_settings()
     write_tuner_preferences(devices or [], settings=settings)
+    systems = systems_from_db_rows(rows, devices=devices)
+    if tuner_count is not None:
+        apply_tuner_slots(systems, tuner_count)
     return write_playlist(
         default_playlist_path(settings),
-        systems_from_db_rows(rows, devices=devices),
+        systems,
     )

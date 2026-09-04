@@ -497,8 +497,7 @@ async def customization_post(request: Request, _user=Depends(require_auth)):
         "customization": {
             "banner_enabled": banner_enabled,
             # Opt-out when the user unchecks while branding text would otherwise show.
-            "banner_opt_out": (bool(banner_text.strip()) or custom_title)
-            and not banner_enabled,
+            "banner_opt_out": (bool(banner_text.strip()) or custom_title) and not banner_enabled,
             "banner_text": banner_text,
             "banner_font": form.get("banner_font") or "JetBrains Mono",
             "banner_size": form.get("banner_size") or "medium",
@@ -1156,12 +1155,7 @@ async def map_page(request: Request, _user=Depends(require_auth)):
 
 @pages.get("/system", response_class=HTMLResponse)
 async def system_page(request: Request, _user=Depends(require_auth)):
-    latest = None
-    try:
-        rel = await updater_svc.latest_release()
-        latest = rel.get("tag_name")
-    except Exception:  # noqa: BLE001
-        latest = None
+    update_info = await updater_svc.check_for_update()
     return TEMPLATES.TemplateResponse(
         request,
         "system.html",
@@ -1169,9 +1163,10 @@ async def system_page(request: Request, _user=Depends(require_auth)):
             request,
             nav="system",
             info=get_platform().system_info(),
-            version=updater_svc.current_version(),
+            version=update_info.get("installed") or updater_svc.current_version(),
             branch=load_settings_file().get("github_branch", "main"),
-            latest=latest,
+            latest=update_info.get("latest"),
+            update_available=bool(update_info.get("update_available")),
             audit_rows=recent_audit(50),
             message=request.query_params.get("msg"),
             error=request.query_params.get("err"),
@@ -1335,18 +1330,7 @@ async def health():
 
 @api.get("/version")
 async def version_status(_user=Depends(require_auth)):
-    installed = updater_svc.current_version()
-    latest = None
-    try:
-        rel = await updater_svc.latest_release()
-        latest = rel.get("tag_name")
-    except Exception:  # noqa: BLE001
-        latest = None
-    return {
-        "installed": installed,
-        "latest": latest,
-        "update_available": bool(latest and latest != installed),
-    }
+    return await updater_svc.check_for_update()
 
 
 @api.get("/status")

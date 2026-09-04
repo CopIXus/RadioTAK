@@ -260,6 +260,12 @@ body::before {
   padding: 16px;
   max-width: 560px;
 }
+.system-listen-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
 .card-title { font-weight: 600; font-size: 14px; margin-bottom: 6px; }
 .card-desc { font-size: 12px; color: var(--text-dim); line-height: 1.4; }
 
@@ -303,6 +309,19 @@ body::before {
   color: #fff;
 }
 .btn-danger { background: var(--red); border: none; color: #fff; font-weight: 600; }
+.btn-listen-active {
+  background: var(--green);
+  border: none;
+  color: #042f1e;
+  font-weight: 600;
+}
+.btn-listen-starved {
+  background: var(--amber);
+  border: none;
+  color: #1c1002;
+  font-weight: 600;
+}
+.status-warn .dot { animation: pulse 2s infinite; }
 .btn-sm { padding: 6px 12px; font-size: 12px; }
 
 .form-field { margin-bottom: 16px; }

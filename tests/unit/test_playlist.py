@@ -52,7 +52,7 @@ def test_write_playlist_v2(tmp_path):
         ],
     )
     xml = path.read_text(encoding="utf-8")
-    assert 'version="2"' in xml
+    assert 'version="4"' in xml
     assert 'name="County P25"' in xml
     assert 'type="decodeConfigP25Phase1"' in xml
     assert "ignore_data_calls=\"false\"" in xml
@@ -67,3 +67,69 @@ def test_write_p25_wrapper(tmp_path):
     xml = path.read_text(encoding="utf-8")
     assert "851012500" in xml
     assert "sourceConfigTuner\"" in xml or 'type="sourceConfigTuner"' in xml
+
+
+def test_playlist_dir_is_sdrtrunk_home(tmp_path):
+    from types import SimpleNamespace
+
+    from modules.sdr_location_gateway.sdrtrunk.playlist import default_playlist_path
+
+    settings = SimpleNamespace(data_dir=tmp_path)
+    assert default_playlist_path(settings) == tmp_path / "SDRTrunk" / "playlist" / "default.xml"
+
+
+def test_listen_toggle_skips_disabled(tmp_path):
+    from types import SimpleNamespace
+
+    from modules.sdr_location_gateway.sdrtrunk.playlist import (
+        is_listening,
+        set_row_listening,
+        systems_from_db_rows,
+        write_playlist,
+    )
+
+    row = SimpleNamespace(
+        enabled=True,
+        name="County",
+        protocol="P25",
+        config={"site": "1", "frequencies_hz": [851012500], "auto_start": True},
+    )
+    assert is_listening(row) is True
+    set_row_listening(row, False)
+    assert row.enabled is False
+    assert row.config["auto_start"] is False
+    assert is_listening(row) is False
+    assert systems_from_db_rows([row]) == []
+
+    set_row_listening(row, True)
+    systems = systems_from_db_rows([row])
+    assert len(systems) == 1
+    path = write_playlist(tmp_path / "default.xml", systems)
+    xml = path.read_text(encoding="utf-8")
+    assert 'enabled="true"' in xml
+    assert "851012500" in xml
+
+
+def test_assign_listen_states_one_tuner():
+    from modules.sdr_location_gateway.sdrtrunk.playlist import assign_listen_states
+
+    assert assign_listen_states([False, False], 1) == ["off", "off"]
+    assert assign_listen_states([True, False, True], 1) == ["active", "off", "starved"]
+    assert assign_listen_states([True, True, True], 1) == ["active", "starved", "starved"]
+    assert assign_listen_states([True, True, True], 2) == ["active", "active", "starved"]
+    assert assign_listen_states([True, True], 2) == ["active", "active"]
+    assert assign_listen_states([True], 0) == ["starved"]
+
+
+def test_apply_tuner_slots_keeps_first_auto_start():
+    from modules.sdr_location_gateway.sdrtrunk.playlist import apply_tuner_slots
+
+    systems = [
+        {"name": "A", "auto_start": True},
+        {"name": "B", "auto_start": True},
+        {"name": "C", "auto_start": True},
+    ]
+    apply_tuner_slots(systems, 1)
+    assert systems[0]["auto_start"] is True
+    assert systems[1]["auto_start"] is False
+    assert systems[2]["auto_start"] is False

@@ -1,6 +1,30 @@
 {% extends "base.html" %}
 {% from "_macros.html" import field, select, check %}
 {% block title %}SDR — {{ title or 'RadioTAK' }}{% endblock %}
+{% macro listen_pill(s) -%}
+  {% if s.listen_state == 'active' %}
+  <span class="status-pill status-running" style="margin-top:0"><span class="dot"></span>Listening</span>
+  {% elif s.listen_state == 'starved' %}
+  <span class="status-pill status-warn" style="margin-top:0"><span class="dot"></span>No tuner</span>
+  {% else %}
+  <span class="status-pill status-idle" style="margin-top:0"><span class="dot"></span>Off</span>
+  {% endif %}
+{%- endmacro %}
+{% macro listen_button(s) -%}
+  <form method="post" action="/modules/sdr/systems/{{ s.id }}/listen" data-busy="Updating decoder…">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+    {% if s.listen_state == 'active' %}
+    <input type="hidden" name="listen" value="0"/>
+    <button class="btn btn-sm btn-listen-active" type="submit">Stop</button>
+    {% elif s.listen_state == 'starved' %}
+    <input type="hidden" name="listen" value="0"/>
+    <button class="btn btn-sm btn-listen-starved" type="submit">Stop</button>
+    {% else %}
+    <input type="hidden" name="listen" value="1"/>
+    <button class="btn btn-sm btn-primary" type="submit">Listen</button>
+    {% endif %}
+  </form>
+{%- endmacro %}
 {% block content %}
 <div class="header">
   <div>
@@ -45,6 +69,7 @@
 
 {% if waterfall_enabled | default(true) %}
 <div class="section-title">Spectrum waterfall</div>
+<p class="card-desc" style="margin-bottom:10px">Canvas frames come from the CopIXus SDRTrunk exporter on port 29501. Stock SDRTrunk still decodes without them — this view stays empty until that exporter is installed.</p>
 <div class="waterfall-wrap">
   <canvas id="sdr-waterfall" aria-label="RF spectrum waterfall"></canvas>
   <div class="waterfall-axis">
@@ -97,15 +122,41 @@
 {% endif %}
 
 <div class="section-title">Radio systems</div>
-<p class="card-desc" style="margin-bottom:16px">Enter control-channel frequencies in MHz. For trunked P25/DMR use the CC (and alternates), not random voice channels.</p>
+<p class="card-desc" style="margin-bottom:16px">Enter control-channel frequencies in MHz. Use <strong>Listen</strong> to put a system on the decoder. Green = that system has a dongle. Yellow = turned on but waiting for another SDR. Off systems stay idle.</p>
+
+{% if starved_count %}
+<div class="alert alert-info">{{ starved_count }} system{{ 's' if starved_count != 1 else '' }} {{ 'are' if starved_count != 1 else 'is' }} on without a tuner ({{ tuner_count }} dongle{{ 's' if tuner_count != 1 else '' }} detected). Plug in another SDR or Stop extras so they are not sitting idle.</div>
+{% endif %}
+
+{% if systems %}
+<table class="table" style="margin-bottom:24px">
+  <thead>
+    <tr><th>System</th><th>Protocol</th><th>Site</th><th>Freqs</th><th>Decoder</th><th></th></tr>
+  </thead>
+  <tbody>
+  {% for s in systems %}
+    <tr>
+      <td>{{ s.name }}</td>
+      <td>{{ s.protocol }}</td>
+      <td>{{ s.site }}</td>
+      <td>{{ s.freq_count }}</td>
+      <td>{{ listen_pill(s) }}</td>
+      <td>{{ listen_button(s) }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
 
 <div class="cards-grid">
   {% for s in systems %}
   <div class="card card-static">
-    <div class="card-title">{{ s.name }}</div>
-    <div class="status-pill {% if s.enabled %}status-running{% else %}status-idle{% endif %}">
-      <span class="dot"></span>{{ s.protocol }} · {{ s.freq_count }} freq{% if s.freq_count != 1 %}s{% endif %}
+    <div class="system-listen-bar">
+      <div class="card-title" style="margin-bottom:0">{{ s.name }}</div>
+      {{ listen_pill(s) }}
     </div>
+    <div class="btn-row" style="margin:10px 0 12px">{{ listen_button(s) }}</div>
+    <div class="card-desc" style="margin-bottom:8px">{{ s.protocol }} · {{ s.freq_count }} freq{% if s.freq_count != 1 %}s{% endif %}</div>
     <form method="post" action="/modules/sdr/systems/{{ s.id }}" style="margin-top:12px" data-busy="Saving…">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
       {{ field('name', 'Name', value=s.name, required=True) }}
@@ -124,8 +175,6 @@
         <textarea id="id_frequencies_{{ s.id }}" name="frequencies" rows="3" required>{{ s.frequencies_text }}</textarea>
         <div class="freq-help">One per line or comma-separated. Example: 851.0125</div>
       </div>
-      {{ check('auto_start', 'Auto-start with decoder', checked=s.auto_start) }}
-      {{ check('enabled', 'Include in playlist', checked=s.enabled) }}
       <div class="btn-row">
         <button class="btn btn-sm btn-primary" type="submit">Save</button>
       </div>

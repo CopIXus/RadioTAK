@@ -13,18 +13,27 @@ from radiotak.platform import get_platform
 from radiotak.web.deps import TEMPLATES, base_context, redirect, require_auth, verify_csrf
 
 from .sdrtrunk.playlist import (
+    assign_listen_states,
     frequencies_to_text,
+    is_listening,
     parse_frequencies,
     rebuild_default_playlist,
+    set_row_listening,
 )
 
 router = APIRouter(prefix="/modules/sdr", tags=["sdr"])
 
 
+def _tuner_count(live_devices=None) -> int:
+    if live_devices is None:
+        live_devices = get_platform().list_sdr_devices()
+    return len(live_devices or [])
+
+
 def _rebuild_playlist(db):
-    rows = list(db.scalars(select(RadioSystem)))
+    rows = list(db.scalars(select(RadioSystem).order_by(RadioSystem.name)))
     devices = list(db.scalars(select(SdrDevice).order_by(SdrDevice.name)))
-    return rebuild_default_playlist(rows, devices=devices)
+    return rebuild_default_playlist(rows, devices=devices, tuner_count=_tuner_count())
 
 
 def _service_active() -> bool:
@@ -40,15 +49,34 @@ def _page(request: Request, **extra):
         systems = list(db.scalars(select(RadioSystem).order_by(RadioSystem.name)))
     finally:
         db.close()
+    tuner_count = _tuner_count(devices)
+    flags = [is_listening(s) for s in systems]
+    states = assign_listen_states(flags, tuner_count)
     system_views = []
-    for s in systems:
+    cc_markers: list[int] = []
+    listening_count = 0
+    starved_count = 0
+    for s, state in zip(systems, states, strict=True):
         cfg = s.config or {}
         freqs = cfg.get("frequencies_hz") or []
+        listening = state != "off"
+        if listening:
+            listening_count += 1
+        if state == "starved":
+            starved_count += 1
+        if state == "active":
+            for hz in freqs:
+                try:
+                    cc_markers.append(int(hz))
+                except (TypeError, ValueError):
+                    continue
         system_views.append(
             {
                 "id": s.id,
                 "name": s.name,
                 "enabled": s.enabled,
+                "listening": listening,
+                "listen_state": state,
                 "protocol": s.protocol,
                 "site": cfg.get("site") or "1",
                 "auto_start": bool(cfg.get("auto_start", True)),
@@ -66,6 +94,10 @@ def _page(request: Request, **extra):
             saved=saved,
             systems=system_views,
             decoder_running=_service_active(),
+            listening_count=listening_count,
+            starved_count=starved_count,
+            tuner_count=tuner_count,
+            cc_markers_hz=cc_markers,
             **extra,
         ),
     )
@@ -206,8 +238,6 @@ async def sdr_system_update(
     protocol: str = Form("P25"),
     site: str = Form("1"),
     frequencies: str = Form(...),
-    auto_start: str | None = Form(None),
-    enabled: str | None = Form(None),
     csrf_token: str = Form(""),
     _user=Depends(require_auth),
 ):
@@ -222,13 +252,13 @@ async def sdr_system_update(
         row = db.get(RadioSystem, system_id)
         if not row:
             return redirect("/modules/sdr?err=" + quote("System not found"))
+        prev = dict(row.config or {})
         row.name = name.strip()
         row.protocol = protocol.strip() or "P25"
-        row.enabled = bool(enabled)
         row.config = {
             "site": (site or "1").strip(),
             "frequencies_hz": freqs,
-            "auto_start": bool(auto_start),
+            "auto_start": bool(prev.get("auto_start", True)),
             "protocol": protocol.strip() or "P25",
         }
         db.commit()
@@ -236,6 +266,34 @@ async def sdr_system_update(
     finally:
         db.close()
     return redirect("/modules/sdr?msg=" + quote("System updated and playlist rewritten"))
+
+
+@router.post("/systems/{system_id}/listen")
+async def sdr_system_listen(
+    system_id: str,
+    request: Request,
+    listen: str = Form("0"),
+    csrf_token: str = Form(""),
+    _user=Depends(require_auth),
+):
+    verify_csrf(request, csrf_token)
+    on = listen.strip() in ("1", "true", "on", "yes")
+    Session = get_session_factory()
+    db = Session()
+    name = "System"
+    try:
+        row = db.get(RadioSystem, system_id)
+        if not row:
+            return redirect("/modules/sdr?err=" + quote("System not found"))
+        name = row.name
+        set_row_listening(row, on)
+        db.commit()
+        _rebuild_playlist(db)
+    finally:
+        db.close()
+    get_platform().service_action("sdrtrunk", "restart")
+    state = "listening" if on else "off"
+    return redirect("/modules/sdr?msg=" + quote(f"{name} {state} — playlist written, decoder restarted"))
 
 
 @router.post("/systems/{system_id}/delete")

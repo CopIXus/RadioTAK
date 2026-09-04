@@ -7,7 +7,8 @@ RadioTAK does **not** reimplement P25/DMR demodulation. It uses [SDRTrunk](https
 - SDRTrunk Linux AArch64 bundle
 - Run under **Xvfb** as `sdrtrunk.service` (JavaFX requires a display)
 - Playlist is written from the RadioTAK **SDR** page (`/modules/sdr`): type control-channel MHz, save, start decoder
-- File: `/var/lib/radiotak/.sdrtrunk/playlist/default.xml` (SDRTrunk playlist v2)
+- File: `/var/lib/radiotak/SDRTrunk/playlist/default.xml` (SDRTrunk playlist v4 — this is the path SDRTrunk actually loads)
+- RadioTAK **Listen** toggles write that file and restart `sdrtrunk`. Only listening systems are included. One RTL-SDR typically runs one trunked system at a time.
 - Optional: x11vnc for the native SDRTrunk GUI if you need spectrum debugging
 
 Do **not** enter a random voice frequency for trunked P25/DMR — enter the **control channel** (and alternates). GPS telemetry is decoded from the system, then allowlisted under **Units** before it is forwarded to TAK.

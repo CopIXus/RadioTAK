@@ -104,7 +104,7 @@ Group=radiotak
 Environment=DISPLAY=:99
 Environment=HOME=$DATA_DIR
 WorkingDirectory=$DEST
-ExecStartPre=/usr/bin/mkdir -p $DATA_DIR/.sdrtrunk
+ExecStartPre=/usr/bin/mkdir -p $DATA_DIR/SDRTrunk/playlist
 ExecStart=/usr/bin/xvfb-run -a -s "-screen 0 1280x800x24" $DEST/bin/sdr-trunk
 Restart=on-failure
 RestartSec=5

@@ -57,6 +57,7 @@
   <div class="help-card-body">
     <p>SDRTrunk runs under Xvfb on the Pi. Discover USB dongles, configure tuner gain/PPM/bias-tee, then add radio systems with control-channel frequencies.</p>
     <p>For trunked P25/DMR enter the <strong>control channel (CC)</strong> in MHz — not random voice channels. Use RadioReference or agency programming as reference.</p>
+    <p>Use <strong>Listen / Stop</strong> on each radio system to include it in the decoder playlist. <strong>Green</strong> means that system has a dongle. <strong>Yellow</strong> means it is on but waiting for another SDR. One RTL-SDR typically runs one trunked system at a time.</p>
     <p><strong>Write playlist &amp; restart</strong> applies frequency changes. Start/Stop controls the decoder service directly.</p>
   </div>
 </div>
@@ -69,7 +70,7 @@
   <div class="help-card-body">
     <p>The Console waterfall displays DFT frames exported from SDRTrunk over a local TCP feed (default <code class="block">127.0.0.1:29501</code>).</p>
     <p>Cyan vertical lines mark configured control-channel frequencies. Use the waterfall to verify the decoder is tuned to the correct spectrum segment.</p>
-    <p>If the waterfall shows “Waiting for spectrum frames…”, confirm the spectrum exporter is enabled in SDRTrunk and the decoder is running.</p>
+    <p>If the waterfall shows “Waiting for spectrum frames…”, the installed SDRTrunk build is not exporting DFT frames (stock 0.6.1 does not). Decoding can still work; the canvas waterfall needs the CopIXus fork exporter.</p>
   </div>
 </div>
 

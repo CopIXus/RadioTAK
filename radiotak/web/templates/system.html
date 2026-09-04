@@ -24,9 +24,11 @@
   <div class="card card-static">
     <div class="card-title">Software</div>
     <div class="card-desc">
-      Installed: {{ version }}<br/>
+      Installed: <span class="{% if update_available %}version-outdated{% endif %}">{{ version }}</span>
+      {% if update_available %}<a class="update-pill" href="/system">update</a>{% endif %}<br/>
       Branch: {{ branch }}<br/>
-      Latest release: {{ latest or '—' }}
+      GitHub tip: {{ latest or '—' }}
+      {% if update_available %}<br/><span style="color:#f87171">A newer build is available on GitHub.</span>{% endif %}
     </div>
   </div>
 </div>
@@ -35,7 +37,9 @@
   <form method="post" action="/system/update">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
     <button class="btn btn-primary" type="submit" data-busy="Updating…"
-      data-confirm="Pull updates from GitHub and restart services?">Update now</button>
+      data-confirm="Pull updates from GitHub and restart services?">
+      {% if update_available %}Update available — install now{% else %}Update now{% endif %}
+    </button>
   </form>
   <form method="post" action="/system/restart">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
