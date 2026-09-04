@@ -34,7 +34,14 @@ def logo_path() -> Optional[Path]:
     return path if path.exists() else None
 
 
+def product_logo_path() -> Path:
+    return Path(__file__).resolve().parent.parent / "web" / "static" / "img" / "logo.png"
+
+
 def favicon_path() -> Optional[Path]:
+    product = product_logo_path()
+    if product.exists():
+        return product
     p = logo_path()
     if p and p.suffix.lower() in {".png", ".jpg", ".jpeg", ".svg"}:
         return p

@@ -4,35 +4,31 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>{% block title %}{{ title or 'RadioTAK' }}{% endblock %}</title>
-  <link rel="icon" href="/branding/favicon"/>
+  <link rel="icon" href="{{ product_logo_url or '/static/img/logo.png' }}"/>
   <link rel="stylesheet" href="/static/fonts/fonts.css"/>
   <link rel="stylesheet" href="/static/css/app.css"/>
   <style>
     :root {
       --accent: {{ accent or '#3b82f6' }};
       --cyan: {{ cyan or '#06b6d4' }};
-      {% if banner_enabled and banner_text %}--banner-h: 84px;{% endif %}
+      {% if banner_enabled and banner_display %}--banner-h: 84px;{% endif %}
     }
   </style>
   {% block head %}{% endblock %}
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to content</a>
-  {% if banner_enabled and banner_text %}
+  {% if banner_enabled and banner_display %}
   <div class="custom-banner" style="font-family: {{ banner_font_css }}; color: {{ banner_color }}; font-size: {{ banner_size_px }};">
     {% if logo_url %}
     <img src="{{ logo_url }}" alt="Agency logo"/>
-    {% else %}
-    <span style="font-family:'Orbitron',sans-serif;font-size:12px;color:var(--cyan);letter-spacing:.08em;flex-shrink:0">RadioTAK</span>
     {% endif %}
     <span class="custom-banner-text">
-      {{ banner_text }}
+      {{ banner_display }}
       {% if banner_sub %}<span class="custom-banner-sub">{{ banner_sub }}</span>{% endif %}
     </span>
     {% if logo_url %}
     <img src="{{ logo_url }}" alt=""/>
-    {% else %}
-    <span style="font-family:'Orbitron',sans-serif;font-size:12px;color:var(--cyan);letter-spacing:.08em;flex-shrink:0">RadioTAK</span>
     {% endif %}
   </div>
   {% endif %}
@@ -45,10 +41,16 @@
   <aside class="sidebar" aria-label="Main">
     <div class="sidebar-logo">
       <div class="sidebar-logo-row">
-        {% if logo_url %}<img src="{{ logo_url }}" alt=""/>{% endif %}
+        <img class="product-logo" src="{{ product_logo_url or '/static/img/logo.png' }}" alt="RadioTAK"/>
         <div>
-          <span>{{ title or 'RadioTAK' }}</span>
-          <small>v{{ version }} · {{ branch }}</small>
+          <span>RadioTAK</span>
+          <small class="version-meta" id="version-meta"
+                 data-version="{{ version }}"
+                 data-branch="{{ branch }}">
+            <span class="version-label" id="version-label">{{ version }}</span>
+            <a class="update-pill" id="update-pill" href="/system" hidden>update</a>
+            <span class="version-branch"> · {{ branch }}</span>
+          </small>
         </div>
       </div>
     </div>

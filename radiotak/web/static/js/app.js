@@ -196,6 +196,33 @@
     else if (state === 'dead') el.classList.add('dead');
   };
 
+  function applyVersionStatus(data) {
+    var meta = qs('#version-meta');
+    var label = qs('#version-label');
+    var pill = qs('#update-pill');
+    if (!meta || !label) return;
+    if (data && data.installed) label.textContent = data.installed;
+    var outdated = !!(data && data.update_available);
+    meta.classList.toggle('version-outdated', outdated);
+    if (pill) {
+      if (outdated) {
+        pill.hidden = false;
+        if (data.latest) pill.title = 'Update available: ' + data.latest;
+      } else {
+        pill.hidden = true;
+      }
+    }
+  }
+
+  function pollVersion() {
+    var meta = qs('#version-meta');
+    if (!meta) return;
+    fetch('/api/v1/version', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) { if (data) applyVersionStatus(data); })
+      .catch(function () { /* offline / unauthenticated */ });
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
     flashFromQuery();
     wireConfirms();
@@ -203,5 +230,7 @@
     wireBusy();
     wireSidebar();
     wireTabs();
+    pollVersion();
+    setInterval(pollVersion, 120000);
   });
 })();

@@ -489,10 +489,17 @@ async def customization_post(request: Request, _user=Depends(require_auth)):
         return redirect("/customization?err=" + quote("Invalid accent color"))
     if banner_color and not _valid_hex_color(banner_color):
         return redirect("/customization?err=" + quote("Invalid banner color"))
+    banner_text = (form.get("banner_text") or "")[:120]
+    banner_enabled = bool(form.get("banner_enabled"))
+    title_val = (form.get("title") or "").strip()
+    custom_title = bool(title_val and title_val.casefold() != "radiotak")
     updates: dict[str, Any] = {
         "customization": {
-            "banner_enabled": bool(form.get("banner_enabled")),
-            "banner_text": (form.get("banner_text") or "")[:120],
+            "banner_enabled": banner_enabled,
+            # Opt-out when the user unchecks while branding text would otherwise show.
+            "banner_opt_out": (bool(banner_text.strip()) or custom_title)
+            and not banner_enabled,
+            "banner_text": banner_text,
             "banner_font": form.get("banner_font") or "JetBrains Mono",
             "banner_size": form.get("banner_size") or "medium",
             "banner_color": banner_color or "#f1f5f9",
@@ -1303,6 +1310,22 @@ async def tailscale_down(request: Request, csrf_token: str = Form(""), _user=Dep
 @api.get("/health")
 async def health():
     return {"status": "ok", "version": updater_svc.current_version()}
+
+
+@api.get("/version")
+async def version_status(_user=Depends(require_auth)):
+    installed = updater_svc.current_version()
+    latest = None
+    try:
+        rel = await updater_svc.latest_release()
+        latest = rel.get("tag_name")
+    except Exception:  # noqa: BLE001
+        latest = None
+    return {
+        "installed": installed,
+        "latest": latest,
+        "update_available": bool(latest and latest != installed),
+    }
 
 
 @api.get("/status")

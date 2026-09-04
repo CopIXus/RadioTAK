@@ -181,13 +181,19 @@ HELP: dict[str, dict[str, str]] = {
     },
     "cust.banner_text": {
         "label": "Banner text",
-        "what": "Centered heading shown at the top of every page when the banner is enabled.",
-        "where": "Customization page; max 120 characters.",
+        "what": "Centered heading in the top bar when set (and Show banner is checked).",
+        "where": "Customization page; max 120 characters. Uncheck Show banner to hide.",
         "example": "County OEM RadioTAK",
+    },
+    "cust.title": {
+        "label": "Console title",
+        "what": "Optional agency name for the top bar. The sidebar always says RadioTAK.",
+        "where": "Customization → Console identity. Leave as RadioTAK to omit the top bar.",
+        "example": "Carter County",
     },
     "cust.logo": {
         "label": "Agency logo",
-        "what": "PNG, SVG, or JPEG (max 512 KB) shown on the banner, sidebar, and login page.",
+        "what": "PNG, SVG, or JPEG (max 512 KB) shown on the top identification banner.",
         "where": "Customization → Agency Logo upload.",
         "example": "agency-seal.png",
     },

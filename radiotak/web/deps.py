@@ -25,15 +25,46 @@ _PKG_TEMPLATES = Path(__file__).resolve().parent / "templates"
 TEMPLATES = Jinja2Templates(directory=str(_PKG_TEMPLATES))
 
 
+def _custom_console_title(title: str) -> str:
+    """Agency name when the console title is not the product name."""
+    text = (title or "").strip()
+    if text and text.casefold() != "radiotak":
+        return text
+    return ""
+
+
+def _banner_display_text(cust: dict, title: str = "") -> str:
+    """Top-bar copy: dedicated banner text, else a customized console title."""
+    text = (cust.get("banner_text") or "").strip()
+    if text:
+        return text[:120]
+    return _custom_console_title(title)[:120]
+
+
+def _banner_should_show(cust: dict, title: str = "") -> bool:
+    """Show the top banner when branding text is set, unless the user opted out."""
+    text = _banner_display_text(cust, title)
+    if not text:
+        return False
+    # Explicit opt-out (unchecked + saved) hides the banner while keeping text.
+    if cust.get("banner_opt_out"):
+        return False
+    # Show whenever text is configured. Legacy installs often saved text with
+    # banner_enabled left false because the opt-in checkbox was easy to miss.
+    return True
+
+
 def base_context(request: Request, nav: str = "", **extra):
     cfg = load_settings_file()
     cust = cfg.get("customization") or {}
     session = getattr(request.state, "session", None) or {}
     has_logo = logo_path() is not None
+    title = cfg.get("title", "RadioTAK")
+    banner_display = _banner_display_text(cust, title)
     return {
         "request": request,
         "nav": nav,
-        "title": cfg.get("title", "RadioTAK"),
+        "title": title,
         "accent": cfg.get("accent", "#3b82f6"),
         "cyan": cfg.get("cyan", "#06b6d4"),
         "theme": cfg.get("theme", "dark"),
@@ -44,13 +75,16 @@ def base_context(request: Request, nav: str = "", **extra):
         "sdr_installed": is_installed("sdr_location_gateway"),
         "hide_sidebar": False,
         "help_json": help_as_json(),
-        "banner_enabled": bool(cust.get("banner_enabled")),
+        # Banner shows whenever branding text is configured; checkbox can still hide it.
         "banner_text": (cust.get("banner_text") or "")[:120],
+        "banner_display": banner_display,
+        "banner_enabled": _banner_should_show(cust, title),
         "banner_color": cust.get("banner_color") or "#f1f5f9",
         "banner_font_css": banner_font_css(cust.get("banner_font") or "JetBrains Mono"),
         "banner_size_px": banner_size_px(cust.get("banner_size") or "medium"),
         "banner_sub": cfg.get("tailscale_hostname") or "",
         "logo_url": "/branding/logo" if has_logo else "",
+        "product_logo_url": "/static/img/logo.png",
         **extra,
     }
 

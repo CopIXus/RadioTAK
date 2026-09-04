@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/logo.png" alt="RadioTAK" width="280"/>
+</p>
+
 # RadioTAK
 
 Raspberry Pi appliance console for authorized radio-system location telemetry → TAK Server.

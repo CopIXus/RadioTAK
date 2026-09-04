@@ -62,6 +62,27 @@ def test_login_and_dashboard(client):
     r = client.get("/")
     assert r.status_code == 200
     assert b"Console" in r.content
+    assert b"/static/img/logo.png" in r.content
+    assert b'id="update-pill"' in r.content
+
+
+def test_product_logo_static(client):
+    r = client.get("/static/img/logo.png")
+    assert r.status_code == 200
+    assert r.content[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_favicon_is_product_logo(client):
+    r = client.get("/branding/favicon")
+    assert r.status_code == 200
+    assert r.content[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_login_shows_product_branding(client):
+    r = client.get("/login")
+    assert r.status_code == 200
+    assert b"/static/img/logo.png" in r.content
+    assert b"RadioTAK" in r.content
 
 
 def test_help_and_customization_pages(client):
@@ -101,6 +122,63 @@ def test_logo_upload_and_public_fetch(client):
     assert r.status_code in (303, 302)
     r = client.get("/branding/logo")
     assert r.status_code == 200
+
+
+def test_banner_shows_when_text_configured(client):
+    _login(client)
+    from radiotak.services.settings_store import update_settings
+
+    update_settings(
+        {
+            "customization": {
+                "banner_text": "Carter County TN Radio TAK",
+                "banner_enabled": False,
+                "banner_opt_out": False,
+            }
+        }
+    )
+    r = client.get("/")
+    assert r.status_code == 200
+    assert b"custom-banner" in r.content
+    assert b"Carter County TN Radio TAK" in r.content
+
+
+def test_banner_hidden_when_opted_out(client):
+    _login(client)
+    from radiotak.services.settings_store import update_settings
+
+    update_settings(
+        {
+            "customization": {
+                "banner_text": "Hidden Banner",
+                "banner_enabled": False,
+                "banner_opt_out": True,
+            }
+        }
+    )
+    r = client.get("/")
+    assert r.status_code == 200
+    assert b"Hidden Banner" not in r.content
+
+
+def test_custom_title_goes_to_banner_not_sidebar(client):
+    _login(client)
+    from radiotak.services.settings_store import update_settings
+
+    update_settings({"title": "Carter County", "customization": {"banner_opt_out": False}})
+    r = client.get("/")
+    assert r.status_code == 200
+    html = r.text
+    start = html.find('class="sidebar-logo"')
+    end = html.find('class="nav-item"', start)
+    sidebar = html[start:end]
+    assert start != -1 and end != -1
+    assert "RadioTAK" in sidebar
+    assert "Carter County" not in sidebar
+    assert "/static/img/logo.png" in sidebar
+    assert 'id="update-pill"' in sidebar
+    assert "custom-banner" in html
+    assert "Carter County" in html
 
 
 def test_status_includes_gauges(client):

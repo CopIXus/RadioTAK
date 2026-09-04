@@ -3,11 +3,9 @@
 {% block content %}
 <div class="login-wrap" style="margin:-32px;width:calc(100% + 64px)">
   <div class="login-card">
-    {% if logo_url %}
-    <img class="login-logo" src="{{ logo_url }}" alt="{{ title or 'RadioTAK' }}"/>
-    {% endif %}
+    <img class="login-logo" src="{{ product_logo_url or '/static/img/logo.png' }}" alt="RadioTAK"/>
     <h1>First-run setup</h1>
-    <p>Create the administrator account for {{ title or 'RadioTAK' }}.</p>
+    <p>Create the administrator account for RadioTAK.</p>
     {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
     <form method="post" action="/setup" data-busy="Creating account…">
       <div class="form-field">

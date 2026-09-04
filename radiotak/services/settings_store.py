@@ -34,7 +34,8 @@ DEFAULTS: dict[str, Any] = {
     "map_history_minutes": 60,
     "tailscale_hostname": "",
     "customization": {
-        "banner_enabled": False,
+        "banner_enabled": True,
+        "banner_opt_out": False,
         "banner_text": "",
         "banner_font": "JetBrains Mono",
         "banner_size": "medium",
