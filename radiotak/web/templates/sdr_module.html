@@ -1,69 +1,196 @@
 {% extends "base.html" %}
-{% block title %}SDR — RadioTAK{% endblock %}
+{% from "_macros.html" import field, select, check %}
+{% block title %}SDR — {{ title or 'RadioTAK' }}{% endblock %}
 {% block content %}
 <div class="header">
   <div>
     <div class="header-title">SDR Location Gateway</div>
-    <div class="header-subtitle">Devices, decoder lifecycle, activity</div>
+    <div class="header-subtitle">Dongles, listen frequencies, and decoder lifecycle</div>
   </div>
 </div>
+
 {% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
 
 <div class="cards-grid">
-  <div class="card">
-    <div class="card-title">Decoder activity</div>
-    <div class="card-desc">
-      Messages/min and GPS/min appear here when SDRTrunk is exporting events.
-      Use Live Events for the stream. Day-one waterfall: install x11vnc and open the
-      SDRTrunk GUI over Tailscale (Phase 6b adds native canvas waterfall).
+  <div class="card card-static">
+    <div class="card-title">Decoder</div>
+    <div class="card-desc">SDRTrunk under Xvfb. Playlist is written from radio systems below, then started here.</div>
+    {% if decoder_running %}
+    <div class="status-pill status-running"><span class="dot"></span>Running</div>
+    {% else %}
+    <div class="status-pill status-idle"><span class="dot"></span>Stopped</div>
+    {% endif %}
+    <div class="btn-row">
+      <form method="post" action="/modules/sdr/service/start">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+        <button class="btn btn-sm btn-primary" type="submit">Start</button>
+      </form>
+      <form method="post" action="/modules/sdr/service/stop">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+        <button class="btn btn-sm" type="submit">Stop</button>
+      </form>
+      <form method="post" action="/modules/sdr/service/restart">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+        <button class="btn btn-sm" type="submit">Restart</button>
+      </form>
+      <form method="post" action="/modules/sdr/apply" data-busy="Writing playlist…">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+        <input type="hidden" name="start" value="1"/>
+        <button class="btn btn-sm" type="submit">Write playlist &amp; restart</button>
+      </form>
     </div>
-    <div class="status-pill status-idle"><span class="dot"></span>Waiting for events</div>
   </div>
 </div>
 
-<div class="section-title">Detected devices</div>
-<table class="table">
-  <thead><tr><th>Name</th><th>Driver</th><th>Serial</th><th>Path</th></tr></thead>
-  <tbody>
-  {% for d in devices %}
-    <tr>
-      <td>{{ d.name }}</td><td>{{ d.driver }}</td>
-      <td>{{ d.serial_number or '—' }}</td><td>{{ d.usb_path or '—' }}</td>
-    </tr>
-  {% else %}
-    <tr><td colspan="4">No USB SDRs detected (normal on Windows/dev stub — simulated device may appear).</td></tr>
-  {% endfor %}
-  </tbody>
-</table>
-
-<div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap">
-  <form method="post" action="/modules/sdr/discover">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
-    <button class="btn btn-primary" type="submit">Discover</button>
-  </form>
-  <form method="post" action="/modules/sdr/service/start">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
-    <button class="btn" type="submit">Start SDRTrunk</button>
-  </form>
-  <form method="post" action="/modules/sdr/service/stop">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
-    <button class="btn" type="submit">Stop SDRTrunk</button>
-  </form>
-  <form method="post" action="/modules/sdr/service/restart">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
-    <button class="btn" type="submit">Restart SDRTrunk</button>
-  </form>
+{% if waterfall_enabled | default(true) %}
+<div class="section-title">Spectrum waterfall</div>
+<div class="waterfall-wrap">
+  <canvas id="sdr-waterfall" aria-label="RF spectrum waterfall"></canvas>
+  <div class="waterfall-axis">
+    <span id="sdr-wf-fmin">— MHz</span>
+    <span id="sdr-wf-fmax">— MHz</span>
+  </div>
 </div>
+{% endif %}
 
-<div class="section-title" style="margin-top:32px">Saved configurations</div>
-<table class="table">
-  <thead><tr><th>Name</th><th>Driver</th><th>Enabled</th><th>Gain</th></tr></thead>
-  <tbody>
-  {% for s in saved %}
-    <tr><td>{{ s.name }}</td><td>{{ s.driver }}</td><td>{{ s.enabled }}</td><td>{{ s.gain_mode }}</td></tr>
+<div class="section-title">USB devices</div>
+<div class="cards-grid">
+  {% for d in devices %}
+  <div class="card card-static">
+    <div class="card-title">{{ d.name }}</div>
+    <div class="card-desc">
+      Driver {{ d.driver }}<br/>
+      {% if d.serial_number %}Serial {{ d.serial_number }}<br/>{% endif %}
+      {{ d.usb_path or '—' }}
+    </div>
+    <div class="status-pill status-running"><span class="dot"></span>Detected</div>
+  </div>
   {% else %}
-    <tr><td colspan="4">None yet — run Discover.</td></tr>
+  <div class="empty-state">No SDR detected. Plug in an RTL-SDR or Airspy, then discover.</div>
   {% endfor %}
-  </tbody>
-</table>
+</div>
+<form method="post" action="/modules/sdr/discover" style="margin-bottom:28px" data-busy="Discovering…">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+  <button class="btn btn-primary" type="submit">Discover devices</button>
+</form>
+
+{% if saved %}
+<div class="section-title">Saved tuner settings</div>
+<div class="cards-grid">
+  {% for s in saved %}
+  <div class="card card-static">
+    <div class="card-title">{{ s.name }}</div>
+    <form method="post" action="/modules/sdr/devices/{{ s.id }}" data-busy="Saving…">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+      {{ field('name', 'Name', value=s.name) }}
+      {{ select('gain_mode', 'Gain mode', [('auto', 'Auto'), ('manual', 'Manual')], value=s.gain_mode or 'auto') }}
+      {{ field('gain', 'Gain (dB)', value=s.gain if s.gain is not none else '', help_key='sdr.gain', placeholder='optional') }}
+      {{ field('ppm_correction', 'PPM correction', value=s.ppm_correction or 0, help_key='sdr.ppm') }}
+      {{ check('bias_tee', 'Bias tee', checked=s.bias_tee, help_key='sdr.bias_tee') }}
+      {{ check('enabled', 'Enabled', checked=s.enabled) }}
+      <button class="btn btn-sm btn-primary" type="submit">Save</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="section-title">Radio systems</div>
+<p class="card-desc" style="margin-bottom:16px">Enter control-channel frequencies in MHz. For trunked P25/DMR use the CC (and alternates), not random voice channels.</p>
+
+<div class="cards-grid">
+  {% for s in systems %}
+  <div class="card card-static">
+    <div class="card-title">{{ s.name }}</div>
+    <div class="status-pill {% if s.enabled %}status-running{% else %}status-idle{% endif %}">
+      <span class="dot"></span>{{ s.protocol }} · {{ s.freq_count }} freq{% if s.freq_count != 1 %}s{% endif %}
+    </div>
+    <form method="post" action="/modules/sdr/systems/{{ s.id }}" style="margin-top:12px" data-busy="Saving…">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+      {{ field('name', 'Name', value=s.name, required=True) }}
+      {{ select('protocol', 'Protocol', [
+        ('P25', 'P25 (C4FM) — Phase 1 CC / Phase 2 trunk'),
+        ('P25_LSM', 'P25 LSM (CQPSK)'),
+        ('DMR', 'DMR'),
+        ('NFM', 'NFM conventional')
+      ], value=s.protocol, help_key='sdr.protocol') }}
+      {{ field('site', 'Site', value=s.site) }}
+      <div class="form-field">
+        <div class="label-row">
+          <label class="field-label" for="id_frequencies_{{ s.id }}">Frequencies (MHz)</label>
+          <button type="button" class="help-icon" data-help="sdr.frequencies" aria-label="Help: Frequencies">?</button>
+        </div>
+        <textarea id="id_frequencies_{{ s.id }}" name="frequencies" rows="3" required>{{ s.frequencies_text }}</textarea>
+        <div class="freq-help">One per line or comma-separated. Example: 851.0125</div>
+      </div>
+      {{ check('auto_start', 'Auto-start with decoder', checked=s.auto_start) }}
+      {{ check('enabled', 'Include in playlist', checked=s.enabled) }}
+      <div class="btn-row">
+        <button class="btn btn-sm btn-primary" type="submit">Save</button>
+      </div>
+    </form>
+    <form method="post" action="/modules/sdr/systems/{{ s.id }}/delete" style="margin-top:8px">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+      <button class="btn btn-sm btn-danger" type="submit"
+        data-confirm="Remove radio system «{{ s.name }}»?">Delete</button>
+    </form>
+  </div>
+  {% endfor %}
+
+  <div class="card card-static">
+    <div class="card-title">Add radio system</div>
+    <div class="card-desc">Enter the control channel(s) you are authorized to monitor.</div>
+    <form method="post" action="/modules/sdr/systems" style="margin-top:12px" data-busy="Saving…">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+      {{ field('name', 'Name', required=True, placeholder='County P25') }}
+      {{ select('protocol', 'Protocol', [
+        ('P25', 'P25 (C4FM) — Phase 1 CC / Phase 2 trunk'),
+        ('P25_LSM', 'P25 LSM (CQPSK)'),
+        ('DMR', 'DMR'),
+        ('NFM', 'NFM conventional')
+      ], value='P25', help_key='sdr.protocol') }}
+      {{ field('site', 'Site', value='1') }}
+      <div class="form-field">
+        <div class="label-row">
+          <label class="field-label" for="id_frequencies_new">Frequencies (MHz)</label>
+          <button type="button" class="help-icon" data-help="sdr.frequencies" aria-label="Help: Frequencies">?</button>
+        </div>
+        <textarea id="id_frequencies_new" name="frequencies" rows="3" required placeholder="851.0125&#10;851.5125"></textarea>
+        <div class="freq-help">Control channels for trunked systems. Alternates on extra lines.</div>
+      </div>
+      {{ check('auto_start', 'Auto-start with decoder', checked=True) }}
+      <div class="btn-row">
+        <button class="btn btn-sm" type="submit">Save playlist</button>
+        <button class="btn btn-sm btn-primary" type="submit" name="apply_start" value="1">Save &amp; start decoder</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if waterfall_enabled | default(true) %}
+<script src="/static/js/waterfall.js"></script>
+<script>
+(function () {
+  var canvas = document.getElementById('sdr-waterfall');
+  if (!canvas || typeof RadioTakWaterfall === 'undefined') return;
+  var ccMarkers = {{ cc_markers_hz | default('[]') | safe }};
+  var wf = new RadioTakWaterfall(canvas, { ccMarkersHz: ccMarkers });
+  var proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  wf.connect(proto + '://' + location.host + '/api/v1/ws/spectrum');
+  var origPush = wf.pushFrame.bind(wf);
+  wf.pushFrame = function (frame) {
+    origPush(frame);
+    if (frame && frame.f_min != null && frame.f_max != null) {
+      var fmin = document.getElementById('sdr-wf-fmin');
+      var fmax = document.getElementById('sdr-wf-fmax');
+      if (fmin) fmin.textContent = (frame.f_min / 1e6).toFixed(3) + ' MHz';
+      if (fmax) fmax.textContent = (frame.f_max / 1e6).toFixed(3) + ' MHz';
+    }
+  };
+})();
+</script>
+{% endif %}
 {% endblock %}

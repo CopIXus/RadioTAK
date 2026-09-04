@@ -21,7 +21,8 @@ The installer reads the admin password from `/dev/tty`, so the `curl | sudo bash
 2. Log in with the admin account you created (or complete first-run setup)
 3. Optionally join Tailscale (System → Tailscale)
 4. Marketplace → install **SDR Location Gateway**
-5. Configure TAK Server(s) and radio allowlist
+5. **SDR** → Discover the dongle, add a radio system (control-channel MHz), start the decoder
+6. Configure TAK Server(s) and radio allowlist (Units)
 
 ## Paths
 

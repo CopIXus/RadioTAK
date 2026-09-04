@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Marketplace — RadioTAK{% endblock %}
+{% block title %}Marketplace — {{ title or 'RadioTAK' }}{% endblock %}
 {% block content %}
 <div class="header">
   <div>
@@ -10,23 +10,24 @@
 
 <div class="cards-grid">
 {% for mid, mod in modules.items() %}
-  <div class="card">
+  <div class="card card-static">
     <div class="card-title">{{ mod.name }}</div>
     <div class="card-desc">{{ mod.description }}</div>
     {% if mod.status == 'coming_soon' %}
       <div class="status-pill status-idle"><span class="dot"></span>Coming soon</div>
     {% elif mod.installed %}
       <div class="status-pill status-running"><span class="dot"></span>Installed</div>
-      <form method="post" action="/marketplace/{{ mid }}/uninstall" style="margin-top:10px">
+      <form method="post" action="/marketplace/{{ mid }}/uninstall" class="btn-row">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
-        <button class="btn btn-sm btn-danger" type="submit">Uninstall</button>
+        <button class="btn btn-sm btn-danger" type="submit"
+          data-confirm="Uninstall {{ mod.name }}? Decoder services will stop.">Uninstall</button>
       </form>
     {% else %}
       <div class="status-pill status-idle"><span class="dot"></span>Not installed</div>
       {% if mod.last_error %}
       <div class="alert alert-error" style="margin-top:10px;white-space:pre-wrap;font-size:12px">{{ mod.last_error }}</div>
       {% endif %}
-      <form method="post" action="/marketplace/{{ mid }}/install" style="margin-top:10px">
+      <form method="post" action="/marketplace/{{ mid }}/install" class="btn-row">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
         <button class="btn btn-sm btn-primary" type="submit">Install</button>
       </form>

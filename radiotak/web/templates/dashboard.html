@@ -1,15 +1,22 @@
 {% extends "base.html" %}
-{% block title %}Console — RadioTAK{% endblock %}
+{% block title %}Console — {{ title or 'RadioTAK' }}{% endblock %}
 {% block head %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css"/>
 {% endblock %}
 {% block content %}
+{% set stats = stats | default(counts | default({})) %}
+{% set gauges = gauges | default({}) %}
+{% set checklist = checklist | default([]) %}
+
 <div class="header">
   <div>
     <div class="header-title">Console</div>
-    <div class="header-subtitle">Gateway health and live locations</div>
+    <div class="header-subtitle">Gateway health, hearing activity, and live locations</div>
   </div>
-  <a class="btn btn-sm" href="/system">System</a>
+  <div class="header-actions">
+    <a class="btn btn-sm" href="/events">Live events</a>
+    <a class="btn btn-sm" href="/system">System</a>
+  </div>
 </div>
 
 <div class="metrics-bar">
@@ -20,7 +27,7 @@
   <div class="metric-card">
     <div class="metric-label">Memory</div>
     <div class="metric-value" id="ram-value">{{ metrics.ram_percent }}%</div>
-    <div class="metric-detail">{{ metrics.ram_used_gb }} / {{ metrics.ram_total_gb }} GB</div>
+    <div class="metric-detail" id="ram-detail">{{ metrics.ram_used_gb }} / {{ metrics.ram_total_gb }} GB</div>
   </div>
   <div class="metric-card">
     <div class="metric-label">Disk</div>
@@ -29,67 +36,220 @@
   <div class="metric-card">
     <div class="metric-label">Uptime</div>
     <div class="metric-value" id="uptime-value">{{ metrics.uptime }}</div>
-    {% if metrics.temp_c %}<div class="metric-detail">{{ '%.1f'|format(metrics.temp_c) }} °C</div>{% endif %}
+    {% if metrics.temp_c %}<div class="metric-detail" id="temp-detail">{{ '%.1f'|format(metrics.temp_c) }} °C</div>{% endif %}
   </div>
 </div>
 
-<div class="cards-grid">
-  <div class="card">
-    <div class="card-title">SDR</div>
-    <div class="card-desc">{{ sdr_summary }}</div>
-    <div class="status-pill {{ sdr_status_class }}"><span class="dot"></span>{{ sdr_status }}</div>
+<div class="section-title">Hearing activity</div>
+<div class="gauge-strip">
+  <div class="gauge {{ gauges.gauge_mpm_class | default('') }}" id="gauge-mpm">
+    <div class="gauge-label">Messages / min</div>
+    <div class="gauge-value" id="gauge-mpm-value">{{ gauges.messages_per_min | default(0) }}</div>
   </div>
-  <div class="card">
-    <div class="card-title">Decoder</div>
-    <div class="card-desc">{{ decoder_summary }}</div>
-    <div class="status-pill {{ decoder_status_class }}"><span class="dot"></span>{{ decoder_status }}</div>
+  <div class="gauge {{ gauges.cc_lock_class | default('') }}" id="gauge-lock">
+    <div class="gauge-label">CC lock</div>
+    <div class="gauge-value" id="gauge-lock-value">{{ gauges.cc_lock | default('idle') }}</div>
   </div>
-  <div class="card">
-    <div class="card-title">TAK</div>
-    <div class="card-desc">{{ tak_summary }}</div>
-    <div class="status-pill {{ tak_status_class }}"><span class="dot"></span>{{ tak_status }}</div>
-  </div>
-  <div class="card">
-    <div class="card-title">Locations</div>
-    <div class="card-desc">
-      Observed {{ counts.observed }} · Approved {{ counts.approved }}<br/>
-      Forwarded {{ counts.forwarded }} · Blocked {{ counts.blocked }}
+  <div class="gauge {{ gauges.gauge_age_class | default('') }}" id="gauge-age">
+    <div class="gauge-label">Last event</div>
+    <div class="gauge-value" id="gauge-age-value">
+      {% if gauges.last_event_age_s is not none %}{{ gauges.last_event_age_s }}s ago{% else %}—{% endif %}
     </div>
   </div>
 </div>
 
+<div class="section-title">Operational stats</div>
+<div class="cards-grid">
+  <div class="card card-static">
+    <div class="card-title">Observed</div>
+    <div class="metric-value" id="stat-observed">{{ stats.observed | default(0) }}</div>
+    <div class="card-desc">Radios seen by the decoder</div>
+  </div>
+  <div class="card card-static">
+    <div class="card-title">Approved</div>
+    <div class="metric-value" id="stat-approved">{{ stats.approved | default(0) }}</div>
+    <div class="card-desc">Allowlisted for forwarding</div>
+  </div>
+  <div class="card card-static">
+    <div class="card-title">Total hears</div>
+    <div class="metric-value" id="stat-total-hears">{{ stats.total_hears | default(0) }}</div>
+    <div class="card-desc">Location reports received</div>
+  </div>
+  <div class="card card-static">
+    <div class="card-title">Forwarded</div>
+    <div class="metric-value" id="stat-forwarded">{{ stats.forwarded | default(0) }}</div>
+    <div class="card-desc">CoT events sent to TAK</div>
+  </div>
+  <div class="card card-static">
+    <div class="card-title">Blocked</div>
+    <div class="metric-value" id="stat-blocked">{{ stats.blocked | default(0) }}</div>
+    <div class="card-desc">Denied by policy</div>
+  </div>
+  <div class="card card-static">
+    <div class="card-title">Heard (1h)</div>
+    <div class="metric-value" id="stat-heard-1h">{{ stats.heard_1h | default(0) }}</div>
+    <div class="card-desc">Unique radios in the last hour</div>
+  </div>
+</div>
+
+<div class="cards-grid">
+  <a class="card" href="{% if sdr_installed %}/modules/sdr{% else %}/marketplace{% endif %}">
+    <div class="card-title">SDR</div>
+    <div class="card-desc">{{ sdr_summary }}</div>
+    <div class="status-pill {{ sdr_status_class }}"><span class="dot"></span>{{ sdr_status }}</div>
+  </a>
+  <a class="card" href="/modules/sdr">
+    <div class="card-title">Decoder</div>
+    <div class="card-desc">{{ decoder_summary }}</div>
+    <div class="status-pill {{ decoder_status_class }}"><span class="dot"></span>{{ decoder_status }}</div>
+  </a>
+  <a class="card" href="/tak">
+    <div class="card-title">TAK</div>
+    <div class="card-desc">{{ tak_summary }}</div>
+    <div class="status-pill {{ tak_status_class }}"><span class="dot"></span>{{ tak_status }}</div>
+  </a>
+</div>
+
+{% if checklist %}
+<div class="section-title">Getting started</div>
+<ul class="checklist">
+  {% for item in checklist %}
+  <li>
+    <span class="{% if item.done %}done{% else %}todo{% endif %}">{% if item.done %}✓{% else %}○{% endif %}</span>
+    {% if item.href and not item.done %}
+    <a href="{{ item.href }}">{{ item.label }}</a>
+    {% else %}
+    <span>{{ item.label }}</span>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+<div class="section-title">Spectrum waterfall</div>
+<div class="waterfall-wrap">
+  <canvas id="waterfall-canvas" aria-label="RF spectrum waterfall"></canvas>
+  <div class="waterfall-axis">
+    <span id="wf-fmin">— MHz</span>
+    <span id="wf-fmax">— MHz</span>
+  </div>
+</div>
+
+{% if novnc_enabled %}
+<div class="section-title">SDRTrunk console (noVNC)</div>
+<iframe class="novnc-frame" src="{{ novnc_url | default('/novnc/') }}" title="SDRTrunk noVNC"></iframe>
+{% endif %}
+
 <div class="section-title">Recent authorized units</div>
 <div id="mini-map"></div>
 {% endblock %}
+
 {% block scripts %}
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/static/vendor/leaflet/leaflet.js"></script>
+<script src="/static/js/map.js"></script>
+<script src="/static/js/waterfall.js"></script>
 <script>
-const map = L.map('mini-map').setView([39.5, -98.35], 4);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 18, attribution: '&copy; OpenStreetMap'
-}).addTo(map);
-const points = {{ latest_json | safe }};
-const markers = [];
-points.forEach(p => {
-  if (p.lat == null) return;
-  const m = L.marker([p.lat, p.lon]).addTo(map)
-    .bindPopup((p.callsign || p.radio_id) + '<br/>' + p.lat.toFixed(5) + ', ' + p.lon.toFixed(5));
-  markers.push(m);
-});
-if (markers.length) {
-  map.fitBounds(L.featureGroup(markers).getBounds().pad(0.2));
-}
-setInterval(async () => {
-  try {
-    const r = await fetch('/api/v1/status');
-    const d = await r.json();
+(function () {
+  'use strict';
+
+  var points = {{ latest_json | default('[]') | safe }};
+  var ccMarkers = {{ cc_markers_hz | default('[]') | safe }};
+  var map = RadioTakMap.create('mini-map', { zoom: 4 });
+  var markerGroup = null;
+  if (map) {
+    map.watchTheme();
+    markerGroup = map.plotPoints(points);
+  }
+
+  var wfCanvas = document.getElementById('waterfall-canvas');
+  var wf = wfCanvas ? new RadioTakWaterfall(wfCanvas, { ccMarkersHz: ccMarkers }) : null;
+  if (wf) {
+    var proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    wf.connect(proto + '://' + location.host + '/api/v1/ws/spectrum');
+    var origPush = wf.pushFrame.bind(wf);
+    wf.pushFrame = function (frame) {
+      origPush(frame);
+      if (frame && frame.f_min != null && frame.f_max != null) {
+        document.getElementById('wf-fmin').textContent = (frame.f_min / 1e6).toFixed(3) + ' MHz';
+        document.getElementById('wf-fmax').textContent = (frame.f_max / 1e6).toFixed(3) + ' MHz';
+      }
+    };
+  }
+
+  function setGaugeClass(el, cls) {
+    if (!el) return;
+    el.classList.remove('ok', 'warn', 'bad');
+    if (cls) el.classList.add(cls);
+  }
+
+  function updateStatus(d) {
     if (d.metrics) {
-      document.getElementById('cpu-value').textContent = d.metrics.cpu_percent + '%';
-      document.getElementById('ram-value').textContent = d.metrics.ram_percent + '%';
-      document.getElementById('disk-value').textContent = d.metrics.disk_percent + '%';
-      document.getElementById('uptime-value').textContent = d.metrics.uptime;
+      var m = d.metrics;
+      var cpu = document.getElementById('cpu-value');
+      var ram = document.getElementById('ram-value');
+      var disk = document.getElementById('disk-value');
+      var up = document.getElementById('uptime-value');
+      if (cpu) cpu.textContent = m.cpu_percent + '%';
+      if (ram) ram.textContent = m.ram_percent + '%';
+      if (disk) disk.textContent = m.disk_percent + '%';
+      if (up) up.textContent = m.uptime || '—';
+      var ramDetail = document.getElementById('ram-detail');
+      if (ramDetail && m.ram_used_gb != null) {
+        ramDetail.textContent = m.ram_used_gb + ' / ' + m.ram_total_gb + ' GB';
+      }
     }
-  } catch (e) {}
-}, 5000);
+    if (d.gauges) {
+      var g = d.gauges;
+      var mpm = document.getElementById('gauge-mpm-value');
+      var lock = document.getElementById('gauge-lock-value');
+      var age = document.getElementById('gauge-age-value');
+      if (mpm) mpm.textContent = g.messages_per_min != null ? g.messages_per_min : '0';
+      if (lock) lock.textContent = g.cc_lock || 'idle';
+      if (age) {
+        age.textContent = g.last_event_age_s != null ? g.last_event_age_s + 's ago' : '—';
+      }
+      setGaugeClass(document.getElementById('gauge-mpm'), g.gauge_mpm_class);
+      setGaugeClass(document.getElementById('gauge-lock'), g.cc_lock_class);
+      setGaugeClass(document.getElementById('gauge-age'), g.gauge_age_class);
+    }
+    if (d.stats) {
+      var s = d.stats;
+      var ids = {
+        observed: 'stat-observed',
+        approved: 'stat-approved',
+        total_hears: 'stat-total-hears',
+        forwarded: 'stat-forwarded',
+        blocked: 'stat-blocked',
+        heard_1h: 'stat-heard-1h'
+      };
+      Object.keys(ids).forEach(function (k) {
+        var el = document.getElementById(ids[k]);
+        if (el && s[k] != null) el.textContent = s[k];
+      });
+    }
+    if (d.latest && map) {
+      markerGroup = map.plotPoints(d.latest, markerGroup);
+    }
+  }
+
+  async function poll() {
+    try {
+      var r = await fetch('/api/v1/status');
+      if (r.ok) updateStatus(await r.json());
+    } catch (e) { /* ignore */ }
+    try {
+      if (map) {
+        var lr = await fetch('/api/v1/locations/latest');
+        if (lr.ok) {
+          var pts = await lr.json();
+          markerGroup = map.plotPoints(pts, markerGroup);
+        }
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  poll();
+  setInterval(poll, 5000);
+})();
 </script>
 {% endblock %}

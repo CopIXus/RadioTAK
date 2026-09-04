@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 from uuid import uuid4
 
 from sqlalchemy import (
@@ -139,6 +139,13 @@ class TakServer(Base):
     pkcs12_password_ref: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     callsign: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     device_uid: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    # Marker / CoT appearance (per TAK server)
+    default_callsign: Mapped[Optional[str]] = mapped_column(String(128), nullable=True, default="Radio")
+    cot_type_default: Mapped[str] = mapped_column(String(64), default="a-f-G-U-C")
+    iconset_path: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    marker_color: Mapped[str] = mapped_column(String(16), default="#06b6d4")
+    cot_how: Mapped[str] = mapped_column(String(32), default="m-g")
+    default_ce_feet: Mapped[float] = mapped_column(Float, default=2000.0)
     auto_connect: Mapped[bool] = mapped_column(Boolean, default=True)
     auto_reconnect: Mapped[bool] = mapped_column(Boolean, default=True)
     reconnect_min_seconds: Mapped[int] = mapped_column(Integer, default=2)
@@ -222,7 +229,8 @@ class AuditLog(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     actor: Mapped[str] = mapped_column(String(128), default="system")
     action: Mapped[str] = mapped_column(String(128))
-    detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    target: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    detail: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
 
@@ -260,6 +268,26 @@ def get_session_factory():
 def init_db() -> None:
     engine = get_engine()
     Base.metadata.create_all(bind=engine)
+    _sqlite_add_missing_columns(engine)
+
+
+def _sqlite_add_missing_columns(engine) -> None:
+    """Best-effort ALTER TABLE for new columns on existing SQLite DBs."""
+    statements = [
+        "ALTER TABLE tak_servers ADD COLUMN default_callsign VARCHAR(128) DEFAULT 'Radio'",
+        "ALTER TABLE tak_servers ADD COLUMN cot_type_default VARCHAR(64) DEFAULT 'a-f-G-U-C'",
+        "ALTER TABLE tak_servers ADD COLUMN iconset_path VARCHAR(512)",
+        "ALTER TABLE tak_servers ADD COLUMN marker_color VARCHAR(16) DEFAULT '#06b6d4'",
+        "ALTER TABLE tak_servers ADD COLUMN cot_how VARCHAR(32) DEFAULT 'm-g'",
+        "ALTER TABLE tak_servers ADD COLUMN default_ce_feet FLOAT DEFAULT 2000",
+        "ALTER TABLE audit_log ADD COLUMN target VARCHAR(256)",
+    ]
+    with engine.begin() as conn:
+        for sql in statements:
+            try:
+                conn.exec_driver_sql(sql)
+            except Exception:  # noqa: BLE001
+                pass
 
 
 def get_db():

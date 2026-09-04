@@ -1,10 +1,11 @@
 {% extends "base.html" %}
+{% from "_macros.html" import field, select, check %}
 {% block title %}{{ server.name }} — TAK{% endblock %}
 {% block content %}
 <div class="header">
   <div>
     <div class="header-title">{{ server.name }}</div>
-    <div class="header-subtitle">{{ server.host }}</div>
+    <div class="header-subtitle">{{ server.host }} · CoT {{ server.cot_port }}</div>
   </div>
   <a class="btn btn-sm" href="/tak">Back</a>
 </div>
@@ -12,44 +13,118 @@
 {% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
 {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
 
-<div class="section-title">Enroll (username / password)</div>
-<form method="post" action="/tak/{{ server.id }}/enroll" style="max-width:520px;margin-bottom:32px">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
-  <div class="form-field"><label>Username</label><input name="username" value="{{ server.username or '' }}" required/></div>
-  <div class="form-field"><label>Password / token</label><input name="password" type="password" required autocomplete="new-password"/></div>
-  <div class="form-field">
-    <label><input type="checkbox" name="tls_verify" value="1" {% if server.tls_verify %}checked{% endif %}/> Verify TLS</label>
+<div data-tabs>
+  <div class="tabs">
+    <button type="button" class="tab-btn active" data-tab="tab-enroll">Enroll</button>
+    <button type="button" class="tab-btn" data-tab="tab-import">Import</button>
+    <button type="button" class="tab-btn" data-tab="tab-marker">Marker Appearance</button>
+    <button type="button" class="tab-btn" data-tab="tab-channels">Channels</button>
+    <button type="button" class="tab-btn" data-tab="tab-danger">Danger</button>
   </div>
-  <button class="btn btn-primary" type="submit">Enroll &amp; store certificate</button>
-</form>
 
-<div class="section-title">Import PKCS#12</div>
-<form method="post" action="/tak/{{ server.id }}/import-p12" enctype="multipart/form-data" style="max-width:520px;margin-bottom:32px">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
-  <div class="form-field"><label>.p12 / .pfx file</label><input type="file" name="p12" accept=".p12,.pfx" required/></div>
-  <div class="form-field"><label>Password</label><input name="password" type="password"/></div>
-  <button class="btn" type="submit">Import</button>
-</form>
-
-<div class="section-title">Channels (groups)</div>
-<form method="post" action="/tak/{{ server.id }}/channels" style="max-width:640px">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
-  {% if groups %}
-  {% for g in groups %}
-    {% set gname = g.name if g.name is defined else g.get('name') %}
-    <label style="display:block;margin:6px 0;font-size:13px">
-      <input type="checkbox" name="groups" value="{{ gname }}"
-        {% if gname in (server.active_groups or []) %}checked{% endif %}/>
-      {{ gname }}
-    </label>
-  {% endfor %}
-  <button class="btn btn-primary" type="submit" style="margin-top:12px">Save active channels</button>
-  {% else %}
-  <div class="alert alert-info">Enroll a certificate first, then refresh to load groups from Marti. You can also type channel names below.</div>
-  <div class="form-field"><label>Active groups (comma-separated)</label>
-    <input name="groups_text" value="{{ (server.active_groups or []) | join(', ') }}"/>
+  <div class="tab-panel active" id="tab-enroll" data-panel="tab-enroll">
+    <div class="form-panel">
+      <form method="post" action="/tak/{{ server.id }}/enroll" data-busy="Enrolling…">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+        {{ field('username', 'Enrollment username', value=server.username or '', help_key='tak.username', required=True) }}
+        {{ field('password', 'Password / token', type='password', help_key='tak.password', required=True, autocomplete='new-password') }}
+        {{ check('tls_verify', 'Verify TLS', checked=server.tls_verify, value='1') }}
+        <button class="btn btn-primary" type="submit">Enroll &amp; store certificate</button>
+      </form>
+    </div>
+    {% if server.certificate_subject %}
+    <div class="card card-static" style="margin-top:16px;max-width:560px">
+      <div class="card-title">Certificate</div>
+      <div class="card-desc">
+        Subject: {{ server.certificate_subject }}<br/>
+        {% if server.certificate_issuer %}Issuer: {{ server.certificate_issuer }}<br/>{% endif %}
+        {% if server.certificate_not_after %}Expires: {{ server.certificate_not_after }}{% endif %}
+      </div>
+    </div>
+    {% endif %}
   </div>
-  <button class="btn btn-primary" type="submit">Save</button>
-  {% endif %}
-</form>
+
+  <div class="tab-panel" id="tab-import" data-panel="tab-import">
+    <div class="form-panel">
+      <form method="post" action="/tak/{{ server.id }}/import-p12" enctype="multipart/form-data" data-busy="Importing…">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+        <div class="form-field">
+          <label class="field-label" for="id_p12">.p12 / .pfx file</label>
+          <input id="id_p12" type="file" name="p12" accept=".p12,.pfx" required/>
+        </div>
+        {{ field('password', 'Password', type='password', help_key='tak.password') }}
+        <button class="btn btn-primary" type="submit">Import certificate</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-marker" data-panel="tab-marker">
+    <div class="form-panel">
+      <form method="post" action="/tak/{{ server.id }}/marker" id="marker-form" data-busy="Saving…">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+        {{ field('default_callsign', 'Default radio callsign', value=server.default_callsign or 'Radio', help_key='tak.default_callsign') }}
+        {{ field('cot_type_default', 'CoT type', value=server.cot_type_default or 'a-f-G-U-C', help_key='tak.cot_type') }}
+        {{ field('iconset_path', 'Iconset path', value=server.iconset_path or '', help_key='tak.iconset_path', placeholder='uuid:Group/name') }}
+        {{ field('marker_color', 'Marker color', value=server.marker_color or '#06b6d4', help_key='tak.marker_color') }}
+        {{ field('cot_how', 'CoT how', value=server.cot_how or 'm-g', help_key='tak.cot_how') }}
+        {{ field('default_ce_feet', 'Default CE (feet)', type='number', value=server.default_ce_feet or 2000, step='1', help_key='tak.default_ce_feet') }}
+        <div class="marker-swatch">
+          <span class="dot" id="marker-swatch-dot" style="background:{{ server.marker_color or '#06b6d4' }}"></span>
+          <span class="dim" id="marker-swatch-label">Live preview</span>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" type="submit">Save marker appearance</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-channels" data-panel="tab-channels">
+    <div class="form-panel" style="max-width:640px">
+      <form method="post" action="/tak/{{ server.id }}/channels" data-busy="Saving channels…">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+        {% if groups %}
+        <p class="card-desc" style="margin-bottom:12px">Select groups from Marti. Saved groups are used on connect.</p>
+        {% for g in groups %}
+          {% set gname = g.name if g.name is defined else g.get('name') %}
+          <label style="display:block;margin:6px 0;font-size:13px">
+            <input type="checkbox" name="groups" value="{{ gname }}"
+              {% if gname in (server.active_groups or []) %}checked{% endif %}/>
+            {{ gname }}
+          </label>
+        {% endfor %}
+        {% else %}
+        <div class="alert alert-info">Enroll a certificate first, then refresh to load groups from Marti. You can also type channel names below.</div>
+        {{ field('groups_text', 'Active groups (comma-separated)', value=(server.active_groups or []) | join(', ')) }}
+        {% endif %}
+        <button class="btn btn-primary" type="submit" style="margin-top:12px">Save active channels</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-danger" data-panel="tab-danger">
+    <div class="form-panel">
+      <p class="card-desc">Removing this server deletes stored certificates and disconnects the gateway. This cannot be undone.</p>
+      <form method="post" action="/tak/{{ server.id }}/delete">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+        <button class="btn btn-danger" type="submit"
+          data-confirm="Delete TAK server «{{ server.name }}» and all stored certificates?">Delete server</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var colorInput = document.getElementById('id_marker_color');
+  var dot = document.getElementById('marker-swatch-dot');
+  if (colorInput && dot) {
+    colorInput.addEventListener('input', function () {
+      dot.style.background = colorInput.value || '#06b6d4';
+    });
+  }
+})();
+</script>
 {% endblock %}

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block title %}TAK Servers — RadioTAK{% endblock %}
+{% from "_macros.html" import field, select, check %}
+{% block title %}TAK Servers — {{ title or 'RadioTAK' }}{% endblock %}
 {% block content %}
 <div class="header">
   <div>
@@ -13,10 +14,13 @@
 
 <div class="cards-grid">
 {% for s in servers %}
-  <div class="card">
-    <div class="card-title">{{ s.name }}</div>
+  <div class="card card-static">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <span class="cot-marker" style="background:{{ s.marker_color | default('#06b6d4') }}"></span>
+      <div class="card-title" style="margin:0">{{ s.name }}</div>
+    </div>
     <div class="card-desc">{{ s.host }}:{{ s.cot_port }}{% if not s.enabled %} · disabled{% endif %}</div>
-    <div class="status-pill {% if s.status=='connected' %}status-running{% elif 'error' in (s.status or '') %}status-stopped{% else %}status-idle{% endif %}">
+    <div class="status-pill {% if s.status=='connected' %}status-running{% elif s.status and 'error' in s.status %}status-stopped{% else %}status-idle{% endif %}">
       <span class="dot"></span>{{ s.status or 'disconnected' }}
     </div>
     {% if s.certificate_not_after %}
@@ -25,8 +29,11 @@
     {% if s.active_groups %}
     <div class="card-desc">Channels: {{ s.active_groups | join(', ') }}</div>
     {% endif %}
-    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-      <a class="btn btn-sm" href="/tak/{{ s.id }}">Configure</a>
+    {% if s.last_error %}
+    <div class="alert alert-error" style="margin-top:10px;font-size:11px">{{ s.last_error }}</div>
+    {% endif %}
+    <div class="btn-row">
+      <a class="btn btn-sm btn-primary" href="/tak/{{ s.id }}">Configure</a>
       <form method="post" action="/tak/{{ s.id }}/test">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
         <button class="btn btn-sm" type="submit">Test</button>
@@ -34,19 +41,21 @@
     </div>
   </div>
 {% else %}
-  <div class="alert alert-info">No TAK servers configured yet.</div>
+  <div class="empty-state">No TAK servers configured yet. Add one below.</div>
 {% endfor %}
 </div>
 
 <div class="section-title">Add TAK Server</div>
-<form method="post" action="/tak/add" style="max-width:520px">
+<div class="form-panel">
+<form method="post" action="/tak/add" data-busy="Adding server…">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
-  <div class="form-field"><label>Name</label><input name="name" required placeholder="TN TAK"/></div>
-  <div class="form-field"><label>Host</label><input name="host" required placeholder="tak.example.net"/></div>
-  <div class="form-field"><label>CoT TLS port</label><input name="cot_port" type="number" value="8089"/></div>
-  <div class="form-field"><label>Enrollment port</label><input name="enrollment_port" type="number" value="8446"/></div>
-  <div class="form-field"><label>API port</label><input name="api_port" type="number" value="8443"/></div>
-  <div class="form-field"><label>Callsign</label><input name="callsign" value="RadioTAK"/></div>
+  {{ field('name', 'Server name', help_key='tak.name', required=True, placeholder='TN TAK') }}
+  {{ field('host', 'Host / FQDN', help_key='tak.host', required=True, placeholder='tak.example.net') }}
+  {{ field('cot_port', 'CoT TLS port', type='number', value='8089', help_key='tak.cot_port') }}
+  {{ field('enrollment_port', 'Enrollment port', type='number', value='8446', help_key='tak.enrollment_port') }}
+  {{ field('api_port', 'Marti API port', type='number', value='8443', help_key='tak.api_port') }}
+  {{ field('callsign', 'Gateway callsign', value='RadioTAK', help_key='tak.callsign') }}
   <button class="btn btn-primary" type="submit">Add server</button>
 </form>
+</div>
 {% endblock %}

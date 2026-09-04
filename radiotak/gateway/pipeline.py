@@ -9,12 +9,15 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from radiotak.db import ForwardingStatus, LocationObservation, utcnow
+from radiotak.db import ForwardingStatus, LocationObservation, TakServer, utcnow
 from radiotak.gateway import LocationEventIn, stable_cot_uid
 from radiotak.gateway.cot import build_cot_xml
 from radiotak.gateway.identities import is_forward_allowed, observe_or_create
+from radiotak.gateway.marker_style import resolve_style
+from radiotak.gateway.tak import tak_registry
 from radiotak.services.logging_setup import log_event
 from radiotak.services.settings_store import load_settings_file
 
@@ -40,7 +43,6 @@ class PipelineResult:
 @dataclass
 class DedupeState:
     last_sent: dict[str, tuple[float, float, float]] = field(default_factory=dict)
-    # key -> (lat, lon, monotonic_ts)
 
 
 class LocationPipeline:
@@ -132,7 +134,6 @@ class LocationPipeline:
             )
             return PipelineResult(obs, False, reason)
 
-        # Drop stale observations
         age = (utcnow() - event.observed_at).total_seconds()
         max_age = float(fwd.get("stale_seconds", 120)) * 2
         if age > max_age and not event.emergency:
@@ -165,21 +166,67 @@ class LocationPipeline:
                 db.commit()
                 return PipelineResult(obs, False, "DUPLICATE / STATIONARY")
 
-        cot_xml = build_cot_xml(
-            radio_id=event.radio_id,
-            latitude=event.latitude,
-            longitude=event.longitude,
-            observed_at=event.observed_at,
-            system_id=event.system_id,
-            callsign=identity.callsign or event.source_alias or event.radio_id,
-            cot_type=identity.cot_type or "a-f-G-U-C",
-            stale_seconds=identity.stale_seconds or int(fwd.get("stale_seconds", 120)),
-            altitude_m=event.altitude_m,
-            accuracy_m=event.accuracy_m,
-            default_ce_m=float(fwd.get("default_ce_meters", 20)),
-            remarks=identity.remarks,
-            uid=cot_uid,
-        )
+        servers = list(db.scalars(select(TakServer).where(TakServer.enabled.is_(True))))
+        first_xml = None
+        queued = 0
+        for server in servers:
+            style = resolve_style(
+                server=server,
+                identity=identity,
+                radio_id=event.radio_id,
+                source_alias=event.source_alias,
+            )
+            stale_s = style["stale_seconds"] or int(fwd.get("stale_seconds", 120))
+            ce_m = (
+                event.accuracy_m
+                if event.accuracy_m is not None
+                else style["default_ce_meters"]
+            )
+            cot_xml = build_cot_xml(
+                radio_id=event.radio_id,
+                latitude=event.latitude,
+                longitude=event.longitude,
+                observed_at=event.observed_at,
+                system_id=event.system_id,
+                callsign=style["callsign"],
+                cot_type=style["cot_type"],
+                stale_seconds=stale_s,
+                altitude_m=event.altitude_m,
+                accuracy_m=event.accuracy_m,
+                default_ce_m=float(ce_m),
+                remarks=style["remarks"],
+                how=style["how"],
+                uid=cot_uid,
+                iconset_path=style["iconset_path"] or None,
+                marker_color=style["marker_color"],
+            )
+            if first_xml is None:
+                first_xml = cot_xml
+            if tak_registry.enqueue_for(server.id, cot_xml, cot_uid, observation_id=None):
+                queued += 1
+            else:
+                # No live manager yet — still stash on registry-wide for later reconnect
+                tak_registry.enqueue_all(cot_xml, cot_uid)
+
+        if not servers:
+            # Fallback single CoT using defaults
+            first_xml = build_cot_xml(
+                radio_id=event.radio_id,
+                latitude=event.latitude,
+                longitude=event.longitude,
+                observed_at=event.observed_at,
+                system_id=event.system_id,
+                callsign=identity.callsign or event.source_alias or event.radio_id,
+                cot_type=identity.cot_type or "a-f-G-U-C",
+                stale_seconds=identity.stale_seconds or int(fwd.get("stale_seconds", 120)),
+                altitude_m=event.altitude_m,
+                accuracy_m=event.accuracy_m,
+                default_ce_m=float(fwd.get("default_ce_meters", 20)),
+                remarks=identity.remarks,
+                uid=cot_uid,
+            )
+            tak_registry.enqueue_all(first_xml, cot_uid)
+
         obs.forwarding_status = ForwardingStatus.PENDING.value
         obs.forwarding_reason = "QUEUED"
         db.add(obs)
@@ -197,10 +244,10 @@ class LocationPipeline:
                 "protocol": event.protocol,
                 "cot_uid": cot_uid,
                 "observation_id": obs.id,
+                "servers_queued": queued or len(servers),
             }
         )
-        return PipelineResult(obs, True, "QUEUED", cot_xml=cot_xml, cot_uid=cot_uid)
+        return PipelineResult(obs, True, "QUEUED", cot_xml=first_xml, cot_uid=cot_uid)
 
 
-# Module singleton
 pipeline = LocationPipeline()

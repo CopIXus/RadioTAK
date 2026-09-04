@@ -1,0 +1,52 @@
+{% macro field(name, label, value='', type='text', help_key='', required=False, placeholder='', autocomplete='', step='', min='', max='', rows=0) -%}
+<div class="form-field">
+  <div class="label-row">
+    <label class="field-label" for="id_{{ name }}">{{ label }}</label>
+    {% if help_key %}
+    <button type="button" class="help-icon" data-help="{{ help_key }}" aria-label="Help: {{ label }}" title="Help">?</button>
+    {% endif %}
+  </div>
+  {% if rows and rows > 0 %}
+  <textarea id="id_{{ name }}" name="{{ name }}" rows="{{ rows }}" {% if required %}required{% endif %} {% if placeholder %}placeholder="{{ placeholder }}"{% endif %}>{{ value }}</textarea>
+  {% else %}
+  <input id="id_{{ name }}" type="{{ type }}" name="{{ name }}" value="{{ value }}"
+    {% if required %}required{% endif %}
+    {% if placeholder %}placeholder="{{ placeholder }}"{% endif %}
+    {% if autocomplete %}autocomplete="{{ autocomplete }}"{% endif %}
+    {% if step %}step="{{ step }}"{% endif %}
+    {% if min != '' %}min="{{ min }}"{% endif %}
+    {% if max != '' %}max="{{ max }}"{% endif %}
+  />
+  {% endif %}
+</div>
+{%- endmacro %}
+
+{% macro select(name, label, options, value='', help_key='') -%}
+<div class="form-field">
+  <div class="label-row">
+    <label class="field-label" for="id_{{ name }}">{{ label }}</label>
+    {% if help_key %}
+    <button type="button" class="help-icon" data-help="{{ help_key }}" aria-label="Help: {{ label }}" title="Help">?</button>
+    {% endif %}
+  </div>
+  <select id="id_{{ name }}" name="{{ name }}">
+    {% for opt_val, opt_label in options %}
+    <option value="{{ opt_val }}" {% if value == opt_val %}selected{% endif %}>{{ opt_label }}</option>
+    {% endfor %}
+  </select>
+</div>
+{%- endmacro %}
+
+{% macro check(name, label, checked=False, value='1', help_key='') -%}
+<div class="form-field">
+  <div class="label-row">
+    <label for="id_{{ name }}">
+      <input id="id_{{ name }}" type="checkbox" name="{{ name }}" value="{{ value }}" {% if checked %}checked{% endif %}/>
+      {{ label }}
+    </label>
+    {% if help_key %}
+    <button type="button" class="help-icon" data-help="{{ help_key }}" aria-label="Help: {{ label }}" title="Help">?</button>
+    {% endif %}
+  </div>
+</div>
+{%- endmacro %}

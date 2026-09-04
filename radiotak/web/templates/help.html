@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Help — {{ title or 'RadioTAK' }}{% endblock %}
+{% block content %}
+<div class="header">
+  <div>
+    <div class="header-title">Help</div>
+    <div class="header-subtitle">Operator guide for {{ title or 'RadioTAK' }}</div>
+  </div>
+</div>
+
+<div class="help-card">
+  <div class="help-card-header" onclick="helpToggle(this)" role="button" tabindex="0" aria-expanded="false">
+    <h2>Getting started</h2>
+    <span class="dim">▼</span>
+  </div>
+  <div class="help-card-body">
+    <p>After install, open the console at <code class="block">https://&lt;pi-ip&gt;:5001</code> and complete first-run setup if prompted.</p>
+    <p>Typical flow:</p>
+    <p>1. Marketplace → install <strong>SDR Location Gateway</strong><br/>
+    2. SDR → discover dongle, add radio system control-channel frequencies (MHz), start decoder<br/>
+    3. Units → approve observed radios for TAK forwarding<br/>
+    4. TAK Servers → enroll certificate and select channels</p>
+    <p>Use the Console dashboard to confirm hearing activity (messages/min, CC lock) and the mini-map for live positions.</p>
+  </div>
+</div>
+
+<div class="help-card">
+  <div class="help-card-header" onclick="helpToggle(this)" role="button" tabindex="0" aria-expanded="false">
+    <h2>TAK enrollment</h2>
+    <span class="dim">▼</span>
+  </div>
+  <div class="help-card-body">
+    <p>Each TAK server supports username/password enrollment (default port <strong>8446</strong>), PKCS#12 import, or PEM cert/key upload.</p>
+    <p>After enrollment, RadioTAK queries Marti on port <strong>8443</strong> for groups/channels. Select active channels on the server detail page.</p>
+    <p>CoT streaming uses TLS port <strong>8089</strong> by default. Use <strong>Test</strong> on the TAK list to queue a test marker.</p>
+    <p>Certificate expiry warnings appear at 30 / 14 / 7 days. Re-enroll before expiry to avoid forwarding interruption.</p>
+  </div>
+</div>
+
+<div class="help-card">
+  <div class="help-card-header" onclick="helpToggle(this)" role="button" tabindex="0" aria-expanded="false">
+    <h2>Units allowlist</h2>
+    <span class="dim">▼</span>
+  </div>
+  <div class="help-card-body">
+    <p>Radios heard by the decoder appear under <strong>Observed</strong>. Only <strong>Approved</strong> units are forwarded to TAK unless Settings → Forwarding allows unknown radios.</p>
+    <p>Approve a unit to add it to the allowlist, then edit callsign, CoT type, team, and role. Per-unit settings override TAK server defaults.</p>
+    <p>Default policy is <strong>deny</strong> for unknown radios — this keeps your TAK map free of unauthorized subscribers.</p>
+  </div>
+</div>
+
+<div class="help-card">
+  <div class="help-card-header" onclick="helpToggle(this)" role="button" tabindex="0" aria-expanded="false">
+    <h2>SDR</h2>
+    <span class="dim">▼</span>
+  </div>
+  <div class="help-card-body">
+    <p>SDRTrunk runs under Xvfb on the Pi. Discover USB dongles, configure tuner gain/PPM/bias-tee, then add radio systems with control-channel frequencies.</p>
+    <p>For trunked P25/DMR enter the <strong>control channel (CC)</strong> in MHz — not random voice channels. Use RadioReference or agency programming as reference.</p>
+    <p><strong>Write playlist &amp; restart</strong> applies frequency changes. Start/Stop controls the decoder service directly.</p>
+  </div>
+</div>
+
+<div class="help-card">
+  <div class="help-card-header" onclick="helpToggle(this)" role="button" tabindex="0" aria-expanded="false">
+    <h2>Spectrum / waterfall</h2>
+    <span class="dim">▼</span>
+  </div>
+  <div class="help-card-body">
+    <p>The Console waterfall displays DFT frames exported from SDRTrunk over a local TCP feed (default <code class="block">127.0.0.1:29501</code>).</p>
+    <p>Cyan vertical lines mark configured control-channel frequencies. Use the waterfall to verify the decoder is tuned to the correct spectrum segment.</p>
+    <p>If the waterfall shows “Waiting for spectrum frames…”, confirm the spectrum exporter is enabled in SDRTrunk and the decoder is running.</p>
+  </div>
+</div>
+
+<div class="help-card">
+  <div class="help-card-header" onclick="helpToggle(this)" role="button" tabindex="0" aria-expanded="false">
+    <h2>Tailscale</h2>
+    <span class="dim">▼</span>
+  </div>
+  <div class="help-card-body">
+    <p>Join this appliance to your tailnet for remote HTTPS access without exposing port 5001 to the public internet.</p>
+    <p>Create an auth key in the Tailscale admin console (Settings → Keys), then paste it on the Tailscale page with your preferred hostname.</p>
+    <p>Enable Tailscale SSH for headless recovery. The hostname also appears as the banner subtitle when set.</p>
+  </div>
+</div>
+
+<div class="help-card">
+  <div class="help-card-header" onclick="helpToggle(this)" role="button" tabindex="0" aria-expanded="false">
+    <h2>Updates / recovery (CLI)</h2>
+    <span class="dim">▼</span>
+  </div>
+  <div class="help-card-body">
+    <p>System page → <strong>Update Now</strong> pulls the configured git branch. Use Settings to switch between <code class="block">main</code> and <code class="block">dev</code>.</p>
+    <pre>sudo radiotak status
+sudo radiotak logs
+sudo radiotak update
+sudo radiotak reset-password
+sudo radiotak diagnostics</pre>
+    <p>Download diagnostics from System for support bundles. Purge removes old logs and observations per retention settings.</p>
+  </div>
+</div>
+
+<div class="help-card">
+  <div class="help-card-header" onclick="helpToggle(this)" role="button" tabindex="0" aria-expanded="false">
+    <h2>Marker appearance</h2>
+    <span class="dim">▼</span>
+  </div>
+  <div class="help-card-body">
+    <p>Each TAK server has default marker settings: callsign, CoT type, iconset path, color, <code class="block">how</code>, and circular error (CE).</p>
+    <p>Unit-level edits override server defaults. Colors use <code class="block">#RRGGBB</code> hex and appear on ATAK/iTAK and the RadioTAK map.</p>
+    <p>Iconset path format: <code class="block">uuid:Group/name</code> — inspect an existing marker in CloudTAK/ATAK for reference.</p>
+  </div>
+</div>
+
+<div class="help-card">
+  <div class="help-card-header" onclick="helpToggle(this)" role="button" tabindex="0" aria-expanded="false">
+    <h2>Links</h2>
+    <span class="dim">▼</span>
+  </div>
+  <div class="help-card-body">
+    <p>
+      <a href="https://github.com/CopIXus/RadioTAK" target="_blank" rel="noopener">RadioTAK on GitHub</a><br/>
+      <a href="https://tak.gov" target="_blank" rel="noopener">TAK.gov</a><br/>
+      <a href="https://tailscale.com/kb" target="_blank" rel="noopener">Tailscale documentation</a><br/>
+      <a href="https://www.radioreference.com" target="_blank" rel="noopener">RadioReference (frequencies)</a>
+    </p>
+    <p>Field-level help icons (<strong>?</strong>) on forms show context-specific guidance without leaving the page.</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function helpToggle(header) {
+  var body = header.parentNode.querySelector('.help-card-body');
+  if (!body) return;
+  var open = body.classList.toggle('open');
+  header.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+document.querySelectorAll('.help-card-header').forEach(function (h) {
+  h.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      helpToggle(h);
+    }
+  });
+});
+</script>
+{% endblock %}

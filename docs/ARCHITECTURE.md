@@ -31,7 +31,7 @@ flowchart LR
 |---------|------|
 | `radiotak.auth` | Argon2id passwords, signed sessions, CSRF, login rate-limit |
 | `radiotak.db` | SQLAlchemy models + Alembic migrations (SQLite WAL) |
-| `radiotak.web` | Jinja2 templates, HTMX, routers, static assets |
+| `radiotak.web` | Jinja2 templates, routers, static assets, help system |
 | `radiotak.services` | settings, updater, tailscale, system, retention, modules, secrets, diagnostics |
 | `radiotak.gateway` | location schema, normalizer, identities, CoT, TAK connection/enrollment |
 | `radiotak.platform` | Linux impl vs. Windows/dev stub |

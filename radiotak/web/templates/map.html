@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Map — RadioTAK{% endblock %}
+{% block title %}Map — {{ title or 'RadioTAK' }}{% endblock %}
 {% block head %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css"/>
 {% endblock %}
 {% block content %}
 <div class="header">
@@ -9,25 +9,56 @@
     <div class="header-title">Map</div>
     <div class="header-subtitle">Latest approved radio positions</div>
   </div>
+  <a class="btn btn-sm" href="/units">Units</a>
+</div>
+
+<div id="map-empty" class="empty-state" style="display:none">
+  No positions yet. Approve units and wait for GPS reports from the decoder.
 </div>
 <div id="map"></div>
 {% endblock %}
+
 {% block scripts %}
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/static/vendor/leaflet/leaflet.js"></script>
+<script src="/static/js/map.js"></script>
 <script>
-const map = L.map('map').setView([39.5, -98.35], 4);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 18, attribution: '&copy; OpenStreetMap'
-}).addTo(map);
-const points = {{ points_json | safe }};
-const markers = [];
-points.forEach(p => {
-  const m = L.marker([p.lat, p.lon]).addTo(map).bindPopup(
-    `<b>${p.callsign || p.radio_id}</b><br/>${p.radio_id}<br/>${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`
-    + (p.observed_at ? `<br/>${p.observed_at}` : '')
-  );
-  markers.push(m);
-});
-if (markers.length) map.fitBounds(L.featureGroup(markers).getBounds().pad(0.2));
+(function () {
+  'use strict';
+  var points = {{ points_json | default('[]') | safe }};
+  var emptyEl = document.getElementById('map-empty');
+  var mapEl = document.getElementById('map');
+  var map = RadioTakMap.create('map', { zoom: 4 });
+  var markerGroup = null;
+
+  function showEmpty(show) {
+    if (emptyEl) emptyEl.style.display = show ? 'block' : 'none';
+    if (mapEl) mapEl.style.display = show ? 'none' : 'block';
+  }
+
+  if (map) {
+    map.watchTheme();
+    if (!points.length) showEmpty(true);
+    else {
+      showEmpty(false);
+      markerGroup = map.plotPoints(points);
+    }
+  }
+
+  async function refresh() {
+    try {
+      var r = await fetch('/api/v1/locations/latest');
+      if (!r.ok) return;
+      var pts = await r.json();
+      if (!pts.length) {
+        showEmpty(true);
+        return;
+      }
+      showEmpty(false);
+      if (map) markerGroup = map.plotPoints(pts, markerGroup);
+    } catch (e) { /* ignore */ }
+  }
+
+  setInterval(refresh, 15000);
+})();
 </script>
 {% endblock %}

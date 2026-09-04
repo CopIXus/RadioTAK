@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -15,9 +16,35 @@ from radiotak.config import get_settings
 from radiotak.db import init_db
 from radiotak.gateway.events import event_bus
 from radiotak.gateway.pipeline import pipeline
+from radiotak.services.hearing import hearing_gauges
 from radiotak.services.logging_setup import setup_logging
 from radiotak.services.modules import load_module_routers
+from radiotak.services.settings_store import load_settings_file
 from radiotak.web.routers import api, pages
+
+log = logging.getLogger("radiotak.main")
+
+
+async def _ndjson_listen() -> None:
+    try:
+        from modules.sdr_location_gateway.sdrtrunk.adapter import listen_ndjson_tcp
+
+        await listen_ndjson_tcp()
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        log.warning("NDJSON listen failed: %s", exc)
+
+
+async def _spectrum_listen() -> None:
+    try:
+        from modules.sdr_location_gateway.sdrtrunk.spectrum import listen_spectrum_tcp
+
+        await listen_spectrum_tcp()
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        log.warning("spectrum listen failed: %s", exc)
 
 
 @asynccontextmanager
@@ -29,10 +56,11 @@ async def lifespan(app: FastAPI):
 
     def _on_pipeline(event: dict) -> None:
         event_bus.publish(event)
+        if event.get("type") in ("queued", "blocked"):
+            hearing_gauges.note()
 
     pipeline.add_listener(_on_pipeline)
 
-    # Periodic retention (daily-ish via 6h loop)
     async def retention_loop():
         from radiotak.services.retention import purge_old_records
 
@@ -40,16 +68,40 @@ async def lifespan(app: FastAPI):
             await asyncio.sleep(6 * 3600)
             try:
                 purge_old_records()
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as exc:  # noqa: BLE001
+                log.warning("retention purge failed: %s", exc)
 
     task = asyncio.create_task(retention_loop())
+    ndjson_task = asyncio.create_task(_ndjson_listen())
+    spectrum_task = asyncio.create_task(_spectrum_listen())
+
+    try:
+        from radiotak.services import tak_runtime
+
+        await tak_runtime.start_all()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("TAK auto-connect failed: %s", exc)
+
     yield
-    task.cancel()
+
+    try:
+        from radiotak.services import tak_runtime
+
+        await tak_runtime.stop_all()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("TAK shutdown failed: %s", exc)
+
+    for t in (ndjson_task, spectrum_task, task):
+        t.cancel()
+        try:
+            await t
+        except asyncio.CancelledError:
+            pass
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def create_app() -> FastAPI:
-    settings = get_settings()
     app = FastAPI(title="RadioTAK", lifespan=lifespan, docs_url=None, redoc_url=None)
 
     static_dir = Path(__file__).parent / "web" / "static"
@@ -84,18 +136,20 @@ def run() -> None:
 
     settings = get_settings()
     settings.ensure_dirs()
+    cfg = load_settings_file()
+    host = cfg.get("bind_host") or settings.host
+    port = int(cfg.get("bind_port") or settings.port)
     ssl_cert = settings.cert_dir / "cert.pem"
     ssl_key = settings.cert_dir / "key.pem"
     kwargs = {
-        "host": settings.host,
-        "port": settings.port,
+        "host": host,
+        "port": port,
         "log_level": "info",
     }
     if settings.bind_https and ssl_cert.exists() and ssl_key.exists():
         kwargs["ssl_certfile"] = str(ssl_cert)
         kwargs["ssl_keyfile"] = str(ssl_key)
     elif settings.bind_https:
-        # generate ephemeral self-signed for dev if missing
         _ensure_dev_cert(ssl_cert, ssl_key)
         if ssl_cert.exists():
             kwargs["ssl_certfile"] = str(ssl_cert)
@@ -136,8 +190,8 @@ def _ensure_dev_cert(cert_path: Path, key_path: Path) -> None:
             )
         )
         cert_path.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as exc:  # noqa: BLE001
+        log.warning("dev cert generation failed: %s", exc)
 
 
 if __name__ == "__main__":

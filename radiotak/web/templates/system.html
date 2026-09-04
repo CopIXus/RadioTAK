@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}System — RadioTAK{% endblock %}
+{% block title %}System — {{ title or 'RadioTAK' }}{% endblock %}
 {% block content %}
 <div class="header">
   <div>
@@ -8,20 +8,20 @@
   </div>
 </div>
 
-{% if message %}<div class="alert alert-ok"><pre style="white-space:pre-wrap;font:inherit">{{ message }}</pre></div>{% endif %}
+{% if message %}<div class="alert alert-ok"><pre style="white-space:pre-wrap;font:inherit;margin:0">{{ message }}</pre></div>{% endif %}
 {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
 
 <div class="cards-grid">
-  <div class="card">
+  <div class="card card-static">
     <div class="card-title">Host</div>
     <div class="card-desc">
       {{ info.pi_model or info.os }}<br/>
       {{ info.hostname }} · {{ info.arch }}<br/>
       IPs: {{ info.ips | join(', ') or '—' }}<br/>
-      NTP: {{ info.ntp }}
+      NTP: {{ info.ntp or '—' }}
     </div>
   </div>
-  <div class="card">
+  <div class="card card-static">
     <div class="card-title">Software</div>
     <div class="card-desc">
       Installed: {{ version }}<br/>
@@ -31,19 +31,40 @@
   </div>
 </div>
 
-<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:24px">
+<div class="btn-row" style="margin-bottom:28px">
   <form method="post" action="/system/update">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
-    <button class="btn btn-primary" type="submit">Update Now</button>
+    <button class="btn btn-primary" type="submit" data-busy="Updating…"
+      data-confirm="Pull updates from GitHub and restart services?">Update now</button>
   </form>
   <form method="post" action="/system/restart">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
-    <button class="btn" type="submit">Restart RadioTAK</button>
+    <button class="btn" type="submit" data-confirm="Restart the RadioTAK service?">Restart RadioTAK</button>
   </form>
   <a class="btn" href="/system/diagnostics">Download diagnostics</a>
   <form method="post" action="/system/purge">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
-    <button class="btn" type="submit">Purge old logs/DB</button>
+    <button class="btn btn-danger" type="submit"
+      data-confirm="Purge old logs and database records per retention settings?">Purge old logs/DB</button>
   </form>
 </div>
+
+{% if audit_rows %}
+<div class="section-title">Recent audit log</div>
+<table class="table">
+  <thead>
+    <tr><th>Time</th><th>Action</th><th>Actor</th><th>Target</th></tr>
+  </thead>
+  <tbody>
+  {% for row in audit_rows %}
+    <tr>
+      <td>{{ row.created_at or '—' }}</td>
+      <td>{{ row.action }}</td>
+      <td>{{ row.actor or '—' }}</td>
+      <td>{{ row.target or '—' }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
 {% endblock %}

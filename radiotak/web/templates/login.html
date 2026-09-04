@@ -1,20 +1,23 @@
 {% extends "base.html" %}
-{% block title %}Login — RadioTAK{% endblock %}
+{% block title %}Login — {{ title or 'RadioTAK' }}{% endblock %}
 {% block content %}
 <div class="login-wrap" style="margin:-32px;width:calc(100% + 64px)">
   <div class="login-card">
-    <h1>RadioTAK</h1>
-    <p>Raspberry Pi location-gateway console</p>
+    {% if logo_url %}
+    <img class="login-logo" src="{{ logo_url }}" alt="{{ title or 'RadioTAK' }}"/>
+    {% endif %}
+    <h1>{{ title or 'RadioTAK' }}</h1>
+    <p>Sign in to the location-gateway console</p>
     {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
     <form method="post" action="/login">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
       <div class="form-field">
-        <label>Username</label>
-        <input type="text" name="username" autocomplete="username" required autofocus/>
+        <label class="field-label" for="id_username">Username</label>
+        <input id="id_username" type="text" name="username" autocomplete="username" required autofocus/>
       </div>
       <div class="form-field">
-        <label>Password</label>
-        <input type="password" name="password" autocomplete="current-password" required/>
+        <label class="field-label" for="id_password">Password</label>
+        <input id="id_password" type="password" name="password" autocomplete="current-password" required/>
       </div>
       <button class="btn btn-primary" type="submit" style="width:100%">Sign in</button>
     </form>

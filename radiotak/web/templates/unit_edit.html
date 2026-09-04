@@ -1,6 +1,16 @@
 {% extends "base.html" %}
-{% block title %}Edit unit — RadioTAK{% endblock %}
+{% from "_macros.html" import field, select, check %}
+{% block title %}Edit unit — {{ title or 'RadioTAK' }}{% endblock %}
 {% block content %}
+{% set cot_types = [
+  ('a-f-G-U-C', 'Friendly ground unit (combat)'),
+  ('a-f-G-E-V', 'Friendly ground equipment (vehicle)'),
+  ('a-f-G-U-C-I', 'Friendly ground unit (C2)'),
+  ('a-u-G', 'Unknown ground'),
+  ('a-n-G', 'Neutral ground'),
+  ('a-h-G', 'Hostile ground'),
+] %}
+
 <div class="header">
   <div>
     <div class="header-title">Unit {{ unit.radio_id }}</div>
@@ -8,17 +18,22 @@
   </div>
   <a class="btn btn-sm" href="/units">Back</a>
 </div>
-<form method="post" action="/units/{{ unit.id }}" style="max-width:520px">
+
+<div class="form-panel">
+<form method="post" action="/units/{{ unit.id }}" data-busy="Saving…">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
-  <div class="form-field"><label>Callsign</label><input name="callsign" value="{{ unit.callsign or '' }}"/></div>
-  <div class="form-field"><label>Display name</label><input name="display_name" value="{{ unit.display_name or '' }}"/></div>
-  <div class="form-field"><label>Agency</label><input name="agency" value="{{ unit.agency or '' }}"/></div>
-  <div class="form-field"><label>Unit</label><input name="unit" value="{{ unit.unit or '' }}"/></div>
-  <div class="form-field"><label>CoT type</label><input name="cot_type" value="{{ unit.cot_type or 'a-f-G-U-C' }}"/></div>
-  <div class="form-field"><label>Stale seconds</label><input name="stale_seconds" type="number" value="{{ unit.stale_seconds or 120 }}"/></div>
-  <div class="form-field"><label>Remarks</label><textarea name="remarks" rows="3">{{ unit.remarks or '' }}</textarea></div>
-  <div class="form-field"><label><input type="checkbox" name="enabled" value="1" {% if unit.enabled %}checked{% endif %}/> Enabled</label></div>
-  <div class="form-field"><label><input type="checkbox" name="forward_to_tak" value="1" {% if unit.forward_to_tak %}checked{% endif %}/> Forward to TAK</label></div>
+  {{ field('callsign', 'Callsign', value=unit.callsign or '', help_key='unit.callsign') }}
+  {{ field('display_name', 'Display name', value=unit.display_name or '') }}
+  {{ field('agency', 'Agency', value=unit.agency or '') }}
+  {{ field('unit', 'Unit', value=unit.unit or '') }}
+  {{ field('team', 'Team', value=unit.team or '') }}
+  {{ field('role', 'Role', value=unit.role or '') }}
+  {{ select('cot_type', 'CoT type', cot_types, value=unit.cot_type or 'a-f-G-U-C', help_key='unit.cot_type') }}
+  {{ field('stale_seconds', 'Stale seconds', type='number', value=unit.stale_seconds or 120, help_key='unit.stale_seconds') }}
+  {{ field('remarks', 'Remarks', value=unit.remarks or '', rows=3) }}
+  {{ check('enabled', 'Enabled', checked=unit.enabled) }}
+  {{ check('forward_to_tak', 'Forward to TAK', checked=unit.forward_to_tak) }}
   <button class="btn btn-primary" type="submit">Save</button>
 </form>
+</div>
 {% endblock %}

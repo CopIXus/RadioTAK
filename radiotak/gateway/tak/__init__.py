@@ -175,13 +175,31 @@ class TakManagerRegistry:
     def upsert(self, manager: TakConnectionManager) -> TakConnectionManager:
         existing = self._managers.get(manager.server_id)
         if existing:
-            # replace config; stop old
-            asyncio.create_task(existing.stop())
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(existing.stop())
+            except RuntimeError:
+                pass
+        self._managers[manager.server_id] = manager
+        return manager
+
+    async def replace(self, manager: TakConnectionManager) -> TakConnectionManager:
+        existing = self._managers.get(manager.server_id)
+        if existing:
+            await existing.stop()
         self._managers[manager.server_id] = manager
         return manager
 
     def all(self) -> list[TakConnectionManager]:
         return list(self._managers.values())
+
+    async def stop_all(self) -> None:
+        for mgr in list(self._managers.values()):
+            try:
+                await mgr.stop()
+            except Exception:  # noqa: BLE001
+                pass
+        self._managers.clear()
 
     def enqueue_all(self, xml: str, uid: str, observation_id: Optional[str] = None) -> int:
         n = 0
@@ -193,6 +211,15 @@ class TakManagerRegistry:
                 mgr.enqueue(xml, uid, observation_id)
                 n += 1
         return n
+
+    def enqueue_for(
+        self, server_id: str, xml: str, uid: str, observation_id: Optional[str] = None
+    ) -> bool:
+        mgr = self._managers.get(server_id)
+        if not mgr:
+            return False
+        mgr.enqueue(xml, uid, observation_id)
+        return True
 
 
 tak_registry = TakManagerRegistry()

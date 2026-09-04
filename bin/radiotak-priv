@@ -13,7 +13,7 @@ shift || true
 case "$cmd" in
   systemctl)
     action=${1:-}; unit=${2:-}
-    [[ "$action" =~ ^(start|stop|restart|status|enable|disable)$ ]] || die "bad systemctl action"
+    [[ "$action" =~ ^(start|stop|restart|status|enable|disable|is-active)$ ]] || die "bad systemctl action"
     [[ "$unit" =~ ^(radiotak|sdrtrunk|xvfb-sdrtrunk)([.]service)?$ ]] || die "unit not allowed"
     systemctl "$action" "${unit%.service}.service"
     ;;

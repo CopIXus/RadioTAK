@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from radiotak.db import RadioIdentity, utcnow
+from radiotak.services.settings_store import load_settings_file
 
 
 def find_identity(
@@ -21,7 +22,6 @@ def find_identity(
     rows = list(db.scalars(stmt))
     if not rows:
         return None
-    # Prefer exact system match
     for row in rows:
         if system_id and row.system_id == system_id:
             return row
@@ -62,6 +62,9 @@ def observe_or_create(
 
 def is_forward_allowed(identity: Optional[RadioIdentity]) -> tuple[bool, str]:
     if identity is None:
+        mode = (load_settings_file().get("forwarding") or {}).get("unknown_radios", "deny")
+        if mode == "observe":
+            return False, "RADIO OBSERVE ONLY"
         return False, "RADIO NOT APPROVED"
     if not identity.enabled:
         return False, "RADIO DISABLED"

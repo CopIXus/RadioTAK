@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Tailscale — RadioTAK{% endblock %}
+{% from "_macros.html" import field, select, check %}
+{% block title %}Tailscale — {{ title or 'RadioTAK' }}{% endblock %}
 {% block content %}
 <div class="header">
   <div>
@@ -7,10 +8,11 @@
     <div class="header-subtitle">Remote access for update and configuration</div>
   </div>
 </div>
-{% if message %}<div class="alert alert-ok"><pre style="white-space:pre-wrap;font:inherit">{{ message }}</pre></div>{% endif %}
+
+{% if message %}<div class="alert alert-ok"><pre style="white-space:pre-wrap;font:inherit;margin:0">{{ message }}</pre></div>{% endif %}
 {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
 
-<div class="card" style="margin-bottom:24px;max-width:560px">
+<div class="card card-static" style="margin-bottom:24px;max-width:560px">
   <div class="card-title">Status</div>
   <div class="card-desc">
     Installed: {{ status.installed }}<br/>
@@ -21,22 +23,24 @@
 </div>
 
 {% if not status.installed %}
-<form method="post" action="/tailscale/install" style="margin-bottom:24px">
+<form method="post" action="/tailscale/install" style="margin-bottom:24px" data-busy="Installing…">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
   <button class="btn btn-primary" type="submit">Install Tailscale</button>
 </form>
 {% endif %}
 
-<form method="post" action="/tailscale/up" style="max-width:520px">
+<div class="form-panel" style="max-width:520px">
+<form method="post" action="/tailscale/up" data-busy="Joining tailnet…">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
-  <div class="form-field"><label>Auth key</label><input name="auth_key" type="password" required placeholder="tskey-auth-…"/ autocomplete="off"></div>
-  <div class="form-field"><label>Hostname</label><input name="hostname" value="{{ hostname or '' }}" placeholder="radiotak-01"/></div>
-  <div class="form-field"><label><input type="checkbox" name="ssh" value="1" checked/> Enable Tailscale SSH</label></div>
+  {{ field('auth_key', 'Auth key', type='password', help_key='tailscale.auth_key', required=True, placeholder='tskey-auth-…', autocomplete='off') }}
+  {{ field('hostname', 'Hostname', value=hostname or '', help_key='tailscale.hostname', placeholder='radiotak-01') }}
+  {{ check('ssh', 'Enable Tailscale SSH', checked=True) }}
   <button class="btn btn-primary" type="submit">Join tailnet</button>
 </form>
+</div>
 
 <form method="post" action="/tailscale/down" style="margin-top:16px">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
-  <button class="btn btn-danger" type="submit">Disconnect</button>
+  <button class="btn btn-danger" type="submit" data-confirm="Disconnect from Tailscale?">Disconnect</button>
 </form>
 {% endblock %}

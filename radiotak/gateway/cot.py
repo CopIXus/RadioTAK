@@ -7,6 +7,7 @@ from typing import Optional
 from xml.etree.ElementTree import Element, SubElement, tostring
 
 from radiotak.gateway import stable_cot_uid
+from radiotak.gateway.marker_style import argb_from_hex
 
 
 def _fmt(dt: datetime) -> str:
@@ -31,6 +32,8 @@ def build_cot_xml(
     remarks: Optional[str] = None,
     how: str = "m-g",
     uid: Optional[str] = None,
+    iconset_path: Optional[str] = None,
+    marker_color: Optional[str] = None,
 ) -> str:
     uid = uid or stable_cot_uid(system_id, radio_id)
     start = observed_at if observed_at.tzinfo else observed_at.replace(tzinfo=timezone.utc)
@@ -65,6 +68,10 @@ def build_cot_xml(
     detail = SubElement(event, "detail")
     if callsign:
         SubElement(detail, "contact", {"callsign": callsign})
+    if iconset_path:
+        SubElement(detail, "usericon", {"iconsetpath": iconset_path})
+    if marker_color:
+        SubElement(detail, "color", {"argb": argb_from_hex(marker_color)})
     remark_text = remarks or (
         f"Location source: authorized radio telemetry via RadioTAK (radio_id={radio_id})"
     )

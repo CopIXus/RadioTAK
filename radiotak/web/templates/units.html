@@ -1,65 +1,105 @@
 {% extends "base.html" %}
-{% block title %}Units — RadioTAK{% endblock %}
+{% from "_macros.html" import field, select, check %}
+{% block title %}Units — {{ title or 'RadioTAK' }}{% endblock %}
 {% block content %}
 <div class="header">
   <div>
     <div class="header-title">Radio units</div>
-    <div class="header-subtitle">Allowlist — unknown radios are never forwarded by default</div>
+    <div class="header-subtitle">Allowlist — unknown radios are not forwarded by default</div>
   </div>
 </div>
 
 {% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
 
-<div class="section-title">Approved / mapped</div>
-<table class="table">
-  <thead>
-    <tr><th>Forward</th><th>Radio ID</th><th>Callsign</th><th>Agency</th><th>Last GPS</th><th>System</th><th></th></tr>
-  </thead>
-  <tbody>
-  {% for u in approved %}
-    <tr>
-      <td>{% if u.forward_to_tak %}YES{% else %}NO{% endif %}</td>
-      <td>{{ u.radio_id }}</td>
-      <td>{{ u.callsign or '—' }}</td>
-      <td>{{ u.agency or '—' }}</td>
-      <td>{% if u.last_latitude %}{{ '%.5f'|format(u.last_latitude) }}, {{ '%.5f'|format(u.last_longitude) }}{% else %}—{% endif %}</td>
-      <td>{{ u.system_id or '—' }}</td>
-      <td><a class="btn btn-sm" href="/units/{{ u.id }}">Edit</a></td>
-    </tr>
-  {% else %}
-    <tr><td colspan="7" class="dim">No approved units yet.</td></tr>
-  {% endfor %}
-  </tbody>
-</table>
+<div class="form-field" style="max-width:320px;margin-bottom:20px">
+  <label class="field-label" for="unit-search">Search</label>
+  <input id="unit-search" type="search" placeholder="Filter by radio ID, callsign, agency…"/>
+</div>
 
-<div class="section-title" style="margin-top:32px">Observed / not forwarded</div>
-<table class="table">
-  <thead>
-    <tr><th>Radio ID</th><th>Count</th><th>Last seen</th><th>System</th><th></th></tr>
-  </thead>
-  <tbody>
-  {% for u in observed %}
-    <tr>
-      <td>{{ u.radio_id }}</td>
-      <td>{{ u.observation_count }}</td>
-      <td>{{ u.last_observed_at or '—' }}</td>
-      <td>{{ u.system_id or '—' }}</td>
-      <td><a class="btn btn-sm" href="/units/{{ u.id }}">Map / enable</a></td>
-    </tr>
-  {% else %}
-    <tr><td colspan="5">No unknown radios observed yet. Replay a fixture or connect SDRTrunk.</td></tr>
-  {% endfor %}
-  </tbody>
-</table>
+<div data-tabs>
+  <div class="tabs">
+    <button type="button" class="tab-btn active" data-tab="tab-approved">Approved</button>
+    <button type="button" class="tab-btn" data-tab="tab-observed">Observed</button>
+    <button type="button" class="tab-btn" data-tab="tab-add">Add unit</button>
+  </div>
 
-<div class="section-title" style="margin-top:32px">Add unit</div>
-<form method="post" action="/units/add" style="max-width:520px">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
-  <div class="form-field"><label>Radio ID</label><input name="radio_id" required/></div>
-  <div class="form-field"><label>System ID</label><input name="system_id"/></div>
-  <div class="form-field"><label>Callsign</label><input name="callsign"/></div>
-  <div class="form-field"><label>Agency</label><input name="agency"/></div>
-  <div class="form-field"><label><input type="checkbox" name="forward_to_tak" value="1"/> Forward to TAK</label></div>
-  <button class="btn btn-primary" type="submit">Save</button>
-</form>
+  <div class="tab-panel active" id="tab-approved" data-panel="tab-approved">
+    <table class="table" id="table-approved">
+      <thead>
+        <tr><th>Radio ID</th><th>Callsign</th><th>Agency</th><th>Last GPS</th><th>System</th><th></th></tr>
+      </thead>
+      <tbody>
+      {% for u in approved %}
+        <tr data-search="{{ u.radio_id }} {{ u.callsign or '' }} {{ u.agency or '' }} {{ u.system_id or '' }}">
+          <td>{{ u.radio_id }}</td>
+          <td>{{ u.callsign or '—' }}</td>
+          <td>{{ u.agency or '—' }}</td>
+          <td>{% if u.last_latitude %}{{ '%.5f'|format(u.last_latitude) }}, {{ '%.5f'|format(u.last_longitude) }}{% else %}—{% endif %}</td>
+          <td>{{ u.system_id or '—' }}</td>
+          <td><a class="btn btn-sm" href="/units/{{ u.id }}">Edit</a></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6" class="dim">No approved units yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="tab-panel" id="tab-observed" data-panel="tab-observed">
+    <table class="table" id="table-observed">
+      <thead>
+        <tr><th>Radio ID</th><th>Count</th><th>Last seen</th><th>System</th><th></th></tr>
+      </thead>
+      <tbody>
+      {% for u in observed %}
+        <tr data-search="{{ u.radio_id }} {{ u.system_id or '' }}">
+          <td>{{ u.radio_id }}</td>
+          <td>{{ u.observation_count }}</td>
+          <td>{{ u.last_observed_at or '—' }}</td>
+          <td>{{ u.system_id or '—' }}</td>
+          <td style="display:flex;gap:6px;flex-wrap:wrap">
+            <form method="post" action="/units/{{ u.id }}/approve">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+              <button class="btn btn-sm btn-primary" type="submit">Approve</button>
+            </form>
+            <a class="btn btn-sm" href="/units/{{ u.id }}">Edit</a>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5" class="dim">No unknown radios observed yet. Start the decoder or replay a fixture.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="tab-panel" id="tab-add" data-panel="tab-add">
+    <div class="form-panel">
+      <form method="post" action="/units/add" data-busy="Saving unit…">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+        {{ field('radio_id', 'Radio ID', help_key='unit.radio_id', required=True) }}
+        {{ field('system_id', 'System ID', help_key='unit.system_id') }}
+        {{ field('callsign', 'Callsign', help_key='unit.callsign') }}
+        {{ field('agency', 'Agency') }}
+        {{ check('forward_to_tak', 'Forward to TAK', checked=False) }}
+        <button class="btn btn-primary" type="submit">Save unit</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var input = document.getElementById('unit-search');
+  if (!input) return;
+  input.addEventListener('input', function () {
+    var q = input.value.trim().toLowerCase();
+    document.querySelectorAll('[data-search]').forEach(function (row) {
+      var hay = (row.getAttribute('data-search') || '').toLowerCase();
+      row.style.display = !q || hay.indexOf(q) >= 0 ? '' : 'none';
+    });
+  });
+})();
+</script>
 {% endblock %}

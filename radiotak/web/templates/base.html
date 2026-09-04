@@ -1,44 +1,110 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="{{ theme or 'dark' }}">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>{% block title %}{{ title or 'RadioTAK' }}{% endblock %}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="icon" href="/branding/favicon"/>
+  <link rel="stylesheet" href="/static/fonts/fonts.css"/>
   <link rel="stylesheet" href="/static/css/app.css"/>
-  <style>:root { --cyan: {{ accent or '#06b6d4' }}; --accent: {{ accent or '#3b82f6' }}; }</style>
+  <style>
+    :root {
+      --accent: {{ accent or '#3b82f6' }};
+      --cyan: {{ cyan or '#06b6d4' }};
+      {% if banner_enabled and banner_text %}--banner-h: 84px;{% endif %}
+    }
+  </style>
   {% block head %}{% endblock %}
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  {% if banner_enabled and banner_text %}
+  <div class="custom-banner" style="font-family: {{ banner_font_css }}; color: {{ banner_color }}; font-size: {{ banner_size_px }};">
+    {% if logo_url %}
+    <img src="{{ logo_url }}" alt="Agency logo"/>
+    {% else %}
+    <span style="font-family:'Orbitron',sans-serif;font-size:12px;color:var(--cyan);letter-spacing:.08em;flex-shrink:0">RadioTAK</span>
+    {% endif %}
+    <span class="custom-banner-text">
+      {{ banner_text }}
+      {% if banner_sub %}<span class="custom-banner-sub">{{ banner_sub }}</span>{% endif %}
+    </span>
+    {% if logo_url %}
+    <img src="{{ logo_url }}" alt=""/>
+    {% else %}
+    <span style="font-family:'Orbitron',sans-serif;font-size:12px;color:var(--cyan);letter-spacing:.08em;flex-shrink:0">RadioTAK</span>
+    {% endif %}
+  </div>
+  {% endif %}
   <div class="top-bar"></div>
   {% if not hide_sidebar %}
-  <aside class="sidebar">
+  <button type="button" class="sidebar-toggle" id="sidebar-toggle" aria-label="Open navigation">
+    <svg width="20" height="20"><use href="/static/icons.svg#icon-menu"/></svg>
+  </button>
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+  <aside class="sidebar" aria-label="Main">
     <div class="sidebar-logo">
-      <span>{{ title or 'RadioTAK' }}</span>
-      <small>v{{ version }} · {{ branch }}</small>
+      <div class="sidebar-logo-row">
+        {% if logo_url %}<img src="{{ logo_url }}" alt=""/>{% endif %}
+        <div>
+          <span>{{ title or 'RadioTAK' }}</span>
+          <small>v{{ version }} · {{ branch }}</small>
+        </div>
+      </div>
     </div>
-    <a class="nav-item {% if nav=='dashboard' %}active{% endif %}" href="/"><span class="nav-icon">▣</span><span class="label">Console</span></a>
-    <a class="nav-item {% if nav=='marketplace' %}active{% endif %}" href="/marketplace"><span class="nav-icon">▦</span><span class="label">Marketplace</span></a>
-    <a class="nav-item {% if nav=='tak' %}active{% endif %}" href="/tak"><span class="nav-icon">⇄</span><span class="label">TAK Servers</span></a>
-    <a class="nav-item {% if nav=='units' %}active{% endif %}" href="/units"><span class="nav-icon">◎</span><span class="label">Units</span></a>
-    <a class="nav-item {% if nav=='events' %}active{% endif %}" href="/events"><span class="nav-icon">☰</span><span class="label">Live Events</span></a>
-    <a class="nav-item {% if nav=='map' %}active{% endif %}" href="/map"><span class="nav-icon">⌖</span><span class="label">Map</span></a>
+    <a class="nav-item {% if nav=='dashboard' %}active{% endif %}" href="/" title="Console" aria-label="Console">
+      <span class="nav-icon"><svg><use href="/static/icons.svg#icon-cpu"/></svg></span><span class="label">Console</span>
+    </a>
+    <a class="nav-item {% if nav=='marketplace' %}active{% endif %}" href="/marketplace" title="Marketplace" aria-label="Marketplace">
+      <span class="nav-icon"><svg><use href="/static/icons.svg#icon-grid"/></svg></span><span class="label">Marketplace</span>
+    </a>
+    <a class="nav-item {% if nav=='tak' %}active{% endif %}" href="/tak" title="TAK Servers" aria-label="TAK Servers">
+      <span class="nav-icon"><svg><use href="/static/icons.svg#icon-exchange"/></svg></span><span class="label">TAK Servers</span>
+    </a>
+    <a class="nav-item {% if nav=='units' %}active{% endif %}" href="/units" title="Units" aria-label="Units">
+      <span class="nav-icon"><svg><use href="/static/icons.svg#icon-users"/></svg></span><span class="label">Units</span>
+    </a>
+    <a class="nav-item {% if nav=='events' %}active{% endif %}" href="/events" title="Live Events" aria-label="Live Events">
+      <span class="nav-icon"><svg><use href="/static/icons.svg#icon-activity"/></svg></span><span class="label">Live Events</span>
+    </a>
+    <a class="nav-item {% if nav=='map' %}active{% endif %}" href="/map" title="Map" aria-label="Map">
+      <span class="nav-icon"><svg><use href="/static/icons.svg#icon-map-pin"/></svg></span><span class="label">Map</span>
+    </a>
     {% if sdr_installed %}
-    <a class="nav-item {% if nav=='sdr' %}active{% endif %}" href="/modules/sdr"><span class="nav-icon">電波</span><span class="label">SDR</span></a>
+    <a class="nav-item {% if nav=='sdr' %}active{% endif %}" href="/modules/sdr" title="SDR" aria-label="SDR">
+      <span class="nav-icon"><svg><use href="/static/icons.svg#icon-radio"/></svg></span><span class="label">SDR</span>
+    </a>
     {% endif %}
-    <a class="nav-item {% if nav=='tailscale' %}active{% endif %}" href="/tailscale"><span class="nav-icon">☁</span><span class="label">Tailscale</span></a>
-    <a class="nav-item {% if nav=='system' %}active{% endif %}" href="/system"><span class="nav-icon">⚙</span><span class="label">System</span></a>
-    <a class="nav-item {% if nav=='settings' %}active{% endif %}" href="/settings"><span class="nav-icon">✎</span><span class="label">Settings</span></a>
+    <a class="nav-item {% if nav=='tailscale' %}active{% endif %}" href="/tailscale" title="Tailscale" aria-label="Tailscale">
+      <span class="nav-icon"><svg><use href="/static/icons.svg#icon-cloud"/></svg></span><span class="label">Tailscale</span>
+    </a>
+    <a class="nav-item {% if nav=='system' %}active{% endif %}" href="/system" title="System" aria-label="System">
+      <span class="nav-icon"><svg><use href="/static/icons.svg#icon-server"/></svg></span><span class="label">System</span>
+    </a>
+    <a class="nav-item {% if nav=='customization' %}active{% endif %}" href="/customization" title="Customization" aria-label="Customization">
+      <span class="nav-icon"><svg><use href="/static/icons.svg#icon-tune"/></svg></span><span class="label">Customization</span>
+    </a>
+    <a class="nav-item {% if nav=='settings' %}active{% endif %}" href="/settings" title="Settings" aria-label="Settings">
+      <span class="nav-icon"><svg><use href="/static/icons.svg#icon-settings"/></svg></span><span class="label">Settings</span>
+    </a>
+    <a class="nav-item {% if nav=='help' %}active{% endif %}" href="/help" title="Help" aria-label="Help">
+      <span class="nav-icon"><svg><use href="/static/icons.svg#icon-help"/></svg></span><span class="label">Help</span>
+    </a>
     <div style="flex:1"></div>
-    <a class="nav-item" href="/logout"><span class="nav-icon">⏻</span><span class="label">Logout</span></a>
+    <a class="nav-item" href="/logout" title="Logout" aria-label="Logout">
+      <span class="nav-icon"><svg><use href="/static/icons.svg#icon-power"/></svg></span><span class="label">Logout</span>
+    </a>
   </aside>
   {% endif %}
-  <main class="main">
+  <main class="main" id="main-content">
     {% block content %}{% endblock %}
     <div class="footer">RadioTAK · CopIX · Authorized telemetry only</div>
   </main>
+  <div id="toast-wrap" class="toast-wrap" aria-live="polite"></div>
+  <script>
+    window.RADIOTAK_HELP = {{ help_json | default('{}') | safe }};
+  </script>
+  <script src="/static/js/app.js"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

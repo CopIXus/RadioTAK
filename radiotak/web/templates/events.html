@@ -1,13 +1,18 @@
 {% extends "base.html" %}
-{% block title %}Live Events — RadioTAK{% endblock %}
+{% block title %}Live Events — {{ title or 'RadioTAK' }}{% endblock %}
 {% block content %}
 <div class="header">
   <div>
     <div class="header-title">Live events</div>
     <div class="header-subtitle">Decoder and forwarding stream</div>
   </div>
+  <div class="header-actions">
+    <span class="ws-badge" id="ws-badge"><span class="dot"></span><span id="ws-label">Connecting…</span></span>
+    <button type="button" class="btn btn-sm" id="ws-reconnect">Reconnect</button>
+  </div>
 </div>
-<div class="event-stream" id="events">
+
+<div class="event-stream" id="events" aria-live="polite">
   {% for e in history %}
   <div class="event-line">
     <span class="dim">{{ e.type }}</span>
@@ -15,23 +20,70 @@
     {% if e.lat %}{{ e.lat }}, {{ e.lon }}{% endif %}
     {% if e.reason %}<span class="{% if e.type=='blocked' %}bad{% else %}ok{% endif %}">{{ e.reason }}</span>{% endif %}
   </div>
+  {% else %}
+  <div class="event-line dim">No events yet. Add a radio system on the SDR page, start the decoder, then allowlist units to forward GPS.</div>
   {% endfor %}
 </div>
 {% endblock %}
+
 {% block scripts %}
 <script>
-const box = document.getElementById('events');
-const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-const ws = new WebSocket(proto + '://' + location.host + '/api/v1/ws/events');
-ws.onmessage = (msg) => {
-  const e = JSON.parse(msg.data);
-  const div = document.createElement('div');
-  div.className = 'event-line';
-  const cls = e.type === 'blocked' ? 'bad' : (e.type === 'queued' ? 'ok' : 'dim');
-  div.innerHTML = `<span class="dim">${e.type || ''}</span> ${e.protocol || ''} ${e.radio_id || ''} `
-    + (e.lat != null ? `${e.lat}, ${e.lon} ` : '')
-    + (e.reason ? `<span class="${cls}">${e.reason}</span>` : '');
-  box.prepend(div);
-};
+(function () {
+  'use strict';
+  var box = document.getElementById('events');
+  var badge = document.getElementById('ws-badge');
+  var label = document.getElementById('ws-label');
+  var reconnectBtn = document.getElementById('ws-reconnect');
+  var ws = null;
+  var proto = location.protocol === 'https:' ? 'wss' : 'ws';
+
+  function appendEvent(e) {
+    var div = document.createElement('div');
+    div.className = 'event-line';
+    var typeSpan = document.createElement('span');
+    typeSpan.className = 'dim';
+    typeSpan.textContent = e.type || '';
+    div.appendChild(typeSpan);
+    div.appendChild(document.createTextNode(' ' + (e.protocol || '') + ' ' + (e.radio_id || '') + ' '));
+    if (e.lat != null) {
+      div.appendChild(document.createTextNode(String(e.lat) + ', ' + String(e.lon) + ' '));
+    }
+    if (e.reason) {
+      var reason = document.createElement('span');
+      reason.className = e.type === 'blocked' ? 'bad' : (e.type === 'queued' ? 'ok' : 'dim');
+      reason.textContent = e.reason;
+      div.appendChild(reason);
+    }
+    box.prepend(div);
+    while (box.children.length > 200) box.lastChild.remove();
+  }
+
+  function connect() {
+    if (ws) {
+      try { ws.close(); } catch (err) { /* ignore */ }
+    }
+    if (label) label.textContent = 'Connecting…';
+    setWsBadge(badge, '');
+    ws = new WebSocket(proto + '://' + location.host + '/api/v1/ws/events');
+    ws.onopen = function () {
+      if (label) label.textContent = 'Live';
+      setWsBadge(badge, 'live');
+    };
+    ws.onclose = function () {
+      if (label) label.textContent = 'Disconnected';
+      setWsBadge(badge, 'dead');
+    };
+    ws.onerror = function () {
+      if (label) label.textContent = 'Error';
+      setWsBadge(badge, 'dead');
+    };
+    ws.onmessage = function (msg) {
+      try { appendEvent(JSON.parse(msg.data)); } catch (err) { /* ignore */ }
+    };
+  }
+
+  if (reconnectBtn) reconnectBtn.addEventListener('click', connect);
+  connect();
+})();
 </script>
 {% endblock %}

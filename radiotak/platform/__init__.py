@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import platform
 import shutil
@@ -9,6 +10,8 @@ import socket
 import subprocess
 from abc import ABC, abstractmethod
 from typing import Any, Optional
+
+log = logging.getLogger("radiotak.platform")
 
 
 class Platform(ABC):
@@ -23,6 +26,9 @@ class Platform(ABC):
 
     @abstractmethod
     def list_sdr_devices(self) -> list[dict[str, Any]]: ...
+
+    def service_active(self, unit: str) -> bool:
+        return False
 
 
 class DevPlatform(Platform):
@@ -54,6 +60,9 @@ class DevPlatform(Platform):
 
     def service_action(self, unit: str, action: str) -> tuple[int, str]:
         return 0, f"[dev] {action} {unit} (noop)"
+
+    def service_active(self, unit: str) -> bool:
+        return False
 
     def run_priv(self, *args: str) -> tuple[int, str]:
         return 0, f"[dev] priv {' '.join(args)} (noop)"
@@ -117,6 +126,16 @@ class LinuxPlatform(Platform):
     def service_action(self, unit: str, action: str) -> tuple[int, str]:
         return self.run_priv("systemctl", action, unit)
 
+    def service_active(self, unit: str) -> bool:
+        code, out = self.run_priv("systemctl", "is-active", unit)
+        text = (out or "").strip()
+        if text == "active":
+            return True
+        if "bad systemctl action" in text or "unknown" in text.lower():
+            _, status = self.run_priv("systemctl", "status", unit)
+            return "Active: active" in (status or "")
+        return False
+
     def run_priv(self, *args: str) -> tuple[int, str]:
         helper = shutil.which("radiotak-priv") or "/opt/radiotak/bin/radiotak-priv"
         cmd = ["sudo", "-n", helper, *args]
@@ -134,26 +153,21 @@ class LinuxPlatform(Platform):
             proc = subprocess.run(["lsusb"], capture_output=True, text=True, check=False)
             for line in (proc.stdout or "").splitlines():
                 low = line.lower()
-                if "0bda:2838" in low or "rtl" in low:
-                    devices.append(
-                        {
-                            "driver": "rtl",
-                            "name": "RTL2832 SDR",
-                            "serial_number": None,
-                            "usb_path": line.strip(),
-                        }
-                    )
+                rec = None
+                if "0bda:2838" in low or "0bda:2832" in low or "rtl283" in low:
+                    rec = {"driver": "rtl", "name": "RTL-SDR", "serial_number": None, "usb_path": line.strip()}
                 elif "1d50:60a1" in low or "airspy" in low:
-                    devices.append(
-                        {
-                            "driver": "airspy",
-                            "name": "Airspy",
-                            "serial_number": None,
-                            "usb_path": line.strip(),
-                        }
-                    )
-        except Exception:  # noqa: BLE001
-            pass
+                    rec = {"driver": "airspy", "name": "Airspy", "serial_number": None, "usb_path": line.strip()}
+                elif "1d50:6089" in low or "hackrf" in low:
+                    rec = {"driver": "hackrf", "name": "HackRF", "serial_number": None, "usb_path": line.strip()}
+                if rec:
+                    # Prefer the USB product string after the ID (e.g. Nooelec NESDR).
+                    parts = line.split(" ", 6)
+                    if len(parts) >= 7 and ":" not in parts[6][:5]:
+                        rec["name"] = parts[6].strip() or rec["name"]
+                    devices.append(rec)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("SDR discovery failed: %s", exc)
         return devices
 
 
@@ -166,8 +180,8 @@ def _local_ips() -> list[str]:
             if ":" not in ip and not ip.startswith("127."):
                 if ip not in ips:
                     ips.append(ip)
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as exc:  # noqa: BLE001
+        log.debug("local IP discovery failed: %s", exc)
     return ips
 
 

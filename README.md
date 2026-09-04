@@ -11,11 +11,12 @@ One clone. One password. One URL. Manage everything from your browser.
 RadioTAK is an infra-TAK-style management console for Raspberry Pi 5 that:
 
 - Installs with a single command
-- Hosts a password-protected HTTPS web UI
+- Hosts a password-protected HTTPS web UI with customization (logo + banner)
 - Updates from GitHub with one click
 - Joins Tailscale for remote access
 - Installs marketplace modules (SDR Location Gateway first; Zello Audio Bridge later)
 - Forwards allowlisted radio GPS positions as Cursor-on-Target (CoT) to one or more TAK Servers
+- Console waterfall / hearing gauges when the SDR module is installed (Phase 6b)
 
 > **Scope:** Only radio systems and subscriber units you own, administer, or are explicitly authorized to monitor. Unknown radios are observed but **not** forwarded by default.
 

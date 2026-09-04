@@ -1,25 +1,28 @@
 {% extends "base.html" %}
-{% block title %}Setup — RadioTAK{% endblock %}
+{% block title %}Setup — {{ title or 'RadioTAK' }}{% endblock %}
 {% block content %}
 <div class="login-wrap" style="margin:-32px;width:calc(100% + 64px)">
   <div class="login-card">
+    {% if logo_url %}
+    <img class="login-logo" src="{{ logo_url }}" alt="{{ title or 'RadioTAK' }}"/>
+    {% endif %}
     <h1>First-run setup</h1>
-    <p>Create the administrator account for this appliance.</p>
+    <p>Create the administrator account for {{ title or 'RadioTAK' }}.</p>
     {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
-    <form method="post" action="/setup">
+    <form method="post" action="/setup" data-busy="Creating account…">
       <div class="form-field">
-        <label>Username</label>
-        <input type="text" name="username" required autofocus/>
+        <label class="field-label" for="id_username">Username</label>
+        <input id="id_username" type="text" name="username" required autofocus/>
       </div>
       <div class="form-field">
-        <label>Password</label>
-        <input type="password" name="password" required minlength="8"/>
+        <label class="field-label" for="id_password">Password</label>
+        <input id="id_password" type="password" name="password" required minlength="8"/>
       </div>
       <div class="form-field">
-        <label>Confirm password</label>
-        <input type="password" name="password2" required minlength="8"/>
+        <label class="field-label" for="id_password2">Confirm password</label>
+        <input id="id_password2" type="password" name="password2" required minlength="8"/>
       </div>
-      <button class="btn btn-primary" type="submit" style="width:100%">Create admin & continue</button>
+      <button class="btn btn-primary" type="submit" style="width:100%">Create admin &amp; continue</button>
     </form>
   </div>
 </div>
