@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Form, Request
@@ -10,8 +11,10 @@ from sqlalchemy import select
 
 from radiotak.db import RadioSystem, SdrDevice, get_session_factory
 from radiotak.platform import get_platform
+from radiotak.services import modules as modules_svc
 from radiotak.web.deps import TEMPLATES, base_context, redirect, require_auth, verify_csrf
 
+from .sdrtrunk.build import build_label, sdrtrunk_build_info
 from .sdrtrunk.playlist import (
     assign_listen_states,
     frequencies_to_text,
@@ -38,6 +41,34 @@ def _rebuild_playlist(db):
 
 def _service_active() -> bool:
     return get_platform().service_active("sdrtrunk")
+
+
+def _decoder_build() -> dict:
+    info = sdrtrunk_build_info()
+    info["label"] = build_label(info)
+    info["upgrading"] = bool(modules_svc.decoder_upgrade_state().get("running"))
+    return info
+
+
+def _feed_status() -> dict:
+    """Live counters for the :29501 spectrum and :29500 GPS feeds."""
+    from .sdrtrunk.adapter import geo_stats
+    from .sdrtrunk.spectrum import spectrum_hub
+
+    now = time.time()
+    spec_age = None
+    if spectrum_hub.last_frame_at is not None:
+        spec_age = round(now - spectrum_hub.last_frame_at, 1)
+    geo = geo_stats()
+    return {
+        "spectrum": {
+            "clients": spectrum_hub.clients,
+            "frames_received": spectrum_hub.frames_received,
+            "last_frame_age": spec_age,
+            "live": spec_age is not None and spec_age < 5.0,
+        },
+        "geo": geo,
+    }
 
 
 def _page(request: Request, **extra):
@@ -94,6 +125,7 @@ def _page(request: Request, **extra):
             saved=saved,
             systems=system_views,
             decoder_running=_service_active(),
+            decoder_build=_decoder_build(),
             listening_count=listening_count,
             starved_count=starved_count,
             tuner_count=tuner_count,
@@ -110,6 +142,31 @@ async def sdr_page(request: Request, _user=Depends(require_auth)):
         message=request.query_params.get("msg"),
         error=request.query_params.get("err"),
     )
+
+
+@router.get("/status.json")
+async def sdr_status_json(_user=Depends(require_auth)):
+    """Polled by the SDR page: is the decoder build right, and are frames arriving?"""
+    return {
+        "decoder_running": _service_active(),
+        "build": _decoder_build(),
+        "feed": _feed_status(),
+        "upgrade": modules_svc.decoder_upgrade_state(),
+    }
+
+
+@router.post("/upgrade")
+async def sdr_upgrade(request: Request, csrf_token: str = Form(""), _user=Depends(require_auth)):
+    """Re-run the module installer to pull the CopIXus SDRTrunk build with the exporters."""
+    verify_csrf(request, csrf_token)
+    if not modules_svc.is_installed(modules_svc.SDR_MODULE_ID):
+        return redirect("/modules/sdr?err=" + quote("Install the SDR Location Gateway from Marketplace first"))
+    if modules_svc.upgrade_decoder_async(reason="manual"):
+        return redirect(
+            "/modules/sdr?msg="
+            + quote("Decoder upgrade started — downloading the CopIXus SDRTrunk build; this page refreshes when it lands")
+        )
+    return redirect("/modules/sdr?msg=" + quote("Decoder upgrade already running"))
 
 
 @router.post("/discover")

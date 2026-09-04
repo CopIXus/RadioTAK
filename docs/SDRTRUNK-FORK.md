@@ -19,6 +19,8 @@ https://github.com/CopIXus/sdrtrunk/releases/download/v0.6.2-radiotak.1/sdr-trun
 
 and falls back to upstream `v0.6.1` if that asset is not published yet.
 
+`TAG=` in `modules/sdr_location_gateway/install.sh` is the single source of truth. `modules/sdr_location_gateway/sdrtrunk/build.py` reads it to decide whether an installed decoder is behind; RadioTAK then upgrades automatically on startup / System → Update, or from the **Upgrade decoder** button on the SDR page. Bumping the tag in `install.sh` is therefore all that is needed to roll a new fork build out to every RadioTAK install.
+
 To publish a new patched build:
 
 ```bash

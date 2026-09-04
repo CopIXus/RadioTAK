@@ -20,6 +20,7 @@ class SpectrumHub:
         self._subscribers: list[asyncio.Queue] = []
         self._task: Optional[asyncio.Task] = None
         self.frames_received = 0
+        self.clients = 0  # exporter TCP connections currently open on :29501
 
     def subscribe(self) -> asyncio.Queue:
         q: asyncio.Queue = asyncio.Queue(maxsize=8)
@@ -87,6 +88,8 @@ async def listen_spectrum_tcp() -> None:
 
     async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         buf = b""
+        spectrum_hub.clients += 1
+        log.info("spectrum exporter connected (%d client(s))", spectrum_hub.clients)
         try:
             while True:
                 chunk = await reader.read(65536)
@@ -103,6 +106,8 @@ async def listen_spectrum_tcp() -> None:
         except Exception as exc:  # noqa: BLE001
             log.debug("spectrum client error: %s", exc)
         finally:
+            spectrum_hub.clients = max(0, spectrum_hub.clients - 1)
+            log.info("spectrum exporter disconnected (%d client(s))", spectrum_hub.clients)
             writer.close()
             try:
                 await writer.wait_closed()

@@ -11,7 +11,9 @@
     this.ccMarkersHz = (opts && opts.ccMarkersHz) || [];
     this.fMin = opts && opts.fMin || 0;
     this.fMax = opts && opts.fMax || 0;
+    this.emptyText = (opts && opts.emptyText) || 'Waiting for spectrum frames…';
     this._resize();
+    this.draw();
   }
 
   Waterfall.prototype._resize = function () {
@@ -55,7 +57,7 @@
     if (!this.history.length) {
       ctx.fillStyle = '#64748b';
       ctx.font = '12px JetBrains Mono, monospace';
-      ctx.fillText('Waiting for spectrum frames…', 12, 24);
+      ctx.fillText(this.emptyText, 12, 24);
       return;
     }
     var rowH = Math.max(1, h / this.maxRows);

@@ -75,6 +75,8 @@ fi
 
 DEST="$SDR_DIR/app"
 INSTALLED_TAG=""
+WAS_ACTIVE=0
+UPGRADED=0
 [[ -f "$DEST/.radiotak-fork" ]] && INSTALLED_TAG=$(cat "$DEST/.radiotak-fork" 2>/dev/null || true)
 NEED_DOWNLOAD=0
 if [[ ! -d "$DEST" ]]; then
@@ -100,6 +102,9 @@ if [[ "$NEED_DOWNLOAD" == "1" ]]; then
     rm -f "$TMP"
   fi
   if [[ -f "$TMP" ]]; then
+    if systemctl is-active --quiet sdrtrunk 2>/dev/null; then
+      WAS_ACTIVE=1
+    fi
     systemctl stop sdrtrunk 2>/dev/null || true
     rm -rf "$DEST"
     unzip -q -o "$TMP" -d "$SDR_DIR"
@@ -111,7 +116,12 @@ if [[ "$NEED_DOWNLOAD" == "1" ]]; then
     [[ -x "$DEST/bin/sdr-trunk" || -f "$DEST/bin/sdr-trunk" ]] || die "SDRTrunk binary missing after extract"
     if [[ "$GOT_FORK" == "1" ]]; then
       echo "$TAG" > "$DEST/.radiotak-fork"
+      echo "Installed SDRTrunk $TAG (DftFrameExporter :29501, GeoEventJsonExporter :29500)"
+    else
+      rm -f "$DEST/.radiotak-fork"
+      echo "Installed stock SDRTrunk $UPSTREAM_TAG — waterfall and GPS export unavailable until the fork release is published"
     fi
+    UPGRADED=1
   fi
 fi
 
@@ -141,6 +151,11 @@ EOF
 
 systemctl daemon-reload
 systemctl enable sdrtrunk.service || true
-# Do not auto-start until configured — operator starts from UI
+# Fresh install: do not auto-start until configured — operator starts from UI.
+# Upgrade of a running decoder: bring it back so the operator is not left with a stopped service.
+if [[ "$UPGRADED" == "1" && "$WAS_ACTIVE" == "1" ]]; then
+  echo "Restarting sdrtrunk with the new build…"
+  systemctl restart sdrtrunk 2>/dev/null || true
+fi
 echo "SDR Location Gateway dependencies installed."
 echo "Configure a radio system in the UI, then start sdrtrunk.service."

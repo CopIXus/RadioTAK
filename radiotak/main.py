@@ -18,7 +18,7 @@ from radiotak.gateway.events import event_bus
 from radiotak.gateway.pipeline import pipeline
 from radiotak.services.hearing import hearing_gauges
 from radiotak.services.logging_setup import setup_logging
-from radiotak.services.modules import load_module_routers
+from radiotak.services.modules import load_module_routers, upgrade_decoder_on_startup
 from radiotak.services.settings_store import load_settings_file
 from radiotak.web.routers import api, pages
 
@@ -74,6 +74,12 @@ async def lifespan(app: FastAPI):
     task = asyncio.create_task(retention_loop())
     ndjson_task = asyncio.create_task(_ndjson_listen())
     spectrum_task = asyncio.create_task(_spectrum_listen())
+
+    # Keep the SDRTrunk fork build in step with this RadioTAK checkout.
+    try:
+        upgrade_decoder_on_startup()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("decoder upgrade scheduling failed: %s", exc)
 
     try:
         from radiotak.services import tak_runtime

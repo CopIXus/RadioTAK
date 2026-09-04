@@ -35,6 +35,27 @@ Until a patched build is installed, Live Events and Units stay empty even while 
 
 `DftFrameExporter` downsamples FFT bins (~512) and streams NDJSON to RadioTAK on **127.0.0.1:29501**. Enable with `spectrum_export_enabled`. Installer tag: `v0.6.2-radiotak.1` from `CopIXus/sdrtrunk` releases. Stock 0.6.1 leaves the canvas black.
 
+The exporter is registered on `SpectralDisplayPanel`'s `ComplexDecibelConverter`, so it only produces frames once SDRTrunk has a tuner shown in its spectral display. Under Xvfb that happens automatically (`showFirstTuner()` after the main window opens) — roughly 50 s after `sdrtrunk.service` starts on a Pi 4. If `spectral.display.enabled=false` is ever set in `SDRTrunk.properties`, no frames are exported.
+
+### Keeping the decoder build current
+
+The decoder binary is **not** part of the RadioTAK git checkout; it is a zip unpacked by `modules/sdr_location_gateway/install.sh` into `/var/lib/radiotak/sdrtrunk/app`. Three paths keep it in step with the tag in `install.sh`:
+
+1. **Startup self-heal** — `upgrade_decoder_on_startup()` (in `radiotak/services/modules.py`) checks `sdrtrunk_build_info()` ~20 s after RadioTAK starts and re-runs the module installer when the installed jar lacks `DftFrameExporter` or the `.radiotak-fork` marker differs from the expected tag.
+2. **System → Update** — `update_now()` re-runs the installer right after `git checkout` when an upgrade is needed.
+3. **SDR page → Upgrade decoder** — manual button; the page polls `/modules/sdr/status.json` and reloads when the upgrade finishes.
+
+`install.sh` is idempotent: it skips the download when the marker already matches, and restarts `sdrtrunk` after an upgrade if it was running.
+
+### Telling whether the SDR is working
+
+`/modules/sdr/status.json` exposes what the page shows under the canvas:
+
+- `feed.spectrum.clients` — exporter TCP connections on :29501 (1 when the fork build is running)
+- `feed.spectrum.frames_received` / `last_frame_age` — frames are ~8 fps when a tuner is streaming
+- `feed.geo.clients` / `lines_received` — GPS exporter connection and how many location lines have arrived (stays 0 until a radio actually transmits lat/lon)
+- `build.has_exporters` — false means stock SDRTrunk
+
 ### Canvas waterfall
 
 The Console dashboard and **SDR** module render frames in a canvas waterfall (`waterfall.js` over WebSocket). Each frame carries `bins`, `f_min`, `f_max`, and optional `cc_hz` control-channel markers. Use it to confirm the decoder is centered on the expected spectrum segment.

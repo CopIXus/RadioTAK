@@ -72,7 +72,8 @@
     <p>The Console waterfall displays DFT frames exported from SDRTrunk over a local TCP feed (default <code class="block">127.0.0.1:29501</code>).</p>
     <p>Cyan vertical lines mark configured control-channel frequencies. Use the waterfall to verify the decoder is tuned to the correct spectrum segment.</p>
     <p>GPS / Live Events use a different port (<code class="block">127.0.0.1:29500</code>). A moving waterfall does not mean units will appear — that requires a radio to send lat/lon through the geo exporter.</p>
-    <p>If the waterfall shows “Waiting for spectrum frames…”, the installed SDRTrunk build is stock (no CopIXus exporters). Reinstall the SDR module after a <code>v0.6.2-radiotak.*</code> fork release is published.</p>
+    <p>The <strong>Decoder build</strong> card on the SDR page shows which SDRTrunk is installed. A stock DSheirer build has no exporters, so the canvas stays black and no GPS arrives even while it decodes audio. Press <strong>Upgrade decoder</strong> there (or wait — RadioTAK re-runs the module installer automatically about 20 s after it starts when the build is behind, and after <strong>System → Update</strong>).</p>
+    <p>Below the canvas, <strong>Spectrum feed</strong> and <strong>GPS feed</strong> report whether the exporters are connected and how many frames / GPS lines have arrived. SDRTrunk takes about a minute to start on a Raspberry Pi; the spectrum exporter connects only after the tuner is shown in its spectral display.</p>
   </div>
 </div>
 
@@ -94,7 +95,8 @@
     <span class="dim">▼</span>
   </div>
   <div class="help-card-body">
-    <p>System page → <strong>Update Now</strong> pulls the configured git branch. Use Settings to switch between <code class="block">main</code> and <code class="block">dev</code>.</p>
+    <p>System page → <strong>Update Now</strong> pulls the configured git branch and shows a live log. The console goes offline during the restart; leave the tab open and it will wait until RadioTAK comes back. Use Settings to switch between <code class="block">main</code> and <code class="block">dev</code>.</p>
+    <p>If git reports <code class="block">insufficient permission</code> for <code class="block">.git/objects</code>, files were left owned by root from a previous sudo update. The console now repairs that automatically. Recovery from SSH:</p>
     <pre>sudo radiotak status
 sudo radiotak logs
 sudo radiotak update

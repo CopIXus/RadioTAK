@@ -191,6 +191,21 @@ def test_status_includes_gauges(client):
     assert "spectrum" in body
 
 
+def test_sdr_page_reports_decoder_build_and_feed_status(client):
+    _login(client)
+    page = client.get("/modules/sdr")
+    assert page.status_code == 200
+    assert b"Decoder build" in page.content
+    assert b"sdr-feed-status" in page.content
+    r = client.get("/modules/sdr/status.json")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["build"]["installed"] is False
+    assert body["feed"]["spectrum"]["frames_received"] >= 0
+    assert body["feed"]["geo"]["lines_received"] >= 0
+    assert body["upgrade"]["running"] is False
+
+
 def test_tak_enroll_page_has_password_reveal(client):
     import re
 

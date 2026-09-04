@@ -65,6 +65,29 @@
       </form>
     </div>
   </div>
+
+  <div class="card card-static" id="sdr-build-card">
+    <div class="card-title">Decoder build</div>
+    <div class="card-desc" id="sdr-build-label">{{ decoder_build.label }}</div>
+    {% if decoder_build.upgrading %}
+    <div class="status-pill status-warn"><span class="dot"></span>Upgrading…</div>
+    {% elif not decoder_build.installed %}
+    <div class="status-pill status-idle"><span class="dot"></span>Not installed</div>
+    {% elif decoder_build.has_exporters and not decoder_build.upgrade_available %}
+    <div class="status-pill status-running"><span class="dot"></span>Exporters present</div>
+    {% elif decoder_build.has_exporters %}
+    <div class="status-pill status-warn"><span class="dot"></span>Newer fork build {{ decoder_build.expected_tag }} available</div>
+    {% else %}
+    <div class="status-pill status-warn"><span class="dot"></span>Stock build — waterfall and GPS feeds will stay empty</div>
+    {% endif %}
+    {% if decoder_build.installed and decoder_build.upgrade_available and not decoder_build.upgrading %}
+    <form method="post" action="/modules/sdr/upgrade" style="margin-top:10px" data-busy="Starting upgrade…">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+      <button class="btn btn-sm btn-primary" type="submit">Upgrade decoder to {{ decoder_build.expected_tag or 'CopIXus build' }}</button>
+    </form>
+    <div class="card-desc" style="margin-top:8px">RadioTAK also does this automatically ~20 s after it starts when the build is behind.</div>
+    {% endif %}
+  </div>
 </div>
 
 {% if waterfall_enabled | default(true) %}
@@ -76,6 +99,9 @@
     <span id="sdr-wf-fmin">— MHz</span>
     <span id="sdr-wf-fmax">— MHz</span>
   </div>
+</div>
+<div class="card-desc" id="sdr-feed-status" style="margin-top:8px">
+  Spectrum feed: <span id="sdr-feed-spec">checking…</span> · GPS feed: <span id="sdr-feed-geo">checking…</span>
 </div>
 {% endif %}
 
@@ -226,9 +252,48 @@
   var canvas = document.getElementById('sdr-waterfall');
   if (!canvas || typeof RadioTakWaterfall === 'undefined') return;
   var ccMarkers = {{ cc_markers_hz | default('[]') | safe }};
-  var wf = new RadioTakWaterfall(canvas, { ccMarkersHz: ccMarkers });
+  var buildOk = {{ 'true' if decoder_build.has_exporters else 'false' }};
+  var decoderRunning = {{ 'true' if decoder_running else 'false' }};
+  var emptyText = !buildOk
+    ? 'No spectrum frames — installed SDRTrunk is a stock build without the CopIXus exporter. Use “Upgrade decoder”.'
+    : (!decoderRunning ? 'Decoder stopped — press Start to begin streaming spectrum frames.' : 'Waiting for spectrum frames from SDRTrunk (:29501)…');
+  var wf = new RadioTakWaterfall(canvas, { ccMarkersHz: ccMarkers, emptyText: emptyText });
   var proto = location.protocol === 'https:' ? 'wss' : 'ws';
   wf.connect(proto + '://' + location.host + '/api/v1/ws/spectrum');
+
+  // Poll feed counters so the operator can tell whether the SDR is actually producing data.
+  var specEl = document.getElementById('sdr-feed-spec');
+  var geoEl = document.getElementById('sdr-feed-geo');
+  var wasUpgrading = {{ 'true' if decoder_build.upgrading else 'false' }};
+  function poll() {
+    fetch('/modules/sdr/status.json', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (s) {
+        if (!s) return;
+        var sp = s.feed && s.feed.spectrum || {};
+        var geo = s.feed && s.feed.geo || {};
+        if (specEl) {
+          if (sp.live) specEl.textContent = 'live (' + sp.frames_received + ' frames, ' + sp.clients + ' exporter connected)';
+          else if (sp.clients > 0) specEl.textContent = 'exporter connected, no frames yet — is a tuner selected and the decoder listening?';
+          else if (s.build && !s.build.has_exporters) specEl.textContent = 'no exporter — stock SDRTrunk build';
+          else if (!s.decoder_running) specEl.textContent = 'decoder stopped';
+          else specEl.textContent = 'decoder running, exporter not connected yet';
+        }
+        if (geoEl) {
+          if (geo.lines_received > 0) geoEl.textContent = geo.lines_received + ' GPS lines (last ' + geo.last_line_age + ' s ago)';
+          else if (geo.clients > 0) geoEl.textContent = 'exporter connected, no GPS reports yet (radios must transmit lat/lon)';
+          else if (s.build && !s.build.has_exporters) geoEl.textContent = 'no exporter — stock SDRTrunk build';
+          else geoEl.textContent = 'exporter not connected';
+        }
+        var upgrading = s.upgrade && s.upgrade.running;
+        if (wasUpgrading && !upgrading) { location.reload(); return; }
+        wasUpgrading = !!upgrading;
+        if (s.build && s.build.has_exporters !== buildOk) { location.reload(); return; }
+      })
+      .catch(function () { /* ignore */ });
+  }
+  poll();
+  setInterval(poll, 3000);
   var origPush = wf.pushFrame.bind(wf);
   wf.pushFrame = function (frame) {
     origPush(frame);

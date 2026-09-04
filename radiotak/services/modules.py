@@ -102,6 +102,94 @@ def install_module(module_id: str) -> tuple[int, str]:
     return code, out
 
 
+SDR_MODULE_ID = "sdr_location_gateway"
+_upgrade_lock = threading.Lock()
+_upgrade_state: dict[str, Any] = {"running": False, "last_code": None, "last_reason": None}
+
+
+def decoder_build_info() -> dict[str, Any]:
+    """Installed SDRTrunk build facts (safe to call when the module is absent)."""
+    try:
+        from modules.sdr_location_gateway.sdrtrunk.build import sdrtrunk_build_info
+
+        return sdrtrunk_build_info()
+    except Exception as exc:  # noqa: BLE001
+        return {"installed": False, "has_exporters": False, "upgrade_available": False, "error": str(exc)}
+
+
+def decoder_upgrade_state() -> dict[str, Any]:
+    with _upgrade_lock:
+        return dict(_upgrade_state)
+
+
+def decoder_upgrade_needed() -> bool:
+    if not is_installed(SDR_MODULE_ID):
+        return False
+    info = decoder_build_info()
+    return bool(info.get("installed")) and bool(info.get("upgrade_available"))
+
+
+def upgrade_decoder_async(reason: str = "manual") -> bool:
+    """Re-run the SDR module installer in a daemon thread.
+
+    install.sh is idempotent: it only downloads when the installed fork tag differs
+    from the tag it ships, and it restarts sdrtrunk if the decoder was running.
+    Returns False if an upgrade is already in flight.
+    """
+    from radiotak.platform import get_platform
+
+    if get_platform().__class__.__name__ == "DevPlatform":
+        return False
+    with _upgrade_lock:
+        if _upgrade_state["running"]:
+            return False
+        _upgrade_state["running"] = True
+        _upgrade_state["last_reason"] = reason
+
+    def _work() -> None:
+        code = 1
+        try:
+            code, _ = install_module(SDR_MODULE_ID)
+        except Exception as exc:  # noqa: BLE001
+            append_install_log(SDR_MODULE_ID, f"decoder upgrade failed: {exc}")
+        finally:
+            with _upgrade_lock:
+                _upgrade_state["running"] = False
+                _upgrade_state["last_code"] = code
+
+    threading.Thread(target=_work, name="sdrtrunk-upgrade", daemon=True).start()
+    return True
+
+
+def upgrade_decoder_on_startup(delay_seconds: float = 20.0) -> None:
+    """Self-heal: after a RadioTAK update, pull the matching SDRTrunk fork build.
+
+    Without this, ``git pull`` / the System → Update button only refreshes RadioTAK
+    while the decoder stays on whatever zip was unpacked at first install (for a
+    long time that was stock 0.6.1, which has no :29501/:29500 exporters).
+    """
+    import logging
+    import time
+
+    log = logging.getLogger("radiotak.modules")
+
+    def _check() -> None:
+        time.sleep(delay_seconds)
+        try:
+            if decoder_upgrade_needed():
+                info = decoder_build_info()
+                log.warning(
+                    "SDRTrunk build %s lacks exporters or is behind %s — upgrading decoder",
+                    info.get("version"),
+                    info.get("expected_tag"),
+                )
+                upgrade_decoder_async(reason="startup")
+        except Exception as exc:  # noqa: BLE001
+            log.warning("decoder upgrade check failed: %s", exc)
+
+    threading.Thread(target=_check, name="sdrtrunk-upgrade-check", daemon=True).start()
+
+
 def uninstall_module(module_id: str) -> tuple[int, str]:
     from radiotak.platform import get_platform
 
