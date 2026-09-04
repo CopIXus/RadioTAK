@@ -189,3 +189,35 @@ def test_status_includes_gauges(client):
     assert "gauges" in body
     assert "stats" in body
     assert "spectrum" in body
+
+
+def test_tak_enroll_page_has_password_reveal(client):
+    import re
+
+    _login(client)
+    page = client.get("/tak")
+    assert page.status_code == 200
+    m = re.search(r'name="csrf_token" value="([^"]+)"', page.text)
+    assert m
+    r = client.post(
+        "/tak/add",
+        data={
+            "csrf_token": m.group(1),
+            "name": "TN TAK",
+            "host": "takserver.example.net",
+            "cot_port": 8089,
+            "enrollment_port": 8446,
+            "api_port": 8443,
+            "callsign": "RadioTAK",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code in (303, 302)
+    loc = r.headers.get("location") or ""
+    assert loc.startswith("/tak/")
+    detail = client.get(loc)
+    assert detail.status_code == 200
+    server_id = loc.split("/tak/", 1)[1].split("?", 1)[0]
+    assert b'data-password-toggle' in detail.content
+    assert b'id_enroll_password' in detail.content
+    assert f'/tak/{server_id}/enroll'.encode() in detail.content

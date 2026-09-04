@@ -85,7 +85,7 @@ HELP: dict[str, dict[str, str]] = {
     },
     "tak.password": {
         "label": "Enrollment password",
-        "what": "Password or token for enrollment. Not stored in plaintext after enrollment.",
+        "what": "Password or token for enrollment. Use the eye icon to confirm what you typed. Not stored in plaintext after enrollment.",
         "where": "Same credential used to enroll ATAK/iTAK clients.",
         "example": "",
     },

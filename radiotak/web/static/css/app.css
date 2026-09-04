@@ -334,6 +334,18 @@ body::before {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, .1);
 }
+.password-wrap { position: relative; }
+.password-wrap input { padding-right: 44px; }
+.password-toggle {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  width: 32px; height: 32px; padding: 0; border: none; background: transparent;
+  color: var(--text-dim); cursor: pointer; display: inline-flex;
+  align-items: center; justify-content: center; border-radius: 6px;
+}
+.password-toggle:hover, .password-toggle[aria-pressed="true"] { color: var(--cyan); }
+.password-toggle .icon-eye-off { display: none; }
+.password-toggle.is-revealed .icon-eye { display: none; }
+.password-toggle.is-revealed .icon-eye-off { display: block; }
 :focus-visible {
   outline: 2px solid var(--cyan);
   outline-offset: 2px;

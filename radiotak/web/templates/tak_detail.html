@@ -27,7 +27,7 @@
       <form method="post" action="/tak/{{ server.id }}/enroll" data-busy="Enrolling…">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
         {{ field('username', 'Enrollment username', value=server.username or '', help_key='tak.username', required=True) }}
-        {{ field('password', 'Password / token', type='password', help_key='tak.password', required=True, autocomplete='new-password') }}
+        {{ field('password', 'Password / token', type='password', help_key='tak.password', required=True, autocomplete='new-password', input_id='id_enroll_password') }}
         {{ check('tls_verify', 'Verify TLS', checked=server.tls_verify, value='1') }}
         <button class="btn btn-primary" type="submit">Enroll &amp; store certificate</button>
       </form>
@@ -52,7 +52,7 @@
           <label class="field-label" for="id_p12">.p12 / .pfx file</label>
           <input id="id_p12" type="file" name="p12" accept=".p12,.pfx" required/>
         </div>
-        {{ field('password', 'Password', type='password', help_key='tak.password') }}
+        {{ field('password', 'Password', type='password', help_key='tak.password', input_id='id_p12_password') }}
         <button class="btn btn-primary" type="submit">Import certificate</button>
       </form>
     </div>

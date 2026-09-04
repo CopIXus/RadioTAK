@@ -149,6 +149,24 @@
     });
   }
 
+  function wirePasswordReveal() {
+    qsa('[data-password-toggle]').forEach(function (btn) {
+      if (btn.dataset.toggleBound) return;
+      btn.dataset.toggleBound = '1';
+      btn.addEventListener('click', function () {
+        var wrap = btn.closest('.password-wrap');
+        var input = wrap && wrap.querySelector('input');
+        if (!input) return;
+        var show = input.type === 'password';
+        input.type = show ? 'text' : 'password';
+        btn.classList.toggle('is-revealed', show);
+        btn.setAttribute('aria-pressed', show ? 'true' : 'false');
+        btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+        btn.setAttribute('title', show ? 'Hide password' : 'Show password');
+      });
+    });
+  }
+
   function wireBusy() {
     qsa('form[data-busy]').forEach(function (form) {
       form.addEventListener('submit', function () {
@@ -227,6 +245,7 @@
     flashFromQuery();
     wireConfirms();
     wireHelp();
+    wirePasswordReveal();
     wireBusy();
     wireSidebar();
     wireTabs();

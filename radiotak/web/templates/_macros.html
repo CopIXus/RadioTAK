@@ -1,15 +1,33 @@
-{% macro field(name, label, value='', type='text', help_key='', required=False, placeholder='', autocomplete='', step='', min='', max='', rows=0) -%}
+{% macro field(name, label, value='', type='text', help_key='', required=False, placeholder='', autocomplete='', step='', min='', max='', rows=0, input_id='', reveal=None) -%}
+{% set fid = input_id or ('id_' ~ name) %}
+{% set show_reveal = reveal if reveal is not none else (type == 'password') %}
 <div class="form-field">
   <div class="label-row">
-    <label class="field-label" for="id_{{ name }}">{{ label }}</label>
+    <label class="field-label" for="{{ fid }}">{{ label }}</label>
     {% if help_key %}
     <button type="button" class="help-icon" data-help="{{ help_key }}" aria-label="Help: {{ label }}" title="Help">?</button>
     {% endif %}
   </div>
   {% if rows and rows > 0 %}
-  <textarea id="id_{{ name }}" name="{{ name }}" rows="{{ rows }}" {% if required %}required{% endif %} {% if placeholder %}placeholder="{{ placeholder }}"{% endif %}>{{ value }}</textarea>
+    <textarea id="{{ fid }}" name="{{ name }}" rows="{{ rows }}" {% if required %}required{% endif %} {% if placeholder %}placeholder="{{ placeholder }}"{% endif %}>{{ value }}</textarea>
+  {% elif show_reveal %}
+    <div class="password-wrap">
+      <input id="{{ fid }}" type="{{ type }}" name="{{ name }}" value="{{ value }}"
+        {% if required %}required{% endif %}
+        {% if placeholder %}placeholder="{{ placeholder }}"{% endif %}
+        {% if autocomplete %}autocomplete="{{ autocomplete }}"{% endif %}
+        {% if step %}step="{{ step }}"{% endif %}
+        {% if min != '' %}min="{{ min }}"{% endif %}
+        {% if max != '' %}max="{{ max }}"{% endif %}
+      />
+      <button type="button" class="password-toggle" data-password-toggle
+        aria-label="Show password" aria-pressed="false" title="Show password">
+        <svg class="icon-eye" width="18" height="18" aria-hidden="true"><use href="/static/icons.svg#icon-eye"/></svg>
+        <svg class="icon-eye-off" width="18" height="18" aria-hidden="true"><use href="/static/icons.svg#icon-eye-off"/></svg>
+      </button>
+    </div>
   {% else %}
-  <input id="id_{{ name }}" type="{{ type }}" name="{{ name }}" value="{{ value }}"
+  <input id="{{ fid }}" type="{{ type }}" name="{{ name }}" value="{{ value }}"
     {% if required %}required{% endif %}
     {% if placeholder %}placeholder="{{ placeholder }}"{% endif %}
     {% if autocomplete %}autocomplete="{{ autocomplete }}"{% endif %}

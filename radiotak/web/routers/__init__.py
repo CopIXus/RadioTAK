@@ -734,13 +734,30 @@ async def tak_enroll(
         if not server:
             return redirect("/tak")
         try:
-            result = await enroll_with_pytak(server.host, username, password, server_id)
+            if not server.device_uid:
+                server.device_uid = f"RadioTAK-{server_id[:8]}"
+            result = await enroll_with_pytak(
+                server.host,
+                username,
+                password,
+                server_id,
+                enrollment_port=server.enrollment_port or 8446,
+                tls_verify=bool(tls_verify),
+                client_uid=server.device_uid,
+            )
             meta = result.get("meta") or {}
             server.username = username
             server.tls_verify = bool(tls_verify)
             server.pkcs12_path = result.get("pkcs12_path")
-            server.client_cert_path = str(get_settings().secrets_dir / server_id / "client.pem")
-            server.client_key_path = str(get_settings().secrets_dir / server_id / "client.key")
+            server.pkcs12_password_ref = result.get("passphrase_ref")
+            server.client_cert_path = result.get("cert_path") or str(
+                get_settings().secrets_dir / server_id / "client.pem"
+            )
+            server.client_key_path = result.get("key_path") or str(
+                get_settings().secrets_dir / server_id / "client.key"
+            )
+            if result.get("ca_path"):
+                server.server_ca_path = result["ca_path"]
             server.certificate_subject = meta.get("subject")
             server.certificate_issuer = meta.get("issuer")
             server.certificate_not_before = meta.get("not_before")
@@ -784,6 +801,10 @@ async def tak_import_p12(
             server.pkcs12_path = str(get_settings().secrets_dir / server_id / "client.p12")
             server.client_cert_path = str(get_settings().secrets_dir / server_id / "client.pem")
             server.client_key_path = str(get_settings().secrets_dir / server_id / "client.key")
+            if result.get("ca_path"):
+                server.server_ca_path = result["ca_path"]
+            if password:
+                server.pkcs12_password_ref = f"{server_id}/p12_password"
             server.certificate_subject = meta.get("subject")
             server.certificate_issuer = meta.get("issuer")
             server.certificate_not_before = meta.get("not_before")

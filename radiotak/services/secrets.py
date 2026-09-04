@@ -4,19 +4,21 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Optional
 
 from radiotak.config import Settings, get_settings
 
 
 class SecretStore:
-    def __init__(self, settings: Optional[Settings] = None) -> None:
+    def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
         self.settings.ensure_dirs()
 
     def path_for(self, name: str) -> Path:
-        safe = name.replace("..", "").replace("/", "_").replace("\\", "_")
-        return self.settings.secrets_dir / safe
+        rel = str(name or "").replace("\\", "/").strip()
+        parts = [p for p in rel.split("/") if p]
+        if not parts or any(p in (".", "..") for p in parts):
+            raise ValueError(f"invalid secret name: {name!r}")
+        return self.settings.secrets_dir.joinpath(*parts)
 
     def write_text(self, name: str, content: str) -> Path:
         path = self.path_for(name)
@@ -32,13 +34,13 @@ class SecretStore:
         self._chmod(path)
         return path
 
-    def read_text(self, name: str) -> Optional[str]:
+    def read_text(self, name: str) -> str | None:
         path = self.path_for(name)
         if not path.exists():
             return None
         return path.read_text(encoding="utf-8")
 
-    def read_bytes(self, name: str) -> Optional[bytes]:
+    def read_bytes(self, name: str) -> bytes | None:
         path = self.path_for(name)
         if not path.exists():
             return None

@@ -4,11 +4,16 @@ RadioTAK supports three enrollment modes for each TAK Server:
 
 ## Mode A — Username / password (TAK Portal / Authentik)
 
-Uses PyTAK `enroll_tak(host, username, password)` against the enrollment HTTPS port (default **8446**).
+Posts a locally generated CSR to TAK Server Marti TLS enrollment:
 
-Fields: host, enrollment port, CoT TLS port (default **8089**), username, password/token, verify TLS, optional CA upload.
+- `GET https://<host>:<enrollment-port>/Marti/api/tls/config`
+- `POST https://<host>:<enrollment-port>/Marti/api/tls/signClient/v2` (falls back to `/signClient`)
 
-Resulting PKCS#12 is converted to PEM under `/var/lib/radiotak/secrets/<server-id>/`.
+Default enrollment port is **8446**. Fields: host, enrollment port, CoT TLS port (default **8089**), username, password/token, verify TLS.
+
+The private key never leaves RadioTAK. The signed certificate, key, CA chain, and PKCS#12 are stored under `/var/lib/radiotak/secrets/<server-id>/`.
+
+Uncheck **Verify TLS** when the enrollment listener uses a self-signed certificate (common on TAK Server). After enrollment, RadioTAK uses the returned CA for CoT TLS when present.
 
 ## Mode B — ATAK data package ZIP
 

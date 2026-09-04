@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 from sqlalchemy import select
 
@@ -18,6 +17,11 @@ def _manager_for(server: TakServer) -> TakConnectionManager:
     cert = server.client_cert_path
     key = server.client_key_path
     has_certs = bool(cert and key and Path(cert).exists() and Path(key).exists())
+    ca_path = server.server_ca_path
+    if not ca_path:
+        candidate = Path(cert).parent / "ca.pem" if cert else None
+        if candidate and candidate.exists():
+            ca_path = str(candidate)
     return TakConnectionManager(
         server_id=server.id,
         host=server.host,
@@ -26,7 +30,7 @@ def _manager_for(server: TakServer) -> TakConnectionManager:
         device_uid=server.device_uid,
         cert_path=cert if has_certs else None,
         key_path=key if has_certs else None,
-        ca_path=server.server_ca_path,
+        ca_path=ca_path,
         tls_verify=bool(server.tls_verify),
         dry_run=not has_certs,
     )
@@ -59,7 +63,7 @@ async def stop_all() -> None:
     await tak_registry.stop_all()
 
 
-async def restart(server_id: str) -> Optional[TakConnectionManager]:
+async def restart(server_id: str) -> TakConnectionManager | None:
     Session = get_session_factory()
     db = Session()
     try:
