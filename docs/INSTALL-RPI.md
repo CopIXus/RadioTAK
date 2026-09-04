@@ -1,5 +1,7 @@
 # Install on Raspberry Pi
 
+For Debian amd64, mini PCs, or Proxmox (USB SDR passthrough), see [INSTALL-DEBIAN-PROXMOX.md](INSTALL-DEBIAN-PROXMOX.md).
+
 ## Requirements
 
 - Raspberry Pi 5 (8 GB recommended for SDRTrunk)

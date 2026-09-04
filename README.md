@@ -30,6 +30,8 @@ RadioTAK is an infra-TAK-style management console for Raspberry Pi 5 that:
 curl -fsSL https://raw.githubusercontent.com/CopIXus/RadioTAK/main/install.sh | sudo bash
 ```
 
+The same installer runs on **Debian 12/13 amd64**, including a Proxmox KVM VM with USB SDR passthrough — see [docs/INSTALL-DEBIAN-PROXMOX.md](docs/INSTALL-DEBIAN-PROXMOX.md). Use that when a Pi is CPU-bound.
+
 The installer will:
 
 1. Detect Debian/Raspberry Pi OS 64-bit

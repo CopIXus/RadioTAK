@@ -17,3 +17,4 @@
 - SDRTrunk prefers 8 GB RAM on ARM64.
 - Trunked systems spanning >~2–3 MHz may need multiple RTL-SDRs or a wider-band receiver.
 - Continuous decode is CPU-bound — cooling matters.
+- A Pi 3/4 will saturate on decode. For more CPU, run the same stack on Debian amd64 (mini PC or [Proxmox KVM + USB passthrough](INSTALL-DEBIAN-PROXMOX.md)). The installer already selects the x86_64 SDRTrunk build.

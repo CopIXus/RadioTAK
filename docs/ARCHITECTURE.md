@@ -76,6 +76,7 @@ decoder event → schema validation → normalize → radio identity
 ## Related docs
 
 - [INSTALL-RPI.md](INSTALL-RPI.md)
+- [INSTALL-DEBIAN-PROXMOX.md](INSTALL-DEBIAN-PROXMOX.md)
 - [TAK-ENROLLMENT.md](TAK-ENROLLMENT.md)
 - [SDRTRUNK.md](SDRTRUNK.md)
 - [SECURITY.md](SECURITY.md)
