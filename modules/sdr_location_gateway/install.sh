@@ -64,7 +64,7 @@ udevadm trigger --subsystem-match=usb 2>/dev/null || true
 
 # Prefer CopIXus patched release (DftFrameExporter + GeoEventJsonExporter).
 # Fall back to upstream DSheirer 0.6.1 if the fork asset is not published yet.
-TAG="v0.6.2-radiotak.1"
+TAG="v0.6.2-radiotak.2"
 UPSTREAM_TAG="v0.6.1"
 ASSET="sdr-trunk-linux-aarch64-${TAG}.zip"
 UP_ASSET="sdr-trunk-linux-aarch64-${UPSTREAM_TAG}.zip"

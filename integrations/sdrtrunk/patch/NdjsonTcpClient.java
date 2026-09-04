@@ -20,6 +20,7 @@
 package io.github.dsheirer.export;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
@@ -33,21 +34,30 @@ import org.slf4j.LoggerFactory;
 /**
  * Background NDJSON TCP client. Drops the oldest queued line when the RadioTAK
  * listener is slow so decoder/FFT threads never block.
+ *
+ * RadioTAK never sends anything back, so a dedicated reader thread blocks on the
+ * socket input and treats EOF as "peer went away" — otherwise a client that only
+ * writes on sparse events (GPS) would sit on a half-closed socket for hours after a
+ * RadioTAK restart. An empty-line heartbeat while idle gives the kernel a chance to
+ * surface a reset as well; RadioTAK's NDJSON parsers skip blank lines.
  */
 public class NdjsonTcpClient
 {
     private static final Logger mLog = LoggerFactory.getLogger(NdjsonTcpClient.class);
     private static final int QUEUE_SIZE = 8;
     private static final int CONNECT_TIMEOUT_MS = 1500;
+    private static final long HEARTBEAT_MS = 5_000;
 
     private final String mHost;
     private final int mPort;
     private final String mName;
     private final ArrayBlockingQueue<String> mQueue = new ArrayBlockingQueue<>(QUEUE_SIZE);
     private final AtomicBoolean mRunning = new AtomicBoolean();
+    private final AtomicBoolean mPeerClosed = new AtomicBoolean();
     private Thread mThread;
-    private Socket mSocket;
+    private volatile Socket mSocket;
     private OutputStream mOutput;
+    private long mLastWriteAt;
 
     public NdjsonTcpClient(String name, String host, int port)
     {
@@ -101,10 +111,13 @@ public class NdjsonTcpClient
                 String line = mQueue.poll(500, TimeUnit.MILLISECONDS);
                 if(line == null)
                 {
+                    if(System.currentTimeMillis() - mLastWriteAt >= HEARTBEAT_MS)
+                    {
+                        write("");
+                    }
                     continue;
                 }
-                mOutput.write((line + "\n").getBytes(StandardCharsets.UTF_8));
-                mOutput.flush();
+                write(line);
                 backoffMs = 500;
             }
             catch(InterruptedException ie)
@@ -130,23 +143,73 @@ public class NdjsonTcpClient
         closeQuietly();
     }
 
+    private void write(String line) throws IOException
+    {
+        mOutput.write((line + "\n").getBytes(StandardCharsets.UTF_8));
+        mOutput.flush();
+        mLastWriteAt = System.currentTimeMillis();
+    }
+
     private void ensureConnected() throws IOException
     {
-        if(mSocket != null && mSocket.isConnected() && !mSocket.isClosed())
+        if(mSocket != null && mSocket.isConnected() && !mSocket.isClosed() && !mPeerClosed.get())
         {
             return;
+        }
+        if(mPeerClosed.get())
+        {
+            mLog.info("{} exporter: RadioTAK closed the connection — reconnecting", mName);
         }
         closeQuietly();
         Socket socket = new Socket();
         socket.connect(new InetSocketAddress(mHost, mPort), CONNECT_TIMEOUT_MS);
         socket.setTcpNoDelay(true);
+        socket.setKeepAlive(true);
         mSocket = socket;
         mOutput = socket.getOutputStream();
+        mPeerClosed.set(false);
+        mLastWriteAt = System.currentTimeMillis();
+        startPeerWatch(socket);
         mLog.info("{} exporter connected to {}:{}", mName, mHost, mPort);
+    }
+
+    /**
+     * Blocks on the socket input; RadioTAK never writes, so any return means the peer closed.
+     */
+    private void startPeerWatch(final Socket socket)
+    {
+        Thread watcher = new Thread(() ->
+        {
+            try
+            {
+                InputStream in = socket.getInputStream();
+                byte[] scratch = new byte[64];
+                while(!socket.isClosed())
+                {
+                    if(in.read(scratch) < 0)
+                    {
+                        break;
+                    }
+                }
+            }
+            catch(IOException ignored)
+            {
+            }
+            finally
+            {
+                if(socket == mSocket)
+                {
+                    mPeerClosed.set(true);
+                }
+            }
+        }, "radiotak-" + mName + "-export-watch");
+        watcher.setDaemon(true);
+        watcher.start();
     }
 
     private void closeQuietly()
     {
+        mPeerClosed.set(false);
         if(mOutput != null)
         {
             try

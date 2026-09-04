@@ -33,7 +33,7 @@ Until a patched build is installed, Live Events and Units stay empty even while 
 
 ## Spectrum export
 
-`DftFrameExporter` downsamples FFT bins (~512) and streams NDJSON to RadioTAK on **127.0.0.1:29501**. Enable with `spectrum_export_enabled`. Installer tag: `v0.6.2-radiotak.1` from `CopIXus/sdrtrunk` releases. Stock 0.6.1 leaves the canvas black.
+`DftFrameExporter` downsamples FFT bins (~512) and streams NDJSON to RadioTAK on **127.0.0.1:29501**. Enable with `spectrum_export_enabled`. Installer tag: `v0.6.2-radiotak.2` from `CopIXus/sdrtrunk` releases. Stock 0.6.1 leaves the canvas black.
 
 The exporter is registered on `SpectralDisplayPanel`'s `ComplexDecibelConverter`, so it only produces frames once SDRTrunk has a tuner shown in its spectral display. Under Xvfb that happens automatically (`showFirstTuner()` after the main window opens) — roughly 50 s after `sdrtrunk.service` starts on a Pi 4. If `spectral.display.enabled=false` is ever set in `SDRTrunk.properties`, no frames are exported.
 
