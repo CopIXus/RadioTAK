@@ -15,7 +15,7 @@ Source for those classes (GPLv3) is kept in [integrations/sdrtrunk/patch/](../in
 GitHub Actions on the fork (`.github/workflows/radiotak-release.yml`) builds `sdr-trunk-linux-aarch64-*.zip` on tag push. RadioTAK's SDR installer prefers:
 
 ```
-https://github.com/CopIXus/sdrtrunk/releases/download/v0.6.2-radiotak.3/sdr-trunk-linux-aarch64-v0.6.2-radiotak.3.zip
+https://github.com/CopIXus/sdrtrunk/releases/download/v0.6.2-radiotak.4/sdr-trunk-linux-aarch64-v0.6.2-radiotak.4.zip
 ```
 
 and falls back to upstream `v0.6.1` if that asset is not published yet.
@@ -27,7 +27,7 @@ To publish a new patched build:
 ```bash
 git clone https://github.com/CopIXus/sdrtrunk.git
 git checkout radiotak-exporters
-git tag v0.6.2-radiotak.3
+git tag v0.6.2-radiotak.4
 git push origin radiotak-exporters
-git push origin v0.6.2-radiotak.3
+git push origin v0.6.2-radiotak.4
 ```

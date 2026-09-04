@@ -31,7 +31,6 @@ import io.github.dsheirer.source.tuner.Tuner;
 import io.github.dsheirer.spectrum.DFTResultsListener;
 import io.github.dsheirer.spectrum.OverlayPanel;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
@@ -44,8 +43,8 @@ import org.slf4j.LoggerFactory;
  * SDRTrunk.properties.
  *
  * Frequency labels prefer the live tuner LO (the stick producing these DFT
- * bins), then OverlayPanel, then the first processing playlist channel when
- * showFirstTuner() left the spectral panel parked on an idle frequency.
+ * bins), then OverlayPanel. RadioTAK points the persisted tuner center at the
+ * listening control channel so showFirstTuner() is not left at 101.1 MHz.
  */
 public class DftFrameExporter implements DFTResultsListener, Listener<ChannelEvent>, ISourceEventProcessor
 {
@@ -65,7 +64,6 @@ public class DftFrameExporter implements DFTResultsListener, Listener<ChannelEve
     private Tuner mBoundTuner;
     private volatile long mTunerCenterHz;
     private volatile int mTunerBandwidthHz;
-    private boolean mLoggedPanelMismatch;
 
     public DftFrameExporter(OverlayPanel overlayPanel, ChannelModel channelModel)
     {
@@ -325,23 +323,6 @@ public class DftFrameExporter implements DFTResultsListener, Listener<ChannelEve
             long half = mTunerBandwidthHz / 2L;
             return new Span(mTunerCenterHz - half, mTunerCenterHz + half, panelMin, panelMax);
         }
-
-        Channel processing = firstProcessingStandard();
-        if(processing != null && !processing.isWithin(panelMin, panelMax))
-        {
-            long bw = panelMax > panelMin ? panelMax - panelMin : 0;
-            long[] labeled = spanForChannel(processing, bw);
-            if(labeled != null)
-            {
-                if(!mLoggedPanelMismatch)
-                {
-                    mLoggedPanelMismatch = true;
-                    mLog.info("spectrum axis using listening channel {}-{} Hz (spectral panel was {}-{} Hz)",
-                        labeled[0], labeled[1], panelMin, panelMax);
-                }
-                return new Span(labeled[0], labeled[1], panelMin, panelMax);
-            }
-        }
         return new Span(panelMin, panelMax, panelMin, panelMax);
     }
 
@@ -391,93 +372,6 @@ public class DftFrameExporter implements DFTResultsListener, Listener<ChannelEve
         catch(Exception ignored)
         {
         }
-    }
-
-    private Channel firstProcessingStandard()
-    {
-        if(mChannelModel == null)
-        {
-            return null;
-        }
-        try
-        {
-            for(Channel channel : mChannelModel.getChannels())
-            {
-                if(channel != null && channel.isStandardChannel() && channel.isProcessing())
-                {
-                    return channel;
-                }
-            }
-        }
-        catch(Exception ignored)
-        {
-        }
-        return null;
-    }
-
-    /**
-     * Place the overlay bandwidth around the listening channel so RadioTAK's
-     * cyan CC markers land on the canvas. When all CCs fit in the tuner
-     * bandwidth, center on their midpoint; otherwise follow the first CC.
-     */
-    static long[] spanForChannel(Channel channel, long bandwidthHz)
-    {
-        if(channel == null || bandwidthHz <= 0)
-        {
-            return null;
-        }
-        List<?> freqs;
-        try
-        {
-            freqs = channel.getFrequencyList();
-        }
-        catch(Exception ignored)
-        {
-            return null;
-        }
-        if(freqs == null || freqs.isEmpty())
-        {
-            return null;
-        }
-        long min = Long.MAX_VALUE;
-        long max = Long.MIN_VALUE;
-        long first = 0;
-        for(Object raw : freqs)
-        {
-            long hz = toHz(raw);
-            if(hz <= 0)
-            {
-                continue;
-            }
-            if(first == 0)
-            {
-                first = hz;
-            }
-            if(hz < min)
-            {
-                min = hz;
-            }
-            if(hz > max)
-            {
-                max = hz;
-            }
-        }
-        if(first <= 0)
-        {
-            return null;
-        }
-        long center = (max - min) <= bandwidthHz ? (min + max) / 2L : first;
-        long half = bandwidthHz / 2L;
-        return new long[]{center - half, center + half};
-    }
-
-    private static long toHz(Object raw)
-    {
-        if(raw instanceof Number number)
-        {
-            return number.longValue();
-        }
-        return 0;
     }
 
     private LinkedHashSet<Long> controlChannels()

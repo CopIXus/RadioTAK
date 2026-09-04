@@ -22,6 +22,7 @@ from .sdrtrunk.playlist import (
     frequencies_to_text,
     is_listening,
     parse_frequencies,
+    reapply_tuner_center_from_playlist,
     rebuild_default_playlist,
     set_row_listening,
 )
@@ -39,6 +40,19 @@ def _rebuild_playlist(db):
     rows = list(db.scalars(select(RadioSystem).order_by(RadioSystem.name)))
     devices = list(db.scalars(select(SdrDevice).order_by(SdrDevice.name)))
     return rebuild_default_playlist(rows, devices=devices, tuner_count=_tuner_count())
+
+
+def _restart_decoder() -> tuple[int, str]:
+    """Stop SDRTrunk, restamp tuner LO onto the listening CC, then start.
+
+    systemd restart is not enough: on shutdown SDRTrunk writes
+    tuner_configuration.json back to 101.1 MHz if no channel claimed the stick.
+    """
+    plat = get_platform()
+    if plat.service_active("sdrtrunk"):
+        plat.service_action("sdrtrunk", "stop")
+    reapply_tuner_center_from_playlist()
+    return plat.service_action("sdrtrunk", "start")
 
 
 def _service_active() -> bool:
@@ -291,7 +305,7 @@ async def sdr_system_add(
     finally:
         db.close()
     if apply_start:
-        get_platform().service_action("sdrtrunk", "restart")
+        _restart_decoder()
         return redirect(
             "/modules/sdr?msg=" + quote("System saved, playlist written, decoder restarted")
         )
@@ -362,7 +376,7 @@ async def sdr_system_listen(
         _rebuild_playlist(db)
     finally:
         db.close()
-    get_platform().service_action("sdrtrunk", "restart")
+    _restart_decoder()
     state = "listening" if on else "off"
     return redirect(
         "/modules/sdr?msg=" + quote(f"{name} {state} — playlist written, decoder restarted")
@@ -426,7 +440,7 @@ async def sdr_key_add(
     finally:
         db.close()
     if _service_active():
-        get_platform().service_action("sdrtrunk", "restart")
+        _restart_decoder()
         return redirect(
             "/modules/sdr?msg="
             + quote(
@@ -460,7 +474,7 @@ async def sdr_key_delete(
     finally:
         db.close()
     if deleted and _service_active():
-        get_platform().service_action("sdrtrunk", "restart")
+        _restart_decoder()
     return redirect("/modules/sdr?msg=" + quote("Key removed" if deleted else "Key not found"))
 
 
@@ -479,7 +493,7 @@ async def sdr_apply(
     finally:
         db.close()
     if start:
-        get_platform().service_action("sdrtrunk", "restart")
+        _restart_decoder()
         return redirect("/modules/sdr?msg=" + quote(f"Wrote {path.name} and restarted decoder"))
     return redirect("/modules/sdr?msg=" + quote(f"Wrote {path}"))
 
@@ -498,7 +512,10 @@ async def sdr_service(
             _rebuild_playlist(db)
     finally:
         db.close()
-    code, out = get_platform().service_action("sdrtrunk", action)
+    if action == "stop":
+        code, out = get_platform().service_action("sdrtrunk", "stop")
+    else:
+        code, out = _restart_decoder()
     if code != 0:
         return redirect("/modules/sdr?err=" + quote(out or f"exit {code}"))
     return redirect(f"/modules/sdr?msg={quote(out or action)}")

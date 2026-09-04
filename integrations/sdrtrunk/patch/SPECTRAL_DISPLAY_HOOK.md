@@ -9,7 +9,7 @@ mDftFrameExporter = new DftFrameExporter(mOverlayPanel, mChannelModel, this::get
 mDFTConverter.addListener(mDftFrameExporter);
 ```
 
-The two-argument constructor still works; without `this::getTuner` the exporter falls back to OverlayPanel, then to a processing playlist channel.
+The two-argument constructor still works; without `this::getTuner` the exporter falls back to OverlayPanel. RadioTAK stamps the listening control channel into `tuner_configuration.json` so `showFirstTuner()` is not left at 101.1 MHz.
 
 ## `showTuner(Tuner tuner)` — after `mTuner = tuner` and the frequency/sample-rate sync
 
@@ -29,4 +29,4 @@ if(mDftFrameExporter != null)
 }
 ```
 
-RadioTAK recenters `f_min`/`f_max` in `spectrum.py` even before this hook ships, so cyan CC markers work against an already-installed `v0.6.2-radiotak.2` jar. `v0.6.2-radiotak.3` includes this hook.
+`v0.6.2-radiotak.3` includes this hook. `v0.6.2-radiotak.4` labels `f_min`/`f_max` from the live tuner only (no playlist-axis remap).

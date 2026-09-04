@@ -54,7 +54,7 @@ Authorized traffic keys are entered on the SDR page and written to `/var/lib/rad
 
 ## Spectrum export
 
-`DftFrameExporter` downsamples FFT bins (~512) and streams NDJSON to RadioTAK on **127.0.0.1:29501**. Enable with `spectrum_export_enabled`. Installer tag: `v0.6.2-radiotak.3` from `CopIXus/sdrtrunk` releases. Stock 0.6.1 leaves the canvas black.
+`DftFrameExporter` downsamples FFT bins (~512) and streams NDJSON to RadioTAK on **127.0.0.1:29501**. Enable with `spectrum_export_enabled`. Installer tag: `v0.6.2-radiotak.4` from `CopIXus/sdrtrunk` releases. Stock 0.6.1 leaves the canvas black.
 
 The exporter is registered on `SpectralDisplayPanel`'s `ComplexDecibelConverter`, so it only produces frames once SDRTrunk has a tuner shown in its spectral display. Under Xvfb that happens automatically (`showFirstTuner()` after the main window opens) — roughly 50 s after `sdrtrunk.service` starts on a Pi 4. If `spectral.display.enabled=false` is ever set in `SDRTrunk.properties`, no frames are exported.
 
@@ -79,7 +79,7 @@ The decoder binary is **not** part of the RadioTAK git checkout; it is a zip unp
 
 ### Canvas waterfall
 
-The Console dashboard and **SDR** module render frames in a canvas waterfall (`waterfall.js` over WebSocket). Each frame carries `bins`, `f_min`, `f_max`, and optional `cc_hz` control-channel markers. When SDRTrunk's spectral panel is still parked on `showFirstTuner()` (often ~100 MHz FM) after a listening channel has retuned the stick, RadioTAK recenters `f_min`/`f_max` on the playlist CCs and keeps the original panel span in `panel_f_min`/`panel_f_max` so the UI can warn. Use cyan CC markers plus the CC-lock gauge to confirm the decoder is on the expected segment.
+The Console dashboard and **SDR** module render frames in a canvas waterfall (`waterfall.js` over WebSocket). Each frame carries `bins`, `f_min`, `f_max`, and optional `cc_hz` control-channel markers. Those edges are the tuner LO actually feeding the DFT. SDRTrunk’s idle default is 101.1 MHz; RadioTAK stamps the listening control channel into `SDRTrunk/configuration/tuner_configuration.json` on playlist write and again after the decoder stops, so the next start shows the site you are listening to.
 
 ### noVNC fallback
 

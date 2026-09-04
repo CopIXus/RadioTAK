@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
@@ -93,49 +94,32 @@ def test_spectrum_parse_and_downsample():
     assert "panel_f_min" not in frame
 
 
-def test_spectrum_recenters_when_cc_outside_panel():
-    from modules.sdr_location_gateway.sdrtrunk.spectrum import spectrum_hub
+def test_apply_tuner_center_frequency(tmp_path):
+    from types import SimpleNamespace
 
-    frame = spectrum_hub.parse_frame(
-        '{"bins": [0.1, 0.2], "f_min": 99900000, "f_max": 102300000,'
-        ' "cc_hz": [854562500, 856737500]}'
+    from modules.sdr_location_gateway.sdrtrunk.playlist import (
+        apply_tuner_center_frequency,
+        listening_center_hz,
     )
-    assert frame is not None
-    assert frame["panel_f_min"] == 99900000
-    assert frame["panel_f_max"] == 102300000
-    bw = 102300000 - 99900000
-    midpoint = (854562500 + 856737500) / 2
-    assert frame["f_min"] == midpoint - bw / 2
-    assert frame["f_max"] == midpoint + bw / 2
-    assert 854562500 >= frame["f_min"]
-    assert 856737500 <= frame["f_max"]
 
-
-def test_spectrum_preserves_exporter_panel_fields():
-    from modules.sdr_location_gateway.sdrtrunk.spectrum import spectrum_hub
-
-    frame = spectrum_hub.parse_frame(
-        '{"bins": [0.1], "f_min": 854000000, "f_max": 856400000, '
-        '"panel_f_min": 99900000, "panel_f_max": 102300000, "cc_hz": [854562500]}'
+    cfg_dir = tmp_path / "SDRTrunk" / "configuration"
+    cfg_dir.mkdir(parents=True)
+    path = cfg_dir / "tuner_configuration.json"
+    path.write_text(
+        '{"disabledTuners": [], "tunerConfigurations": ['
+        '{"type": "r820TTunerConfiguration", "uniqueID": "RTL", "frequency": 101100000}'
+        "]}\n",
+        encoding="utf-8",
     )
-    assert frame is not None
-    assert frame["f_min"] == 854000000
-    assert frame["panel_f_min"] == 99900000
-
-
-def test_align_span_uses_first_cc_when_they_do_not_fit():
-    from modules.sdr_location_gateway.sdrtrunk.spectrum import align_span_to_control_channels
-
-    f_min, f_max, panel_min, panel_max = align_span_to_control_channels(
-        99_900_000,
-        102_300_000,
-        [851_012_500, 860_012_500],
-    )
-    bw = 2_400_000
-    assert panel_min == 99_900_000
-    assert f_min == 851_012_500 - bw / 2
-    assert f_max == 851_012_500 + bw / 2
-    assert 860_012_500 > f_max
+    settings = SimpleNamespace(data_dir=tmp_path)
+    out = apply_tuner_center_frequency(854562500, settings)
+    assert out == path
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data["tunerConfigurations"][0]["frequency"] == 854562500
+    assert listening_center_hz(
+        [{"auto_start": True, "frequencies_hz": [854562500, 856737500]}]
+    ) == 854562500
+    assert apply_tuner_center_frequency(854562500, SimpleNamespace(data_dir=tmp_path / "missing")) is None
 
 
 def test_playlist_preferred_tuner(tmp_path):

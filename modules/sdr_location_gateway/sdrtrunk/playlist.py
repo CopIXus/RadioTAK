@@ -108,6 +108,59 @@ def tuner_settings_path(settings=None) -> Path:
     return settings.data_dir / ".sdrtrunk" / "tuner_settings.json"
 
 
+def tuner_configuration_path(settings=None) -> Path:
+    """SDRTrunk persisted tuner LO (`HOME/SDRTrunk/configuration/tuner_configuration.json`)."""
+    if settings is None:
+        from radiotak.config import get_settings
+
+        settings = get_settings()
+    return settings.data_dir / "SDRTrunk" / "configuration" / "tuner_configuration.json"
+
+
+def listening_center_hz(systems: Sequence[dict[str, Any]]) -> int | None:
+    """First auto-start control channel — the LO showFirstTuner() should use."""
+    for sys in systems:
+        if not sys.get("auto_start"):
+            continue
+        freqs = sys.get("frequencies_hz") or []
+        if freqs:
+            return int(freqs[0])
+    return None
+
+
+def apply_tuner_center_frequency(frequency_hz: int, settings=None) -> Path | None:
+    """Rewrite SDRTrunk's saved tuner center to the listening control channel.
+
+    OverlayPanel / the waterfall follow this LO. The factory default is
+    101.1 MHz (``TunerConfiguration.DEFAULT_FREQUENCY``), which is why the
+    canvas sits at 99.9–102.3 MHz until a channel claims the stick.
+    """
+    path = tuner_configuration_path(settings)
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError):
+        return None
+    configs = data.get("tunerConfigurations")
+    if not isinstance(configs, list) or not configs:
+        return None
+    hz = int(frequency_hz)
+    if hz <= 0:
+        return None
+    changed = False
+    for cfg in configs:
+        if not isinstance(cfg, dict):
+            continue
+        if cfg.get("frequency") != hz:
+            cfg["frequency"] = hz
+            changed = True
+    if not changed:
+        return path
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
 def _preferred_tuner_from_devices(devices) -> str | None:
     if not devices:
         return None
@@ -398,7 +451,27 @@ def rebuild_default_playlist(
     systems = systems_from_db_rows(rows, devices=devices)
     if tuner_count is not None:
         apply_tuner_slots(systems, tuner_count)
-    return write_playlist(
+    path = write_playlist(
         default_playlist_path(settings),
         systems,
     )
+    center = listening_center_hz(systems)
+    if center:
+        apply_tuner_center_frequency(center, settings)
+    return path
+
+
+def reapply_tuner_center_from_playlist(settings=None) -> Path | None:
+    """Restamp the tuner LO after SDRTrunk exits so shutdown cannot revert 101.1 MHz."""
+    path = default_playlist_path(settings)
+    if not path.is_file():
+        return None
+    try:
+        tree = ET.parse(path)
+    except ET.ParseError:
+        return None
+    for el in tree.iter("frequency"):
+        text = (el.text or "").strip()
+        if text.isdigit():
+            return apply_tuner_center_frequency(int(text), settings)
+    return None

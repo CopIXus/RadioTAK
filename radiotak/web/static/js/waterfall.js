@@ -51,22 +51,14 @@
     if (els.fmin) els.fmin.textContent = (frame.f_min / 1e6).toFixed(3) + ' MHz';
     if (els.fmax) els.fmax.textContent = (frame.f_max / 1e6).toFixed(3) + ' MHz';
     if (!els.note) return;
-    var panelMin = frame.panel_f_min;
-    var panelMax = frame.panel_f_max;
-    var remapped = panelMin != null && panelMax != null &&
-      (Number(panelMin) !== Number(frame.f_min) || Number(panelMax) !== Number(frame.f_max));
     var ccs = frame.cc_hz || this.ccMarkersHz || [];
     var outside = ccs.length && frame.f_max > frame.f_min && ccs.every(function (hz) {
       return hz < frame.f_min || hz > frame.f_max;
     });
-    if (remapped) {
+    if (outside) {
       els.note.hidden = false;
-      els.note.textContent = 'Axis is the listening channel. SDRTrunk spectral panel was still at ' +
-        (panelMin / 1e6).toFixed(3) + '–' + (panelMax / 1e6).toFixed(3) + ' MHz.';
-    } else if (outside) {
-      els.note.hidden = false;
-      els.note.textContent = 'Control channels are outside this tuner window. The stick may still be parked near ' +
-        (frame.f_min / 1e6).toFixed(1) + ' MHz.';
+      els.note.textContent = 'This canvas is the tuner window, not your control channels. '
+        + 'Save the system (or press Start) so SDRTrunk retunes the stick off its 101.1 MHz default.';
     } else {
       els.note.hidden = true;
       els.note.textContent = '';
