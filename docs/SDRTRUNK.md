@@ -15,7 +15,7 @@ Do **not** enter a random voice frequency for trunked P25/DMR — enter the **co
 
 ## Geo events
 
-Upstream CSV event logs do not reliably carry lat/lon for all GPS paths. RadioTAK uses a small fork patch (`CopIXus/sdrtrunk`) that exports `PlottableDecodeEvent` as NDJSON:
+GPS on P25/DMR is a **separate TCP path** from the waterfall. RadioTAK listens on **127.0.0.1:29500** for `sdr2tak.location.v1` NDJSON. Stock SDRTrunk never sends that. The CopIXus fork's `GeoEventJsonExporter` exports `PlottableDecodeEvent` when a radio reports a valid lat/lon:
 
 ```json
 {
@@ -29,11 +29,11 @@ Upstream CSV event logs do not reliably carry lat/lon for all GPS paths. RadioTA
 }
 ```
 
-Preferences: `geo_event_export_enabled`, `geo_event_export_host`, `geo_event_export_port`.
+Until a patched build is installed, Live Events and Units stay empty even while the decoder is running. Preferences: `geo_event_export_enabled`, `geo_event_export_host`, `geo_event_export_port`. RadioTAK writes those into `SDRTrunk.properties` when it writes the playlist.
 
-## Spectrum export (Phase 6b)
+## Spectrum export
 
-`DftFrameExporter` downsamples FFT bins (~512) and streams NDJSON to RadioTAK on **127.0.0.1:29501** by default. Enable with `spectrum_export_enabled` (and optional `spectrum_export_host` / `spectrum_export_port`).
+`DftFrameExporter` downsamples FFT bins (~512) and streams NDJSON to RadioTAK on **127.0.0.1:29501**. Enable with `spectrum_export_enabled`. Installer tag: `v0.6.2-radiotak.1` from `CopIXus/sdrtrunk` releases. Stock 0.6.1 leaves the canvas black.
 
 ### Canvas waterfall
 

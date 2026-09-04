@@ -32,6 +32,38 @@ def default_playlist_path(settings=None) -> Path:
     return playlist_dir(settings) / "default.xml"
 
 
+def properties_path(settings=None) -> Path:
+    if settings is None:
+        from radiotak.config import get_settings
+
+        settings = get_settings()
+    return settings.data_dir / "SDRTrunk" / "SDRTrunk.properties"
+
+
+EXPORT_PROPERTY_DEFAULTS = {
+    "spectrum_export_enabled": "true",
+    "spectrum_export_host": "127.0.0.1",
+    "spectrum_export_port": "29501",
+    "geo_event_export_enabled": "true",
+    "geo_event_export_host": "127.0.0.1",
+    "geo_event_export_port": "29500",
+}
+
+
+def ensure_export_properties(settings=None) -> Path:
+    """Ensure CopIXus exporter keys exist in SDRTrunk.properties (do not clobber other keys)."""
+    path = properties_path(settings)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = path.read_text(encoding="utf-8", errors="replace") if path.exists() else ""
+    missing = [f"{k}={v}" for k, v in EXPORT_PROPERTY_DEFAULTS.items() if f"{k}=" not in text]
+    if to_add := missing:
+        prefix = "" if not text or text.endswith("\n") else "\n"
+        path.write_text(text + prefix + "\n".join(to_add) + "\n", encoding="utf-8")
+    elif not path.exists():
+        path.write_text("\n".join(f"{k}={v}" for k, v in EXPORT_PROPERTY_DEFAULTS.items()) + "\n", encoding="utf-8")
+    return path
+
+
 def tuner_settings_path(settings=None) -> Path:
     if settings is None:
         from radiotak.config import get_settings
@@ -307,6 +339,7 @@ def rebuild_default_playlist(rows, settings=None, devices=None, tuner_count: int
 
         settings = get_settings()
     write_tuner_preferences(devices or [], settings=settings)
+    ensure_export_properties(settings=settings)
     systems = systems_from_db_rows(rows, devices=devices)
     if tuner_count is not None:
         apply_tuner_slots(systems, tuner_count)

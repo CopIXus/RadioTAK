@@ -70,7 +70,8 @@
   <div class="help-card-body">
     <p>The Console waterfall displays DFT frames exported from SDRTrunk over a local TCP feed (default <code class="block">127.0.0.1:29501</code>).</p>
     <p>Cyan vertical lines mark configured control-channel frequencies. Use the waterfall to verify the decoder is tuned to the correct spectrum segment.</p>
-    <p>If the waterfall shows “Waiting for spectrum frames…”, the installed SDRTrunk build is not exporting DFT frames (stock 0.6.1 does not). Decoding can still work; the canvas waterfall needs the CopIXus fork exporter.</p>
+    <p>GPS / Live Events use a different port (<code class="block">127.0.0.1:29500</code>). A moving waterfall does not mean units will appear — that requires a radio to send lat/lon through the geo exporter.</p>
+    <p>If the waterfall shows “Waiting for spectrum frames…”, the installed SDRTrunk build is stock (no CopIXus exporters). Reinstall the SDR module after a <code>v0.6.2-radiotak.*</code> fork release is published.</p>
   </div>
 </div>
 

@@ -69,7 +69,7 @@
 
 {% if waterfall_enabled | default(true) %}
 <div class="section-title">Spectrum waterfall</div>
-<p class="card-desc" style="margin-bottom:10px">Canvas frames come from the CopIXus SDRTrunk exporter on port 29501. Stock SDRTrunk still decodes without them — this view stays empty until that exporter is installed.</p>
+<p class="card-desc" style="margin-bottom:10px">Canvas frames come from the CopIXus SDRTrunk exporter on port 29501. GPS for Live Events uses port 29500. Stock SDRTrunk still decodes without either feed.</p>
 <div class="waterfall-wrap">
   <canvas id="sdr-waterfall" aria-label="RF spectrum waterfall"></canvas>
   <div class="waterfall-axis">

@@ -10,6 +10,7 @@ os.environ.setdefault("RADIOTAK_DATA_DIR", str(Path(__file__).resolve().parents[
 import pytest
 
 from modules.sdr_location_gateway.sdrtrunk.playlist import (
+    ensure_export_properties,
     hz_to_mhz_str,
     parse_frequencies,
     write_p25_playlist,
@@ -119,6 +120,23 @@ def test_assign_listen_states_one_tuner():
     assert assign_listen_states([True, True, True], 2) == ["active", "active", "starved"]
     assert assign_listen_states([True, True], 2) == ["active", "active"]
     assert assign_listen_states([True], 0) == ["starved"]
+
+
+def test_ensure_export_properties_appends_missing_keys(tmp_path):
+    from types import SimpleNamespace
+
+    settings = SimpleNamespace(data_dir=tmp_path)
+    path = tmp_path / "SDRTrunk" / "SDRTrunk.properties"
+    path.parent.mkdir(parents=True)
+    path.write_text("spectral.display.enabled=true\n", encoding="utf-8")
+    ensure_export_properties(settings)
+    text = path.read_text(encoding="utf-8")
+    assert "spectral.display.enabled=true" in text
+    assert "spectrum_export_enabled=true" in text
+    assert "spectrum_export_port=29501" in text
+    assert "geo_event_export_port=29500" in text
+    ensure_export_properties(settings)
+    assert text.count("spectrum_export_enabled=true") == 1
 
 
 def test_apply_tuner_slots_keeps_first_auto_start():

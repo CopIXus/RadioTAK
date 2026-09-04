@@ -62,31 +62,57 @@ fi
 udevadm control --reload-rules 2>/dev/null || true
 udevadm trigger --subsystem-match=usb 2>/dev/null || true
 
-# Prefer CopIXus patched release; fall back to upstream DSheirer release
-TAG="v0.6.1"
+# Prefer CopIXus patched release (DftFrameExporter + GeoEventJsonExporter).
+# Fall back to upstream DSheirer 0.6.1 if the fork asset is not published yet.
+TAG="v0.6.2-radiotak.1"
+UPSTREAM_TAG="v0.6.1"
 ASSET="sdr-trunk-linux-aarch64-${TAG}.zip"
+UP_ASSET="sdr-trunk-linux-aarch64-${UPSTREAM_TAG}.zip"
 if [[ "$ARCH" == "x86_64" ]]; then
   ASSET="sdr-trunk-linux-x86_64-${TAG}.zip"
+  UP_ASSET="sdr-trunk-linux-x86_64-${UPSTREAM_TAG}.zip"
 fi
 
 DEST="$SDR_DIR/app"
+INSTALLED_TAG=""
+[[ -f "$DEST/.radiotak-fork" ]] && INSTALLED_TAG=$(cat "$DEST/.radiotak-fork" 2>/dev/null || true)
+NEED_DOWNLOAD=0
 if [[ ! -d "$DEST" ]]; then
+  NEED_DOWNLOAD=1
+elif [[ "$INSTALLED_TAG" != "$TAG" ]]; then
+  echo "SDRTrunk $TAG not installed (have '${INSTALLED_TAG:-stock}') — will upgrade if the fork release exists"
+  NEED_DOWNLOAD=1
+fi
+
+if [[ "$NEED_DOWNLOAD" == "1" ]]; then
   echo "Downloading SDRTrunk $ASSET…"
   URL_FORK="https://github.com/CopIXus/sdrtrunk/releases/download/${TAG}/${ASSET}"
-  URL_UP="https://github.com/DSheirer/sdrtrunk/releases/download/${TAG}/${ASSET}"
+  URL_UP="https://github.com/DSheirer/sdrtrunk/releases/download/${UPSTREAM_TAG}/${UP_ASSET}"
   TMP=/tmp/sdrtrunk.zip
-  if ! wget -q -O "$TMP" "$URL_FORK"; then
-    echo "Fork release not found — using upstream"
+  GOT_FORK=0
+  if wget -q -O "$TMP" "$URL_FORK"; then
+    GOT_FORK=1
+  elif [[ ! -d "$DEST" ]]; then
+    echo "Fork release not found — using upstream $UPSTREAM_TAG"
     wget -O "$TMP" "$URL_UP" || die "Failed to download SDRTrunk from $URL_UP"
+  else
+    echo "Fork release $TAG not published yet — keeping existing SDRTrunk"
+    rm -f "$TMP"
   fi
-  unzip -q -o "$TMP" -d "$SDR_DIR"
-  # Normalize extracted folder name
-  EXTRACTED=$(find "$SDR_DIR" -maxdepth 1 -type d -name 'sdr-trunk*' | head -1)
-  if [[ -n "$EXTRACTED" && "$EXTRACTED" != "$DEST" ]]; then
-    mv "$EXTRACTED" "$DEST"
+  if [[ -f "$TMP" ]]; then
+    systemctl stop sdrtrunk 2>/dev/null || true
+    rm -rf "$DEST"
+    unzip -q -o "$TMP" -d "$SDR_DIR"
+    EXTRACTED=$(find "$SDR_DIR" -maxdepth 1 -type d -name 'sdr-trunk*' | head -1)
+    if [[ -n "$EXTRACTED" && "$EXTRACTED" != "$DEST" ]]; then
+      mv "$EXTRACTED" "$DEST"
+    fi
+    rm -f "$TMP"
+    [[ -x "$DEST/bin/sdr-trunk" || -f "$DEST/bin/sdr-trunk" ]] || die "SDRTrunk binary missing after extract"
+    if [[ "$GOT_FORK" == "1" ]]; then
+      echo "$TAG" > "$DEST/.radiotak-fork"
+    fi
   fi
-  rm -f "$TMP"
-  [[ -x "$DEST/bin/sdr-trunk" || -f "$DEST/bin/sdr-trunk" ]] || die "SDRTrunk binary missing after extract"
 fi
 
 chown -R radiotak:radiotak "$SDR_DIR" "$DATA_DIR/modules" 2>/dev/null || true
