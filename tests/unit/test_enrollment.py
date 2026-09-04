@@ -111,7 +111,7 @@ async def test_enroll_client_stores_pem_and_p12(secrets_env):
 
     ca_key, ca_cert = _self_signed("TAK-CA")
     config_xml = (
-        '<certificateConfig><nameEntries>'
+        "<certificateConfig><nameEntries>"
         '<nameEntry name="O" value="TAK"/>'
         "</nameEntries></certificateConfig>"
     )

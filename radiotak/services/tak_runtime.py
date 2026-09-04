@@ -25,7 +25,7 @@ def _manager_for(server: TakServer) -> TakConnectionManager:
         candidate = Path(cert).parent / "ca.pem" if cert else None
         if candidate and candidate.exists():
             ca_path = str(candidate)
-    fwd = (load_settings_file().get("forwarding") or {})
+    fwd = load_settings_file().get("forwarding") or {}
     stale = float(fwd.get("stale_seconds") or DEFAULT_STALE_SECONDS)
     device_uid = server.device_uid or f"RadioTAK-{server.id[:8]}"
     groups = list(server.active_groups or [])
@@ -67,7 +67,9 @@ async def start_all() -> int:
             await mgr.start()
             server.status = mgr.state.value
             started += 1
-            log.info("TAK manager started for %s (%s) dry_run=%s", server.name, server.id, mgr.dry_run)
+            log.info(
+                "TAK manager started for %s (%s) dry_run=%s", server.name, server.id, mgr.dry_run
+            )
         db.commit()
     except Exception as exc:  # noqa: BLE001
         log.warning("tak_runtime.start_all failed: %s", exc)

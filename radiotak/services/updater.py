@@ -8,9 +8,10 @@ import re
 import subprocess
 import threading
 import time
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 import httpx
 
@@ -23,7 +24,7 @@ _update_cache: dict[str, Any] = {"ts": 0.0, "payload": None}
 _UPDATE_CACHE_SECONDS = 120.0
 _LOG_CAP_CHARS = 80_000
 _job_lock = threading.Lock()
-_job_thread: Optional[threading.Thread] = None
+_job_thread: threading.Thread | None = None
 
 EmitFn = Callable[[str], None]
 
@@ -42,7 +43,7 @@ def version_stamp_now() -> str:
     return datetime.now().strftime("%y.%m%d.%H%M")
 
 
-def version_stamp_from_git(install: Optional[Path] = None) -> Optional[str]:
+def version_stamp_from_git(install: Path | None = None) -> str | None:
     """Return YY.MMDD.HHMM from HEAD committer date, or None."""
     settings = get_settings()
     root = install or settings.install_dir
@@ -53,7 +54,7 @@ def version_stamp_from_git(install: Optional[Path] = None) -> Optional[str]:
     return stamp if _STAMP_RE.match(stamp) else None
 
 
-def write_version_stamp(install: Optional[Path] = None, *, use_now: bool = False) -> str:
+def write_version_stamp(install: Path | None = None, *, use_now: bool = False) -> str:
     """Write VERSION from HEAD commit time (or wall clock when use_now=True)."""
     settings = get_settings()
     root = install or settings.install_dir
@@ -89,7 +90,7 @@ def current_version() -> str:
     return __version__
 
 
-def local_commit_sha() -> Optional[str]:
+def local_commit_sha() -> str | None:
     settings = get_settings()
     code, out = _git(settings.install_dir, "rev-parse", "HEAD")
     if code != 0:
@@ -98,7 +99,7 @@ def local_commit_sha() -> Optional[str]:
     return sha or None
 
 
-async def latest_release(repo: Optional[str] = None) -> dict[str, Any]:
+async def latest_release(repo: str | None = None) -> dict[str, Any]:
     settings = get_settings()
     repo = repo or settings.github_repo
     branch = load_settings_file().get("github_branch") or settings.github_branch
@@ -118,7 +119,7 @@ async def latest_release(repo: Optional[str] = None) -> dict[str, Any]:
         return resp.json()
 
 
-async def remote_head(repo: Optional[str] = None, branch: Optional[str] = None) -> dict[str, Any]:
+async def remote_head(repo: str | None = None, branch: str | None = None) -> dict[str, Any]:
     """Resolve remote branch tip SHA and VERSION stamp."""
     settings = get_settings()
     repo = repo or settings.github_repo
@@ -145,7 +146,11 @@ async def remote_head(repo: Optional[str] = None, branch: Optional[str] = None) 
             stamp = vre.text.strip() or None
         if not stamp and sha:
             # Fallback: abbreviated date from API commit if VERSION missing.
-            date_s = (cre.json().get("commit") or {}).get("committer", {}).get("date") if cre.status_code == 200 else None
+            date_s = (
+                (cre.json().get("commit") or {}).get("committer", {}).get("date")
+                if cre.status_code == 200
+                else None
+            )
             if date_s and len(date_s) >= 16:
                 # YYYY-MM-DDTHH:MM → YY.MMDD.HHMM (UTC)
                 stamp = f"{date_s[2:4]}.{date_s[5:7]}{date_s[8:10]}.{date_s[11:13]}{date_s[14:16]}"
@@ -194,7 +199,7 @@ async def check_for_update(force: bool = False) -> dict[str, Any]:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _state_path() -> Path:
@@ -279,7 +284,7 @@ def _stream_cmd(
     cmd: list[str],
     cwd: Path,
     emit: EmitFn,
-    env: Optional[dict[str, str]] = None,
+    env: dict[str, str] | None = None,
     timeout: int = 600,
 ) -> int:
     emit(f"$ {' '.join(cmd)}")
@@ -356,7 +361,7 @@ def _git_fetch(install: Path, repo: str, branch: str, emit: EmitFn) -> int:
     return _git_fetch_local(install, repo, branch, emit)
 
 
-def update_now(branch: Optional[str] = None, on_line: Optional[EmitFn] = None) -> tuple[int, str]:
+def update_now(branch: str | None = None, on_line: EmitFn | None = None) -> tuple[int, str]:
     settings = get_settings()
     data = load_settings_file()
     branch = branch or data.get("github_branch") or settings.github_branch

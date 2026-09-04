@@ -6,7 +6,7 @@ import asyncio
 import json
 import logging
 import time
-from typing import Any, Optional
+from typing import Any
 
 from radiotak.services.settings_store import load_settings_file
 
@@ -45,10 +45,10 @@ def align_span_to_control_channels(
 
 class SpectrumHub:
     def __init__(self) -> None:
-        self.latest: Optional[dict[str, Any]] = None
-        self.last_frame_at: Optional[float] = None
+        self.latest: dict[str, Any] | None = None
+        self.last_frame_at: float | None = None
         self._subscribers: list[asyncio.Queue] = []
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self.frames_received = 0
         self.clients = 0  # exporter TCP connections currently open on :29501
 
@@ -76,7 +76,7 @@ class SpectrumHub:
             except Exception:  # noqa: BLE001
                 pass
 
-    def parse_frame(self, raw: bytes | str) -> Optional[dict[str, Any]]:
+    def parse_frame(self, raw: bytes | str) -> dict[str, Any] | None:
         try:
             if isinstance(raw, bytes):
                 text = raw.decode("utf-8", errors="ignore").strip()

@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import sys
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 from xml.etree.ElementTree import Element, SubElement, tostring
 
 from radiotak.gateway import stable_cot_uid
@@ -31,8 +30,8 @@ __all__ = [
 
 def _fmt(dt: datetime) -> str:
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def build_cot_xml(
@@ -41,27 +40,27 @@ def build_cot_xml(
     latitude: float,
     longitude: float,
     observed_at: datetime,
-    system_id: Optional[str] = None,
-    callsign: Optional[str] = None,
+    system_id: str | None = None,
+    callsign: str | None = None,
     cot_type: str = DETECTION_COT_TYPE,
     stale_seconds: int = DEFAULT_STALE_SECONDS,
-    altitude_m: Optional[float] = None,
-    accuracy_m: Optional[float] = None,
+    altitude_m: float | None = None,
+    accuracy_m: float | None = None,
     default_ce_m: float = 20.0,
-    remarks: Optional[str] = None,
+    remarks: str | None = None,
     how: str = "m-g",
-    uid: Optional[str] = None,
-    iconset_path: Optional[str] = None,
-    marker_color: Optional[str] = None,
+    uid: str | None = None,
+    iconset_path: str | None = None,
+    marker_color: str | None = None,
     as_contact: bool = False,
-    group_name: Optional[str] = None,
+    group_name: str | None = None,
     group_role: str = "Team Member",
 ) -> str:
     """Build a detection CoT. Named on the map via callsign; not an ATAK contact unless as_contact."""
     uid = uid or stable_cot_uid(system_id, radio_id)
-    start = observed_at if observed_at.tzinfo else observed_at.replace(tzinfo=timezone.utc)
+    start = observed_at if observed_at.tzinfo else observed_at.replace(tzinfo=UTC)
     stale = start + timedelta(seconds=stale_seconds)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     event = Element(
         "event",
@@ -114,13 +113,13 @@ def build_presence_xml(
     latitude: float = 0.0,
     longitude: float = 0.0,
     stale_seconds: int = PRESENCE_STALE_SECONDS,
-    group_name: Optional[str] = None,
+    group_name: str | None = None,
     group_role: str = "Team Member",
     version: str = "0.0.0",
     how: str = "m-g",
 ) -> str:
     """Self SA so TAK Server lists RadioTAK as a connected client with this callsign."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     stale = now + timedelta(seconds=stale_seconds)
     event = Element(
         "event",
@@ -166,7 +165,7 @@ def build_presence_xml(
 
 
 def build_disconnect_xml(*, uid: str, callsign: str) -> str:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     stale = now + timedelta(seconds=10)
     event = Element(
         "event",

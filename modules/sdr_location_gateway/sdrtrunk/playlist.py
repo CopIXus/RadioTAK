@@ -5,15 +5,22 @@ from __future__ import annotations
 import json
 import re
 import xml.etree.ElementTree as ET
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Any, Iterable, Sequence
+from typing import Any
 
 # SDRTrunk 0.6.x Jackson playlist version (0.6.1 writes version="4")
 PLAYLIST_VERSION = "4"
 
 _DECODE = {
-    "P25": ("decodeConfigP25Phase1", {"modulation": "C4FM", "traffic_channel_pool_size": "3", "ignore_data_calls": "false"}),
-    "P25_LSM": ("decodeConfigP25Phase1", {"modulation": "CQPSK", "traffic_channel_pool_size": "3", "ignore_data_calls": "false"}),
+    "P25": (
+        "decodeConfigP25Phase1",
+        {"modulation": "C4FM", "traffic_channel_pool_size": "3", "ignore_data_calls": "false"},
+    ),
+    "P25_LSM": (
+        "decodeConfigP25Phase1",
+        {"modulation": "CQPSK", "traffic_channel_pool_size": "3", "ignore_data_calls": "false"},
+    ),
     "DMR": ("decodeConfigDMR", {"ignore_data_calls": "false"}),
     "NFM": ("decodeConfigNBFM", {}),
 }
@@ -70,7 +77,9 @@ def _upsert_properties(text: str, values: dict[str, str]) -> str:
     out: list[str] = []
     for line in lines:
         stripped = line.strip()
-        key = stripped.split("=", 1)[0] if "=" in stripped and not stripped.startswith("#") else None
+        key = (
+            stripped.split("=", 1)[0] if "=" in stripped and not stripped.startswith("#") else None
+        )
         if key and key in values:
             out.append(f"{key}={values[key]}")
             seen.add(key)
@@ -171,7 +180,10 @@ def _decode_elem(protocol: str) -> ET.Element:
 def _source_elem(frequencies_hz: Sequence[int], preferred_tuner: str | None = None) -> ET.Element:
     freqs = [int(f) for f in frequencies_hz]
     if len(freqs) > 1:
-        attrib = {"type": "sourceConfigTunerMultipleFrequency", "source_type": "TUNER_MULTIPLE_FREQUENCIES"}
+        attrib = {
+            "type": "sourceConfigTunerMultipleFrequency",
+            "source_type": "TUNER_MULTIPLE_FREQUENCIES",
+        }
         if preferred_tuner:
             attrib["preferred_tuner"] = preferred_tuner
         el = ET.Element("source_configuration", attrib)
@@ -243,7 +255,15 @@ def write_p25_playlist(
     freqs = [int(round(float(m) * 1_000_000)) for m in control_channels_mhz]
     return write_playlist(
         path,
-        [{"name": system_name, "protocol": "P25", "site": "1", "frequencies_hz": freqs, "auto_start": auto_start}],
+        [
+            {
+                "name": system_name,
+                "protocol": "P25",
+                "site": "1",
+                "frequencies_hz": freqs,
+                "auto_start": auto_start,
+            }
+        ],
     )
 
 
@@ -360,7 +380,9 @@ def write_tuner_preferences(devices, settings=None) -> Path | None:
     return path
 
 
-def rebuild_default_playlist(rows, settings=None, devices=None, tuner_count: int | None = None) -> Path:
+def rebuild_default_playlist(
+    rows, settings=None, devices=None, tuner_count: int | None = None
+) -> Path:
     if settings is None:
         from radiotak.config import get_settings
 

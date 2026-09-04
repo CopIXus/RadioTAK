@@ -25,10 +25,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    from modules.sdr_location_gateway.sdrtrunk.adapter import replay_jsonl
     from radiotak.config import get_settings
     from radiotak.db import RadioIdentity, get_session_factory, init_db
     from radiotak.gateway.tak import TakConnectionManager, tak_registry
-    from modules.sdr_location_gateway.sdrtrunk.adapter import replay_jsonl
 
     get_settings().ensure_dirs()
     init_db()

@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 import zipfile
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 _TAG_RE = re.compile(r'^TAG="(v[^"]+)"', re.MULTILINE)
 _JAR_RE = re.compile(r"^sdr-trunk-(.+)\.jar$")
@@ -21,7 +21,7 @@ def install_script_path() -> Path:
     return Path(__file__).resolve().parent.parent / "install.sh"
 
 
-def expected_fork_tag() -> Optional[str]:
+def expected_fork_tag() -> str | None:
     """Tag the module installer will install (single source of truth: install.sh)."""
     try:
         m = _TAG_RE.search(install_script_path().read_text(encoding="utf-8"))

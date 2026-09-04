@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import threading
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from radiotak.config import get_settings
 
@@ -114,7 +114,12 @@ def decoder_build_info() -> dict[str, Any]:
 
         return sdrtrunk_build_info()
     except Exception as exc:  # noqa: BLE001
-        return {"installed": False, "has_exporters": False, "upgrade_available": False, "error": str(exc)}
+        return {
+            "installed": False,
+            "has_exporters": False,
+            "upgrade_available": False,
+            "error": str(exc),
+        }
 
 
 def decoder_upgrade_state() -> dict[str, Any]:

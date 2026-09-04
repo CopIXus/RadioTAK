@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from radiotak.gateway.constants import DETECTION_COT_TYPE
 
@@ -18,10 +18,12 @@ def resolve_style(
     server: Any = None,
     identity: Any = None,
     radio_id: str = "",
-    source_alias: Optional[str] = None,
+    source_alias: str | None = None,
 ) -> dict[str, Any]:
     """Unit fields override server defaults when present."""
-    srv_callsign = getattr(server, "default_callsign", None) or getattr(server, "callsign", None) or "Radio"
+    srv_callsign = (
+        getattr(server, "default_callsign", None) or getattr(server, "callsign", None) or "Radio"
+    )
     unit_callsign = getattr(identity, "callsign", None) if identity is not None else None
     callsign = unit_callsign or source_alias or srv_callsign or radio_id or "Radio"
 

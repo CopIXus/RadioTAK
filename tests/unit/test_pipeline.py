@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from datetime import UTC
 from pathlib import Path
 
 import pytest
@@ -59,12 +60,12 @@ def test_unknown_blocked(db_env):
 
 
 def test_approved_queued(db_env):
-    from datetime import datetime, timezone, timedelta
+    from datetime import datetime
 
     from radiotak.gateway.pipeline import LocationPipeline
 
     pipe = LocationPipeline()
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     result = pipe.process_dict(
         db_env,
         {

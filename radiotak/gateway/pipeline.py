@@ -93,9 +93,10 @@ class LocationPipeline:
             try:
                 from radiotak.services.traffic_keys import matching_key
 
-                key_loaded = matching_key(
-                    db, event.algorithm_id or event.algorithm_id_hex, event.key_id
-                ) is not None
+                key_loaded = (
+                    matching_key(db, event.algorithm_id or event.algorithm_id_hex, event.key_id)
+                    is not None
+                )
             except Exception:  # noqa: BLE001
                 key_loaded = bool(event.key_loaded)
 
@@ -244,11 +245,7 @@ class LocationPipeline:
                 source_alias=event.source_alias,
             )
             stale_s = style["stale_seconds"] or int(fwd.get("stale_seconds", DEFAULT_STALE_SECONDS))
-            ce_m = (
-                event.accuracy_m
-                if event.accuracy_m is not None
-                else style["default_ce_meters"]
-            )
+            ce_m = event.accuracy_m if event.accuracy_m is not None else style["default_ce_meters"]
             cot_xml = build_cot_xml(
                 radio_id=event.radio_id,
                 latitude=event.latitude,
@@ -285,7 +282,8 @@ class LocationPipeline:
                 system_id=event.system_id,
                 callsign=identity.callsign or event.source_alias or event.radio_id,
                 cot_type=identity.cot_type or DETECTION_COT_TYPE,
-                stale_seconds=identity.stale_seconds or int(fwd.get("stale_seconds", DEFAULT_STALE_SECONDS)),
+                stale_seconds=identity.stale_seconds
+                or int(fwd.get("stale_seconds", DEFAULT_STALE_SECONDS)),
                 altitude_m=event.altitude_m,
                 accuracy_m=event.accuracy_m,
                 default_ce_m=float(fwd.get("default_ce_meters", 20)),

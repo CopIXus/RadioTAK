@@ -56,7 +56,7 @@ def test_write_playlist_v2(tmp_path):
     assert 'version="4"' in xml
     assert 'name="County P25"' in xml
     assert 'type="decodeConfigP25Phase1"' in xml
-    assert "ignore_data_calls=\"false\"" in xml
+    assert 'ignore_data_calls="false"' in xml
     assert "851012500" in xml
     assert "851512500" in xml
     assert "sourceConfigTunerMultipleFrequency" in xml
@@ -67,7 +67,7 @@ def test_write_p25_wrapper(tmp_path):
     write_p25_playlist(path, system_name="Demo", control_channels_mhz=[851.0125])
     xml = path.read_text(encoding="utf-8")
     assert "851012500" in xml
-    assert "sourceConfigTuner\"" in xml or 'type="sourceConfigTuner"' in xml
+    assert 'sourceConfigTuner"' in xml or 'type="sourceConfigTuner"' in xml
 
 
 def test_playlist_dir_is_sdrtrunk_home(tmp_path):

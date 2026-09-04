@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from radiotak.db import AuditLog, get_session_factory, utcnow
 
@@ -14,7 +14,7 @@ def write_audit(
     action: str,
     *,
     actor: str = "",
-    detail: Optional[dict[str, Any]] = None,
+    detail: dict[str, Any] | None = None,
     target: str = "",
 ) -> None:
     try:

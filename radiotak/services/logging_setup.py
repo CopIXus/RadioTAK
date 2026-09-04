@@ -6,9 +6,9 @@ import hashlib
 import json
 import logging
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from logging.handlers import TimedRotatingFileHandler
-from typing import Any, Optional
+from typing import Any
 
 from radiotak.config import get_settings
 from radiotak.services.settings_store import load_settings_file
@@ -17,7 +17,7 @@ from radiotak.services.settings_store import load_settings_file
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         payload: dict[str, Any] = {
-            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             "level": record.levelname,
             "component": getattr(record, "component", record.name),
             "event": getattr(record, "event", record.getMessage()),

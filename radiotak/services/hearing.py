@@ -65,7 +65,9 @@ class HearingGauges:
             "cc_lock_class": lock_class,
             "gauge_mpm_class": "ok" if mpm > 0 else ("warn" if decoder_on else "bad"),
             "gauge_age_class": (
-                "ok" if age is not None and age < 30 else ("warn" if age is not None and age < 120 else "bad")
+                "ok"
+                if age is not None and age < 30
+                else ("warn" if age is not None and age < 120 else "bad")
             ),
         }
 

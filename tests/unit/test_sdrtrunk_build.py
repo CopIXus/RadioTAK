@@ -63,7 +63,9 @@ def test_hand_installed_fork_without_marker_still_detected(tmp_path):
 
 
 def test_older_fork_tag_offers_upgrade(tmp_path):
-    settings = _fake_app(tmp_path, "sdr-trunk-0.6.2-radiotak.0.jar", exporters=True, marker="v0.6.2-radiotak.0")
+    settings = _fake_app(
+        tmp_path, "sdr-trunk-0.6.2-radiotak.0.jar", exporters=True, marker="v0.6.2-radiotak.0"
+    )
     info = build.sdrtrunk_build_info(settings)
     assert info["has_exporters"] is True
     assert info["upgrade_available"] is True

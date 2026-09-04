@@ -9,9 +9,7 @@ from radiotak.db import RadioIdentity, utcnow
 from radiotak.services.settings_store import load_settings_file
 
 
-def find_identity(
-    db: Session, radio_id: str, system_id: str | None = None
-) -> RadioIdentity | None:
+def find_identity(db: Session, radio_id: str, system_id: str | None = None) -> RadioIdentity | None:
     stmt = select(RadioIdentity).where(RadioIdentity.radio_id == radio_id)
     if system_id:
         stmt = stmt.where(

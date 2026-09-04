@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 
@@ -51,7 +51,7 @@ def bitfield_for_positions(positions: list[int]) -> int:
 async def list_groups(
     host: str,
     api_port: int = 8443,
-    cert: Optional[tuple[str, str]] = None,
+    cert: tuple[str, str] | None = None,
     verify: bool | str = False,
 ) -> list[dict[str, Any]]:
     url = f"https://{host}:{api_port}/Marti/api/groups/all"
@@ -70,7 +70,7 @@ async def set_active_groups(
     groups: list[str],
     api_port: int = 8443,
     client_uid: str = "RadioTAK",
-    cert: Optional[tuple[str, str]] = None,
+    cert: tuple[str, str] | None = None,
     verify: bool | str = False,
 ) -> Any:
     """PUT /groups/active (names), then /groups/activebits (bit positions / bitfield).

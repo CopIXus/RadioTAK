@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 from fastapi import HTTPException, Request
 from fastapi.templating import Jinja2Templates
@@ -101,7 +100,7 @@ async def require_auth(request: Request):
     return data
 
 
-def verify_csrf(request: Request, token: Optional[str]) -> None:
+def verify_csrf(request: Request, token: str | None) -> None:
     session = getattr(request.state, "session", {}) or {}
     expected = session.get("csrf")
     if not expected or not token or token != expected:

@@ -13,7 +13,9 @@ from radiotak.gateway.tak import tak_registry
 from radiotak.services.logging_setup import log_event
 
 
-def replay_jsonl(path: str | Path, send_to_tak: bool = True, refresh_timestamps: bool = True) -> dict:
+def replay_jsonl(
+    path: str | Path, send_to_tak: bool = True, refresh_timestamps: bool = True
+) -> dict:
     """Synchronously replay a JSONL fixture through the pipeline."""
     from datetime import datetime
 
@@ -121,7 +123,9 @@ async def listen_ndjson_tcp(host: str = "127.0.0.1", port: int = 29500) -> None:
                     result = pipeline.process_dict(db, raw)
                     if result.forwarded and result.cot_xml:
                         tak_registry.enqueue_all(
-                            result.cot_xml, result.cot_uid or "", result.observation.id if result.observation else None
+                            result.cot_xml,
+                            result.cot_uid or "",
+                            result.observation.id if result.observation else None,
                         )
                 finally:
                     db.close()

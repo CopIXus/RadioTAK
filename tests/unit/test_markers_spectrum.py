@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 from radiotak.gateway.cot import build_cot_xml
@@ -15,7 +15,7 @@ def test_cot_includes_usericon_and_color():
         radio_id="1",
         latitude=36.0,
         longitude=-82.0,
-        observed_at=datetime(2026, 9, 4, 12, 0, 0, tzinfo=timezone.utc),
+        observed_at=datetime(2026, 9, 4, 12, 0, 0, tzinfo=UTC),
         callsign="Radio",
         iconset_path="abc:Hiking/star",
         marker_color="#1100ff",

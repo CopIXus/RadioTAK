@@ -165,11 +165,15 @@ async def sdr_upgrade(request: Request, csrf_token: str = Form(""), _user=Depend
     """Re-run the module installer to pull the CopIXus SDRTrunk build with the exporters."""
     verify_csrf(request, csrf_token)
     if not modules_svc.is_installed(modules_svc.SDR_MODULE_ID):
-        return redirect("/modules/sdr?err=" + quote("Install the SDR Location Gateway from Marketplace first"))
+        return redirect(
+            "/modules/sdr?err=" + quote("Install the SDR Location Gateway from Marketplace first")
+        )
     if modules_svc.upgrade_decoder_async(reason="manual"):
         return redirect(
             "/modules/sdr?msg="
-            + quote("Decoder upgrade started — downloading the CopIXus SDRTrunk build; this page refreshes when it lands")
+            + quote(
+                "Decoder upgrade started — downloading the CopIXus SDRTrunk build; this page refreshes when it lands"
+            )
         )
     return redirect("/modules/sdr?msg=" + quote("Decoder upgrade already running"))
 
@@ -288,8 +292,13 @@ async def sdr_system_add(
         db.close()
     if apply_start:
         get_platform().service_action("sdrtrunk", "restart")
-        return redirect("/modules/sdr?msg=" + quote("System saved, playlist written, decoder restarted"))
-    return redirect("/modules/sdr?msg=" + quote("System saved and playlist written. Start the decoder to listen."))
+        return redirect(
+            "/modules/sdr?msg=" + quote("System saved, playlist written, decoder restarted")
+        )
+    return redirect(
+        "/modules/sdr?msg="
+        + quote("System saved and playlist written. Start the decoder to listen.")
+    )
 
 
 @router.post("/systems/{system_id}")
@@ -355,7 +364,9 @@ async def sdr_system_listen(
         db.close()
     get_platform().service_action("sdrtrunk", "restart")
     state = "listening" if on else "off"
-    return redirect("/modules/sdr?msg=" + quote(f"{name} {state} — playlist written, decoder restarted"))
+    return redirect(
+        "/modules/sdr?msg=" + quote(f"{name} {state} — playlist written, decoder restarted")
+    )
 
 
 @router.post("/systems/{system_id}/delete")

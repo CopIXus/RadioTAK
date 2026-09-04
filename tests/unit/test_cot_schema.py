@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
@@ -21,7 +21,7 @@ def test_cot_contains_callsign_and_coords():
         radio_id="1234567",
         latitude=36.29531,
         longitude=-82.27922,
-        observed_at=datetime(2026, 9, 3, 15, 42, 17, tzinfo=timezone.utc),
+        observed_at=datetime(2026, 9, 3, 15, 42, 17, tzinfo=UTC),
         system_id="TN-P25",
         callsign="Unit 214",
         stale_seconds=120,
@@ -41,7 +41,7 @@ def test_detection_default_stale_is_20_minutes():
         radio_id="1",
         latitude=36.0,
         longitude=-82.0,
-        observed_at=datetime(2026, 9, 3, 15, 42, 17, tzinfo=timezone.utc),
+        observed_at=datetime(2026, 9, 3, 15, 42, 17, tzinfo=UTC),
         callsign="Engine 4",
     )
     assert 'stale="2026-09-03T16:02:17Z"' in xml

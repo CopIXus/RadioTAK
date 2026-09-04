@@ -5,8 +5,6 @@ from __future__ import annotations
 import io
 import json
 import zipfile
-from pathlib import Path
-from typing import Optional
 
 from radiotak import __version__
 from radiotak.config import get_settings
@@ -14,7 +12,6 @@ from radiotak.platform import get_platform
 from radiotak.services.modules import list_modules
 from radiotak.services.settings_store import load_settings_file
 from radiotak.services.updater import current_version
-
 
 REDACT_KEYS = {
     "key_hex",

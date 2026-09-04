@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Optional
 
 from radiotak.config import get_settings
 from radiotak.services.settings_store import load_settings_file, update_settings
@@ -25,7 +24,7 @@ def branding_dir() -> Path:
     return d
 
 
-def logo_path() -> Optional[Path]:
+def logo_path() -> Path | None:
     cfg = load_settings_file()
     name = (cfg.get("customization") or {}).get("logo_filename") or ""
     if not name:
@@ -38,7 +37,7 @@ def product_logo_path() -> Path:
     return Path(__file__).resolve().parent.parent / "web" / "static" / "img" / "logo.png"
 
 
-def favicon_path() -> Optional[Path]:
+def favicon_path() -> Path | None:
     product = product_logo_path()
     if product.exists():
         return product

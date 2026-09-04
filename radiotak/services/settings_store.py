@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from radiotak.config import Settings, get_settings, reload_settings
 from radiotak.gateway.constants import DEFAULT_STALE_SECONDS
@@ -64,7 +64,7 @@ _BANNER_FONT_CSS = {
 _BANNER_SIZE_PX = {"small": "14px", "medium": "20px", "large": "28px"}
 
 
-def load_settings_file(settings: Optional[Settings] = None) -> dict[str, Any]:
+def load_settings_file(settings: Settings | None = None) -> dict[str, Any]:
     settings = settings or get_settings()
     path = settings.settings_path
     if not path.exists():
@@ -106,7 +106,7 @@ def load_settings_file(settings: Optional[Settings] = None) -> dict[str, Any]:
     return merged
 
 
-def save_settings_file(data: dict[str, Any], settings: Optional[Settings] = None) -> None:
+def save_settings_file(data: dict[str, Any], settings: Settings | None = None) -> None:
     settings = settings or get_settings()
     settings.ensure_dirs()
     path: Path = settings.settings_path
@@ -118,7 +118,7 @@ def save_settings_file(data: dict[str, Any], settings: Optional[Settings] = None
     reload_settings()
 
 
-def update_settings(updates: dict[str, Any], settings: Optional[Settings] = None) -> dict[str, Any]:
+def update_settings(updates: dict[str, Any], settings: Settings | None = None) -> dict[str, Any]:
     data = load_settings_file(settings)
     for key, value in updates.items():
         if key in ("forwarding", "customization", "spectrum", "novnc") and isinstance(value, dict):

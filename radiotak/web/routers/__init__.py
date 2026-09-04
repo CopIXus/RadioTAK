@@ -7,13 +7,22 @@ import logging
 import re
 import shutil
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    Request,
+    UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from sqlalchemy import func, select
 
@@ -69,7 +78,7 @@ log = logging.getLogger("radiotak.web")
 _HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{3,8}$")
 
 
-def PathExists(p: Optional[str]) -> bool:
+def PathExists(p: str | None) -> bool:
     return bool(p) and Path(p).exists()
 
 
@@ -82,7 +91,7 @@ def _actor(request: Request) -> str:
     return session.get("u") or ""
 
 
-def _primary_tak_server(db) -> Optional[TakServer]:
+def _primary_tak_server(db) -> TakServer | None:
     server = db.scalar(
         select(TakServer).where(TakServer.enabled.is_(True)).order_by(TakServer.name).limit(1)
     )
@@ -169,11 +178,15 @@ def _dashboard_stats(db) -> dict[str, int]:
     observed = db.scalar(select(func.count()).select_from(RadioIdentity)) or 0
     approved = (
         db.scalar(
-            select(func.count()).select_from(RadioIdentity).where(RadioIdentity.forward_to_tak.is_(True))
+            select(func.count())
+            .select_from(RadioIdentity)
+            .where(RadioIdentity.forward_to_tak.is_(True))
         )
         or 0
     )
-    total_hears = db.scalar(select(func.coalesce(func.sum(RadioIdentity.observation_count), 0))) or 0
+    total_hears = (
+        db.scalar(select(func.coalesce(func.sum(RadioIdentity.observation_count), 0))) or 0
+    )
     forwarded = (
         db.scalar(
             select(func.count())
@@ -198,7 +211,7 @@ def _dashboard_stats(db) -> dict[str, int]:
         )
         or 0
     )
-    since = datetime.now(timezone.utc) - timedelta(hours=1)
+    since = datetime.now(UTC) - timedelta(hours=1)
     heard_1h = (
         db.scalar(
             select(func.count())
@@ -220,7 +233,7 @@ def _dashboard_stats(db) -> dict[str, int]:
 
 def _location_points(
     db,
-    primary_server: Optional[TakServer],
+    primary_server: TakServer | None,
     *,
     approved_only: bool = False,
     limit: int = 200,
@@ -267,7 +280,7 @@ def _build_checklist(
     ]
 
 
-def _cert_paths(server_id: str, server: TakServer) -> tuple[Optional[str], Optional[str]]:
+def _cert_paths(server_id: str, server: TakServer) -> tuple[str | None, str | None]:
     settings = get_settings()
     cert = server.client_cert_path or str(settings.secrets_dir / server_id / "client.pem")
     key = server.client_key_path or str(settings.secrets_dir / server_id / "client.key")
@@ -458,7 +471,9 @@ async def dashboard(request: Request, _user=Depends(require_auth)):
         sdr_status_class="status-running" if sdr_on else "status-idle",
         decoder_summary="Listening via SDRTrunk"
         if decoder_on
-        else ("Configure frequencies on the SDR page" if sdr_on else "Install the SDR module first"),
+        else (
+            "Configure frequencies on the SDR page" if sdr_on else "Install the SDR module first"
+        ),
         decoder_status="RUNNING" if decoder_on else "IDLE",
         decoder_status_class="status-running" if decoder_on else "status-idle",
         tak_summary=f"{len(servers)} server(s)",
@@ -739,7 +754,7 @@ async def tak_enroll(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),
-    tls_verify: Optional[str] = Form(None),
+    tls_verify: str | None = Form(None),
     csrf_token: str = Form(""),
     _user=Depends(require_auth),
 ):
@@ -961,7 +976,9 @@ async def tak_delete(
 
 
 @pages.post("/tak/{server_id}/test")
-async def tak_test(server_id: str, request: Request, csrf_token: str = Form(""), _user=Depends(require_auth)):
+async def tak_test(
+    server_id: str, request: Request, csrf_token: str = Form(""), _user=Depends(require_auth)
+):
     verify_csrf(request, csrf_token)
     from radiotak.gateway.cot import build_cot_xml
 
@@ -976,7 +993,7 @@ async def tak_test(server_id: str, request: Request, csrf_token: str = Form(""),
             radio_id="TEST",
             latitude=36.0,
             longitude=-82.0,
-            observed_at=datetime.now(timezone.utc),
+            observed_at=datetime.now(UTC),
             callsign=style["callsign"] or "RadioTAK-TEST",
             system_id="TEST",
             remarks="RadioTAK connection test",
@@ -1043,7 +1060,7 @@ async def units_add(
     system_id: str = Form(""),
     callsign: str = Form(""),
     agency: str = Form(""),
-    forward_to_tak: Optional[str] = Form(None),
+    forward_to_tak: str | None = Form(None),
     csrf_token: str = Form(""),
     _user=Depends(require_auth),
 ):
@@ -1099,8 +1116,8 @@ async def unit_edit_post(
     cot_type: str = Form(DETECTION_COT_TYPE),
     stale_seconds: int = Form(0),
     remarks: str = Form(""),
-    enabled: Optional[str] = Form(None),
-    forward_to_tak: Optional[str] = Form(None),
+    enabled: str | None = Form(None),
+    forward_to_tak: str | None = Form(None),
     csrf_token: str = Form(""),
     _user=Depends(require_auth),
 ):
@@ -1329,7 +1346,9 @@ async def tailscale_page(request: Request, _user=Depends(require_auth)):
 
 
 @pages.post("/tailscale/install")
-async def tailscale_install(request: Request, csrf_token: str = Form(""), _user=Depends(require_auth)):
+async def tailscale_install(
+    request: Request, csrf_token: str = Form(""), _user=Depends(require_auth)
+):
     verify_csrf(request, csrf_token)
     code, out = tailscale_svc.install()
     write_audit("tailscale_install", actor=_actor(request), detail={"code": code})
@@ -1341,7 +1360,7 @@ async def tailscale_up(
     request: Request,
     auth_key: str = Form(...),
     hostname: str = Form(""),
-    ssh: Optional[str] = Form(None),
+    ssh: str | None = Form(None),
     csrf_token: str = Form(""),
     _user=Depends(require_auth),
 ):

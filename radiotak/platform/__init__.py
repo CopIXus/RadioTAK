@@ -9,7 +9,7 @@ import shutil
 import socket
 import subprocess
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any
 
 log = logging.getLogger("radiotak.platform")
 
@@ -107,7 +107,9 @@ class LinuxPlatform(Platform):
                 pass
         model = None
         try:
-            model = open("/proc/device-tree/model", encoding="utf-8").read().replace("\x00", "").strip()
+            model = (
+                open("/proc/device-tree/model", encoding="utf-8").read().replace("\x00", "").strip()
+            )
         except Exception:  # noqa: BLE001
             pass
         return {
@@ -220,11 +222,26 @@ class LinuxPlatform(Platform):
                 low = line.lower()
                 rec = None
                 if "0bda:2838" in low or "0bda:2832" in low or "rtl283" in low:
-                    rec = {"driver": "rtl", "name": "RTL-SDR", "serial_number": None, "usb_path": line.strip()}
+                    rec = {
+                        "driver": "rtl",
+                        "name": "RTL-SDR",
+                        "serial_number": None,
+                        "usb_path": line.strip(),
+                    }
                 elif "1d50:60a1" in low or "airspy" in low:
-                    rec = {"driver": "airspy", "name": "Airspy", "serial_number": None, "usb_path": line.strip()}
+                    rec = {
+                        "driver": "airspy",
+                        "name": "Airspy",
+                        "serial_number": None,
+                        "usb_path": line.strip(),
+                    }
                 elif "1d50:6089" in low or "hackrf" in low:
-                    rec = {"driver": "hackrf", "name": "HackRF", "serial_number": None, "usb_path": line.strip()}
+                    rec = {
+                        "driver": "hackrf",
+                        "name": "HackRF",
+                        "serial_number": None,
+                        "usb_path": line.strip(),
+                    }
                 if rec:
                     # Prefer the USB product string after the ID (e.g. Nooelec NESDR).
                     parts = line.split(" ", 6)
@@ -278,7 +295,7 @@ def _ntp_status() -> str:
         return "unknown"
 
 
-_platform: Optional[Platform] = None
+_platform: Platform | None = None
 
 
 def get_platform() -> Platform:

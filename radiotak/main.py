@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from datetime import UTC
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -173,7 +174,7 @@ def _ensure_dev_cert(cert_path: Path, key_path: Path) -> None:
     if cert_path.exists() and key_path.exists():
         return
     try:
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
         from cryptography import x509
         from cryptography.hazmat.primitives import hashes, serialization
@@ -188,8 +189,8 @@ def _ensure_dev_cert(cert_path: Path, key_path: Path) -> None:
             .issuer_name(issuer)
             .public_key(key.public_key())
             .serial_number(x509.random_serial_number())
-            .not_valid_before(datetime.now(timezone.utc))
-            .not_valid_after(datetime.now(timezone.utc) + timedelta(days=3650))
+            .not_valid_before(datetime.now(UTC))
+            .not_valid_after(datetime.now(UTC) + timedelta(days=3650))
             .add_extension(x509.SubjectAlternativeName([x509.DNSName("localhost")]), critical=False)
             .sign(key, hashes.SHA256())
         )

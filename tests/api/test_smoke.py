@@ -277,7 +277,9 @@ def test_store_traffic_key_hides_hex(client):
 
     _login(client)
     page = client.get("/modules/sdr")
-    m = re.search(r'action="/modules/sdr/keys".*?name="csrf_token" value="([^"]+)"', page.text, re.S)
+    m = re.search(
+        r'action="/modules/sdr/keys".*?name="csrf_token" value="([^"]+)"', page.text, re.S
+    )
     assert m
     hex_key = "A1" * 32
     r = client.post(
@@ -328,6 +330,6 @@ def test_tak_enroll_page_has_password_reveal(client):
     detail = client.get(loc)
     assert detail.status_code == 200
     server_id = loc.split("/tak/", 1)[1].split("?", 1)[0]
-    assert b'data-password-toggle' in detail.content
-    assert b'id_enroll_password' in detail.content
-    assert f'/tak/{server_id}/enroll'.encode() in detail.content
+    assert b"data-password-toggle" in detail.content
+    assert b"id_enroll_password" in detail.content
+    assert f"/tak/{server_id}/enroll".encode() in detail.content

@@ -7,7 +7,6 @@ import secrets
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
@@ -26,11 +25,11 @@ class AuthRecord:
     created_at: str
 
 
-def _auth_path(settings: Optional[Settings] = None) -> Path:
+def _auth_path(settings: Settings | None = None) -> Path:
     return (settings or get_settings()).auth_path
 
 
-def load_auth(settings: Optional[Settings] = None) -> Optional[AuthRecord]:
+def load_auth(settings: Settings | None = None) -> AuthRecord | None:
     path = _auth_path(settings)
     if not path.exists():
         return None
@@ -42,7 +41,7 @@ def load_auth(settings: Optional[Settings] = None) -> Optional[AuthRecord]:
     )
 
 
-def save_auth(username: str, password: str, settings: Optional[Settings] = None) -> AuthRecord:
+def save_auth(username: str, password: str, settings: Settings | None = None) -> AuthRecord:
     settings = settings or get_settings()
     settings.ensure_dirs()
     record = AuthRecord(
@@ -76,11 +75,11 @@ def verify_password(password: str, password_hash: str) -> bool:
         return False
 
 
-def needs_setup(settings: Optional[Settings] = None) -> bool:
+def needs_setup(settings: Settings | None = None) -> bool:
     return load_auth(settings) is None
 
 
-def serializer(settings: Optional[Settings] = None) -> URLSafeTimedSerializer:
+def serializer(settings: Settings | None = None) -> URLSafeTimedSerializer:
     settings = settings or get_settings()
     secret = settings.secret_key or _ensure_secret_key(settings)
     return URLSafeTimedSerializer(secret, salt="radiotak-session")
@@ -96,13 +95,11 @@ def _ensure_secret_key(settings: Settings) -> str:
     return data["secret_key"]
 
 
-def create_session_token(username: str, settings: Optional[Settings] = None) -> str:
+def create_session_token(username: str, settings: Settings | None = None) -> str:
     return serializer(settings).dumps({"u": username, "csrf": secrets.token_urlsafe(24)})
 
 
-def decode_session_token(
-    token: str, settings: Optional[Settings] = None
-) -> Optional[dict]:
+def decode_session_token(token: str, settings: Settings | None = None) -> dict | None:
     settings = settings or get_settings()
     try:
         return serializer(settings).loads(token, max_age=settings.session_max_age)
@@ -110,7 +107,7 @@ def decode_session_token(
         return None
 
 
-def check_rate_limit(ip: str, settings: Optional[Settings] = None) -> bool:
+def check_rate_limit(ip: str, settings: Settings | None = None) -> bool:
     """Return True if login is allowed."""
     settings = settings or get_settings()
     now = time.time()

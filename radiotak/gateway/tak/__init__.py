@@ -8,9 +8,8 @@ import ssl
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Optional
 
 from radiotak.gateway.constants import (
     DEFAULT_STALE_SECONDS,
@@ -24,10 +23,10 @@ log = logging.getLogger("radiotak.tak")
 
 def build_tak_ssl_context(
     *,
-    ca_path: Optional[str] = None,
+    ca_path: str | None = None,
     tls_verify: bool = True,
-    cert_path: Optional[str] = None,
-    key_path: Optional[str] = None,
+    cert_path: str | None = None,
+    key_path: str | None = None,
 ) -> ssl.SSLContext:
     """mTLS context for TAK CoT streaming (port 8089).
 
@@ -46,7 +45,9 @@ def build_tak_ssl_context(
     else:
         ctx.verify_mode = ssl.CERT_NONE
         if tls_verify and not ca_path:
-            log.warning("TAK TLS verify requested but no server CA is stored; skipping verification")
+            log.warning(
+                "TAK TLS verify requested but no server CA is stored; skipping verification"
+            )
     if cert_path and key_path:
         ctx.load_cert_chain(certfile=cert_path, keyfile=key_path)
     return ctx
@@ -67,7 +68,7 @@ class QueuedCot:
     xml: str
     uid: str
     enqueued_at: float
-    observation_id: Optional[str] = None
+    observation_id: str | None = None
 
 
 @dataclass
@@ -76,8 +77,8 @@ class TakMetrics:
     cot_sent: int = 0
     cot_dropped: int = 0
     connection_attempts: int = 0
-    last_successful_send: Optional[datetime] = None
-    last_latency_ms: Optional[int] = None
+    last_successful_send: datetime | None = None
+    last_latency_ms: int | None = None
 
 
 @dataclass
@@ -87,10 +88,10 @@ class TakConnectionManager:
     cot_port: int = 8089
     api_port: int = 8443
     callsign: str = "RadioTAK"
-    device_uid: Optional[str] = None
-    cert_path: Optional[str] = None
-    key_path: Optional[str] = None
-    ca_path: Optional[str] = None
+    device_uid: str | None = None
+    cert_path: str | None = None
+    key_path: str | None = None
+    ca_path: str | None = None
     tls_verify: bool = True
     reconnect_min: float = 2.0
     reconnect_max: float = 60.0
@@ -103,10 +104,10 @@ class TakConnectionManager:
     app_version: str = "0.0.0"
 
     state: ConnectionState = ConnectionState.DISCONNECTED
-    last_error: Optional[str] = None
+    last_error: str | None = None
     metrics: TakMetrics = field(default_factory=TakMetrics)
     _queue: deque[QueuedCot] = field(default_factory=deque)
-    _task: Optional[asyncio.Task] = None
+    _task: asyncio.Task | None = None
     _stop: asyncio.Event = field(default_factory=asyncio.Event)
 
     def presence_uid(self) -> str:
@@ -124,7 +125,7 @@ class TakConnectionManager:
             version=self.app_version,
         )
 
-    def enqueue(self, xml: str, uid: str, observation_id: Optional[str] = None) -> None:
+    def enqueue(self, xml: str, uid: str, observation_id: str | None = None) -> None:
         self.metrics.cot_generated += 1
         if len(self._queue) >= self.queue_max:
             self._queue.popleft()
@@ -177,11 +178,15 @@ class TakConnectionManager:
             )
             log.info("Marti groups applied for %s uid=%s", self.server_id, self.presence_uid())
         except Exception as exc:  # noqa: BLE001
-            log.warning("Marti groups apply failed for %s (will retry on reconnect): %s", self.server_id, exc)
+            log.warning(
+                "Marti groups apply failed for %s (will retry on reconnect): %s",
+                self.server_id,
+                exc,
+            )
 
     def _mark_sent(self, latency_ms: int = 1) -> None:
         self.metrics.cot_sent += 1
-        self.metrics.last_successful_send = datetime.now(timezone.utc)
+        self.metrics.last_successful_send = datetime.now(UTC)
         self.metrics.last_latency_ms = latency_ms
 
     async def _drain_queue(self, writer=None) -> None:  # noqa: ANN001
@@ -241,7 +246,9 @@ class TakConnectionManager:
                 f"is present. {exc}"
             ) from exc
         except ssl.SSLError as exc:
-            raise RuntimeError(f"TLS handshake with {self.host}:{self.cot_port} failed: {exc}") from exc
+            raise RuntimeError(
+                f"TLS handshake with {self.host}:{self.cot_port} failed: {exc}"
+            ) from exc
         self.state = ConnectionState.CONNECTED
         self.last_error = None
         try:
@@ -259,7 +266,9 @@ class TakConnectionManager:
         finally:
             try:
                 await self._write_xml(
-                    build_disconnect_xml(uid=self.presence_uid(), callsign=self.callsign or "RadioTAK"),
+                    build_disconnect_xml(
+                        uid=self.presence_uid(), callsign=self.callsign or "RadioTAK"
+                    ),
                     writer,
                 )
             except Exception:  # noqa: BLE001
@@ -275,7 +284,7 @@ class TakManagerRegistry:
     def __init__(self) -> None:
         self._managers: dict[str, TakConnectionManager] = {}
 
-    def get(self, server_id: str) -> Optional[TakConnectionManager]:
+    def get(self, server_id: str) -> TakConnectionManager | None:
         return self._managers.get(server_id)
 
     def upsert(self, manager: TakConnectionManager) -> TakConnectionManager:
@@ -307,7 +316,7 @@ class TakManagerRegistry:
                 pass
         self._managers.clear()
 
-    def enqueue_all(self, xml: str, uid: str, observation_id: Optional[str] = None) -> int:
+    def enqueue_all(self, xml: str, uid: str, observation_id: str | None = None) -> int:
         n = 0
         for mgr in self._managers.values():
             if mgr.state != ConnectionState.DISCONNECTED or mgr.dry_run:
@@ -319,7 +328,7 @@ class TakManagerRegistry:
         return n
 
     def enqueue_for(
-        self, server_id: str, xml: str, uid: str, observation_id: Optional[str] = None
+        self, server_id: str, xml: str, uid: str, observation_id: str | None = None
     ) -> bool:
         mgr = self._managers.get(server_id)
         if not mgr:
