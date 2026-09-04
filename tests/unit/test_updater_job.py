@@ -67,8 +67,12 @@ def test_start_update_job_streams_and_completes(isolated_updater, monkeypatch):
     assert started.get("state") in ("running", "done")
     deadline = time.time() + 3
     data = isolated_updater.load_update_state()
-    while data.get("state") in ("running", "restarting") and time.time() < deadline:
+    while data.get("state") == "running" and time.time() < deadline:
         time.sleep(0.05)
+        data = isolated_updater.load_update_state()
+    # Linux/Pi leaves "restarting" until the new process reconciles on boot.
+    if data.get("state") == "restarting":
+        isolated_updater.reconcile_update_state_on_startup()
         data = isolated_updater.load_update_state()
     assert data["state"] == "done"
     assert "Repairing repository permissions" in data["log"]
@@ -94,4 +98,8 @@ def test_start_update_job_rejects_second_worker(isolated_updater, monkeypatch):
     deadline = time.time() + 3
     while isolated_updater.load_update_state().get("state") == "running" and time.time() < deadline:
         time.sleep(0.05)
-    assert isolated_updater.load_update_state()["state"] == "done"
+    data = isolated_updater.load_update_state()
+    if data.get("state") == "restarting":
+        isolated_updater.reconcile_update_state_on_startup()
+        data = isolated_updater.load_update_state()
+    assert data["state"] == "done"
