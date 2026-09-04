@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import ssl
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -19,6 +20,36 @@ from radiotak.gateway.constants import (
 from radiotak.gateway.cot import build_disconnect_xml, build_presence_xml
 
 log = logging.getLogger("radiotak.tak")
+
+
+def build_tak_ssl_context(
+    *,
+    ca_path: Optional[str] = None,
+    tls_verify: bool = True,
+    cert_path: Optional[str] = None,
+    key_path: Optional[str] = None,
+) -> ssl.SSLContext:
+    """mTLS context for TAK CoT streaming (port 8089).
+
+    TAK Server's streaming cert is almost never issued for the public FQDN
+    operators type (Caddy/infra hostname vs TAK keystore CN). When the enrolled
+    TAK CA is present, verify the chain against that CA and skip hostname
+    matching. That matches ATAK/iTAK data-package behavior.
+    """
+    if ca_path:
+        ctx = ssl.create_default_context(cafile=ca_path)
+    else:
+        ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    if tls_verify and ca_path:
+        ctx.verify_mode = ssl.CERT_REQUIRED
+    else:
+        ctx.verify_mode = ssl.CERT_NONE
+        if tls_verify and not ca_path:
+            log.warning("TAK TLS verify requested but no server CA is stored; skipping verification")
+    if cert_path and key_path:
+        ctx.load_cert_chain(certfile=cert_path, keyfile=key_path)
+    return ctx
 
 
 class ConnectionState(str, Enum):
@@ -193,16 +224,24 @@ class TakConnectionManager:
         except ImportError as exc:
             raise RuntimeError("pytak not installed") from exc
 
-        import ssl
+        ctx = build_tak_ssl_context(
+            ca_path=self.ca_path,
+            tls_verify=self.tls_verify,
+            cert_path=self.cert_path,
+            key_path=self.key_path,
+        )
 
-        ctx = ssl.create_default_context(cafile=self.ca_path) if self.ca_path else ssl.create_default_context()
-        if not self.tls_verify:
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
-        if self.cert_path and self.key_path:
-            ctx.load_cert_chain(certfile=self.cert_path, keyfile=self.key_path)
-
-        reader, writer = await asyncio.open_connection(self.host, self.cot_port, ssl=ctx)
+        try:
+            reader, writer = await asyncio.open_connection(self.host, self.cot_port, ssl=ctx)
+        except ssl.SSLCertVerificationError as exc:
+            raise RuntimeError(
+                "TAK Server certificate was rejected. The streaming cert on port "
+                f"{self.cot_port} is often issued for an internal name, not '{self.host}'. "
+                "RadioTAK trusts the enrolled TAK CA without hostname matching when ca.pem "
+                f"is present. {exc}"
+            ) from exc
+        except ssl.SSLError as exc:
+            raise RuntimeError(f"TLS handshake with {self.host}:{self.cot_port} failed: {exc}") from exc
         self.state = ConnectionState.CONNECTED
         self.last_error = None
         try:

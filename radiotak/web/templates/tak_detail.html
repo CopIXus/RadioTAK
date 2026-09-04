@@ -28,7 +28,7 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
         {{ field('username', 'Enrollment username', value=server.username or '', help_key='tak.username', required=True) }}
         {{ field('password', 'Password / token', type='password', help_key='tak.password', required=True, autocomplete='new-password', input_id='id_enroll_password') }}
-        {{ check('tls_verify', 'Verify TLS', checked=server.tls_verify, value='1') }}
+        {{ check('tls_verify', 'Verify TLS (enrollment HTTPS)', checked=server.tls_verify, value='1', help_key='tak.tls_verify') }}
         <button class="btn btn-primary" type="submit">Enroll &amp; store certificate</button>
       </form>
     </div>

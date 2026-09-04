@@ -13,7 +13,7 @@ Default enrollment port is **8446**. Fields: host, enrollment port, CoT TLS port
 
 The private key never leaves RadioTAK. The signed certificate, key, CA chain, and PKCS#12 are stored under `/var/lib/radiotak/secrets/<server-id>/`.
 
-Uncheck **Verify TLS** when the enrollment listener uses a self-signed certificate (common on TAK Server). After enrollment, RadioTAK uses the returned CA for CoT TLS when present.
+Uncheck **Verify TLS** when the enrollment listener uses a self-signed certificate (common on TAK Server). After enrollment, RadioTAK uses the returned CA for CoT TLS when present. The CoT stream (8089) verifies that CA and does **not** require the TAK keystore certificate hostname to match the FQDN (hostname mismatch is normal).
 
 ## Mode B — ATAK data package ZIP
 

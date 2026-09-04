@@ -89,6 +89,12 @@ HELP: dict[str, dict[str, str]] = {
         "where": "TAK → Configure → Marker Appearance.",
         "example": "-82.342",
     },
+    "tak.tls_verify": {
+        "label": "Verify TLS",
+        "what": "For enrollment HTTPS only. Uncheck if port 8446 uses a self-signed certificate. CoT streaming (8089) always trusts the enrolled TAK CA and does not require the certificate hostname to match the FQDN.",
+        "where": "TAK → Configure → Enroll. Leave unchecked on most TAK Server installs.",
+        "example": "",
+    },
     "tak.username": {
         "label": "Enrollment username",
         "what": "TAK Server / Authentik user used for certificate enrollment.",
