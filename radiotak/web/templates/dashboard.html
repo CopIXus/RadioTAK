@@ -7,39 +7,86 @@
 {% set stats = stats | default(counts | default({})) %}
 {% set gauges = gauges | default({}) %}
 {% set checklist = checklist | default([]) %}
+{% set alerts = alerts | default([]) %}
+{% set pipeline = pipeline | default([]) %}
+{% set metric_classes = metric_classes | default({}) %}
+{% set alert_counts = alert_counts | default({}) %}
 
 <div class="header">
   <div>
     <div class="header-title">Console</div>
-    <div class="header-subtitle">Gateway health, hearing activity, and live locations</div>
+    <div class="header-subtitle">Pipeline health · hearing · locations · TAK</div>
   </div>
   <div class="header-actions">
+    <a class="btn btn-sm" href="/alerts">
+      Alerts{% if alert_counts.total %}<span class="nav-badge">{{ alert_counts.total }}</span>{% endif %}
+    </a>
     <a class="btn btn-sm" href="/events">Live events</a>
     <a class="btn btn-sm" href="/system">System</a>
   </div>
 </div>
 
+{# —— Pipeline strip: answer "is the mission working?" at a glance —— #}
+<div class="pipeline-strip" id="pipeline-strip" aria-label="Operational pipeline">
+  {% for step in pipeline %}
+  <a class="pipeline-step" href="{{ step.href }}" data-pipeline="{{ step.key }}">
+    <div class="pipeline-label">{{ step.label }}</div>
+    <div class="status-pill {{ step.class }}"><span class="dot"></span><span data-pipeline-state>{{ step.state }}</span></div>
+    <div class="pipeline-detail" data-pipeline-detail>{{ step.detail }}</div>
+  </a>
+  {% if not loop.last %}<div class="pipeline-arrow" aria-hidden="true">→</div>{% endif %}
+  {% endfor %}
+</div>
+
+{# —— Active alerts —— #}
+<section class="ops-panel" aria-labelledby="alerts-heading">
+  <div class="section-title" id="alerts-heading">Attention required</div>
+  <div id="alert-list" class="alert-list">
+    {% for a in alerts %}
+    <div class="ops-alert severity-{{ a.severity }}" data-alert-id="{{ a.id }}">
+      <div class="ops-alert-main">
+        <span class="ops-alert-sev">{{ a.severity }}</span>
+        <span class="ops-alert-source">{{ a.source }}</span>
+        <strong class="ops-alert-title">{{ a.title }}</strong>
+        <p class="ops-alert-detail">{{ a.detail }}</p>
+        {% if a.action %}<p class="ops-alert-action">{{ a.action }}</p>{% endif %}
+      </div>
+      <div class="ops-alert-actions">
+        {% if a.href %}<a class="btn btn-sm" href="{{ a.href }}">Open</a>{% endif %}
+        <button type="button" class="btn btn-sm" data-ack-alert="{{ a.id }}">Dismiss</button>
+      </div>
+    </div>
+    {% else %}
+    <div class="empty-state empty-state-ok" id="alerts-empty">
+      No active alerts. Pipeline conditions look nominal.
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+{# —— Host metrics —— #}
 <div class="metrics-bar">
-  <div class="metric-card">
+  <div class="metric-card {{ metric_classes.cpu }}">
     <div class="metric-label">CPU</div>
     <div class="metric-value" id="cpu-value">{{ metrics.cpu_percent }}%</div>
   </div>
-  <div class="metric-card">
+  <div class="metric-card {{ metric_classes.ram }}">
     <div class="metric-label">Memory</div>
     <div class="metric-value" id="ram-value">{{ metrics.ram_percent }}%</div>
     <div class="metric-detail" id="ram-detail">{{ metrics.ram_used_gb }} / {{ metrics.ram_total_gb }} GB</div>
   </div>
-  <div class="metric-card">
+  <div class="metric-card {{ metric_classes.disk }}">
     <div class="metric-label">Disk</div>
     <div class="metric-value" id="disk-value">{{ metrics.disk_percent }}%</div>
   </div>
-  <div class="metric-card">
+  <div class="metric-card {{ metric_classes.temp }}">
     <div class="metric-label">Uptime</div>
     <div class="metric-value" id="uptime-value">{{ metrics.uptime }}</div>
     {% if metrics.temp_c %}<div class="metric-detail" id="temp-detail">{{ '%.1f'|format(metrics.temp_c) }} °C</div>{% endif %}
   </div>
 </div>
 
+{# —— Hearing —— #}
 <div class="section-title">Hearing activity</div>
 <div class="gauge-strip">
   <div class="gauge {{ gauges.gauge_mpm_class | default('') }}" id="gauge-mpm">
@@ -58,88 +105,91 @@
   </div>
 </div>
 
-<div class="section-title">Spectrum waterfall</div>
-<div class="waterfall-wrap">
-  <canvas id="waterfall-canvas" aria-label="RF spectrum waterfall"></canvas>
-  <div class="waterfall-axis">
-    <span id="wf-fmin">— MHz</span>
-    <span id="wf-fmax">— MHz</span>
-  </div>
-  <div class="waterfall-note" id="wf-note" hidden></div>
-</div>
+<div class="dash-columns">
+  <div class="dash-col">
+    <div class="section-title">Operational stats</div>
+    <div class="cards-grid cards-grid-stats">
+      <div class="card card-static">
+        <div class="card-title">Observed</div>
+        <div class="metric-value" id="stat-observed">{{ stats.observed | default(0) }}</div>
+        <div class="card-desc">Radios seen by the decoder</div>
+      </div>
+      <div class="card card-static">
+        <div class="card-title">Approved</div>
+        <div class="metric-value" id="stat-approved">{{ stats.approved | default(0) }}</div>
+        <div class="card-desc">Allowlisted for forwarding</div>
+      </div>
+      <div class="card card-static">
+        <div class="card-title">Total hears</div>
+        <div class="metric-value" id="stat-total-hears">{{ stats.total_hears | default(0) }}</div>
+        <div class="card-desc">Location reports received</div>
+      </div>
+      <div class="card card-static">
+        <div class="card-title">Forwarded</div>
+        <div class="metric-value" id="stat-forwarded">{{ stats.forwarded | default(0) }}</div>
+        <div class="card-desc">CoT events sent to TAK</div>
+      </div>
+      <div class="card card-static">
+        <div class="card-title">Blocked</div>
+        <div class="metric-value" id="stat-blocked">{{ stats.blocked | default(0) }}</div>
+        <div class="card-desc">Denied by policy</div>
+      </div>
+      <div class="card card-static">
+        <div class="card-title">Heard (1h)</div>
+        <div class="metric-value" id="stat-heard-1h">{{ stats.heard_1h | default(0) }}</div>
+        <div class="card-desc">Unique radios in the last hour</div>
+      </div>
+    </div>
 
-<div class="section-title">Recent authorized units</div>
-<div id="mini-map"></div>
+    <div class="section-title">Recent activity</div>
+    <div class="ops-feed" id="ops-feed" aria-live="polite">
+      {% for e in recent_ops | default([]) %}
+      <div class="ops-feed-line">
+        <span class="dim">{{ e.type or 'event' }}</span>
+        {% if e.title %}{{ e.title }}{% elif e.radio_id %}{{ e.protocol or '' }} {{ e.radio_id }}{% endif %}
+        {% if e.detail %}<span class="dim"> — {{ e.detail }}</span>{% elif e.reason %}<span class="dim"> — {{ e.reason }}</span>{% endif %}
+      </div>
+      {% else %}
+      <div class="empty-state">No significant events yet. Decoder GPS, encrypted calls, and TAK forwards will appear here.</div>
+      {% endfor %}
+    </div>
+  </div>
 
-<div class="section-title">Operational stats</div>
-<div class="cards-grid">
-  <div class="card card-static">
-    <div class="card-title">Observed</div>
-    <div class="metric-value" id="stat-observed">{{ stats.observed | default(0) }}</div>
-    <div class="card-desc">Radios seen by the decoder</div>
-  </div>
-  <div class="card card-static">
-    <div class="card-title">Approved</div>
-    <div class="metric-value" id="stat-approved">{{ stats.approved | default(0) }}</div>
-    <div class="card-desc">Allowlisted for forwarding</div>
-  </div>
-  <div class="card card-static">
-    <div class="card-title">Total hears</div>
-    <div class="metric-value" id="stat-total-hears">{{ stats.total_hears | default(0) }}</div>
-    <div class="card-desc">Location reports received</div>
-  </div>
-  <div class="card card-static">
-    <div class="card-title">Forwarded</div>
-    <div class="metric-value" id="stat-forwarded">{{ stats.forwarded | default(0) }}</div>
-    <div class="card-desc">CoT events sent to TAK</div>
-  </div>
-  <div class="card card-static">
-    <div class="card-title">Blocked</div>
-    <div class="metric-value" id="stat-blocked">{{ stats.blocked | default(0) }}</div>
-    <div class="card-desc">Denied by policy</div>
-  </div>
-  <div class="card card-static">
-    <div class="card-title">Heard (1h)</div>
-    <div class="metric-value" id="stat-heard-1h">{{ stats.heard_1h | default(0) }}</div>
-    <div class="card-desc">Unique radios in the last hour</div>
-  </div>
-</div>
+  <div class="dash-col">
+    <details class="panel-collapse" id="waterfall-panel" open>
+      <summary class="section-title">Spectrum waterfall</summary>
+      <div class="waterfall-wrap">
+        <canvas id="waterfall-canvas" aria-label="RF spectrum waterfall"></canvas>
+        <div class="waterfall-axis">
+          <span id="wf-fmin">— MHz</span>
+          <span id="wf-fmax">— MHz</span>
+        </div>
+        <div class="waterfall-note" id="wf-note" hidden></div>
+      </div>
+    </details>
 
-<div class="cards-grid">
-  <a class="card" href="{% if sdr_installed %}/modules/sdr{% else %}/marketplace{% endif %}">
-    <div class="card-title">SDR</div>
-    <div class="card-desc">{{ sdr_summary }}</div>
-    <div class="status-pill {{ sdr_status_class }}"><span class="dot"></span>{{ sdr_status }}</div>
-  </a>
-  <a class="card" href="/modules/sdr">
-    <div class="card-title">Decoder</div>
-    <div class="card-desc">{{ decoder_summary }}</div>
-    <div class="status-pill {{ decoder_status_class }}"><span class="dot"></span>{{ decoder_status }}</div>
-  </a>
-  <a class="card" href="/tak">
-    <div class="card-title">TAK</div>
-    <div class="card-desc">{{ tak_summary }}</div>
-    <div class="status-pill {{ tak_status_class }}"><span class="dot"></span>{{ tak_status }}</div>
-  </a>
+    <div class="section-title">Authorized locations
+      <span class="dim" id="latest-count">({{ latest_count | default(0) }})</span>
+    </div>
+    {% if latest_count | default(0) == 0 %}
+    <div class="empty-state" id="mini-map-empty">
+      No GPS positions yet.
+      <a href="/units">Approve units</a> and ensure the decoder is running.
+    </div>
+    {% endif %}
+    <div id="mini-map" {% if latest_count | default(0) == 0 %}hidden{% endif %}></div>
+  </div>
 </div>
 
 {% if checklist %}
-<div class="section-title">Getting started</div>
+<div class="section-title">Setup remaining</div>
 <div class="cards-grid">
   {% for item in checklist %}
-  {% if item.href and not item.done %}
   <a class="card" href="{{ item.href }}">
     <div class="card-title">{{ item.label }}</div>
     <div class="card-desc">Action needed to finish setup</div>
     <div class="status-pill status-warn"><span class="dot"></span>To do</div>
   </a>
-  {% else %}
-  <div class="card card-static">
-    <div class="card-title">{{ item.label }}</div>
-    <div class="card-desc">Setup step complete</div>
-    <div class="status-pill status-running"><span class="dot"></span>Done</div>
-  </div>
-  {% endif %}
   {% endfor %}
 </div>
 {% endif %}
@@ -160,7 +210,9 @@
 
   var points = {{ latest_json | default('[]') | safe }};
   var ccMarkers = {{ cc_markers_hz | default('[]') | safe }};
-  var map = RadioTakMap.create('mini-map', { zoom: 4 });
+  var mapEl = document.getElementById('mini-map');
+  var mapEmpty = document.getElementById('mini-map-empty');
+  var map = (mapEl && !mapEl.hidden) ? RadioTakMap.create('mini-map', { zoom: 4 }) : null;
   var markerGroup = null;
   if (map) {
     map.watchTheme();
@@ -185,6 +237,68 @@
     if (cls) el.classList.add(cls);
   }
 
+  function setMetricClass(el, cls) {
+    if (!el) return;
+    el.classList.remove('ok', 'warn', 'bad');
+    if (cls) el.classList.add(cls);
+  }
+
+  function renderAlerts(alerts) {
+    var list = document.getElementById('alert-list');
+    if (!list) return;
+    if (!alerts || !alerts.length) {
+      list.innerHTML = '<div class="empty-state empty-state-ok" id="alerts-empty">No active alerts. Pipeline conditions look nominal.</div>';
+      return;
+    }
+    list.innerHTML = alerts.map(function (a) {
+      return (
+        '<div class="ops-alert severity-' + a.severity + '" data-alert-id="' + a.id + '">' +
+        '<div class="ops-alert-main">' +
+        '<span class="ops-alert-sev">' + a.severity + '</span> ' +
+        '<span class="ops-alert-source">' + (a.source || '') + '</span> ' +
+        '<strong class="ops-alert-title">' + (a.title || '') + '</strong>' +
+        '<p class="ops-alert-detail">' + (a.detail || '') + '</p>' +
+        (a.action ? '<p class="ops-alert-action">' + a.action + '</p>' : '') +
+        '</div><div class="ops-alert-actions">' +
+        (a.href ? '<a class="btn btn-sm" href="' + a.href + '">Open</a>' : '') +
+        '<button type="button" class="btn btn-sm" data-ack-alert="' + a.id + '">Dismiss</button>' +
+        '</div></div>'
+      );
+    }).join('');
+  }
+
+  function renderOps(rows) {
+    var feed = document.getElementById('ops-feed');
+    if (!feed || !rows) return;
+    if (!rows.length) return;
+    feed.innerHTML = rows.map(function (e) {
+      var main = e.title || ((e.protocol || '') + ' ' + (e.radio_id || '')).trim() || '';
+      var extra = e.detail || e.reason || '';
+      return '<div class="ops-feed-line"><span class="dim">' + (e.type || 'event') + '</span> ' +
+        main + (extra ? '<span class="dim"> — ' + extra + '</span>' : '') + '</div>';
+    }).join('');
+  }
+
+  function renderPipeline(steps) {
+    if (!steps) return;
+    steps.forEach(function (step) {
+      var el = document.querySelector('[data-pipeline="' + step.key + '"]');
+      if (!el) return;
+      var pill = el.querySelector('.status-pill');
+      var state = el.querySelector('[data-pipeline-state]');
+      var detail = el.querySelector('[data-pipeline-detail]');
+      if (pill) {
+        pill.className = 'status-pill ' + (step.class || 'status-idle');
+        if (!pill.querySelector('.dot')) {
+          pill.insertAdjacentHTML('afterbegin', '<span class="dot"></span>');
+        }
+      }
+      if (state) state.textContent = step.state;
+      if (detail) detail.textContent = step.detail;
+      if (step.href) el.setAttribute('href', step.href);
+    });
+  }
+
   function updateStatus(d) {
     if (d.metrics) {
       var m = d.metrics;
@@ -199,6 +313,11 @@
       var ramDetail = document.getElementById('ram-detail');
       if (ramDetail && m.ram_used_gb != null) {
         ramDetail.textContent = m.ram_used_gb + ' / ' + m.ram_total_gb + ' GB';
+      }
+      if (d.metric_classes) {
+        setMetricClass(cpu && cpu.closest('.metric-card'), d.metric_classes.cpu);
+        setMetricClass(ram && ram.closest('.metric-card'), d.metric_classes.ram);
+        setMetricClass(disk && disk.closest('.metric-card'), d.metric_classes.disk);
       }
     }
     if (d.gauges) {
@@ -230,9 +349,21 @@
         if (el && s[k] != null) el.textContent = s[k];
       });
     }
-    if (d.latest && map) {
-      markerGroup = map.plotPoints(d.latest, markerGroup);
+    if (d.alerts) renderAlerts(d.alerts);
+    if (d.pipeline) renderPipeline(d.pipeline);
+    if (d.recent_ops) renderOps(d.recent_ops);
+    if (typeof window.RadioTakSetAlertBadge === 'function' && d.alert_counts) {
+      window.RadioTakSetAlertBadge(d.alert_counts.total || 0);
     }
+  }
+
+  function ensureMap() {
+    if (map || !mapEl) return map;
+    mapEl.hidden = false;
+    if (mapEmpty) mapEmpty.style.display = 'none';
+    map = RadioTakMap.create('mini-map', { zoom: 4 });
+    if (map) map.watchTheme();
+    return map;
   }
 
   async function poll() {
@@ -241,14 +372,37 @@
       if (r.ok) updateStatus(await r.json());
     } catch (e) { /* ignore */ }
     try {
-      if (map) {
-        var lr = await fetch('/api/v1/locations/latest');
-        if (lr.ok) {
-          var pts = await lr.json();
-          markerGroup = map.plotPoints(pts, markerGroup);
+      var lr = await fetch('/api/v1/locations/latest');
+      if (lr.ok) {
+        var pts = await lr.json();
+        var countEl = document.getElementById('latest-count');
+        if (countEl) countEl.textContent = '(' + pts.length + ')';
+        if (pts.length) {
+          ensureMap();
+          if (map) markerGroup = map.plotPoints(pts, markerGroup);
         }
       }
     } catch (e) { /* ignore */ }
+  }
+
+  document.addEventListener('click', function (ev) {
+    var btn = ev.target.closest('[data-ack-alert]');
+    if (!btn) return;
+    var id = btn.getAttribute('data-ack-alert');
+    var csrf = document.querySelector('meta[name="csrf-token"]');
+    var fd = new FormData();
+    fd.append('csrf_token', csrf ? csrf.content : '');
+    fetch('/api/v1/alerts/' + encodeURIComponent(id) + '/ack', {
+      method: 'POST',
+      body: fd,
+      credentials: 'same-origin'
+    }).then(function (r) { return r.ok ? poll() : null; }).catch(function () {});
+  });
+
+  // Collapse waterfall on narrow screens by default
+  var wfPanel = document.getElementById('waterfall-panel');
+  if (wfPanel && window.matchMedia('(max-width: 700px)').matches) {
+    wfPanel.open = false;
   }
 
   poll();

@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="csrf-token" content="{{ csrf_token }}"/>
   <title>{% block title %}{{ title or 'RadioTAK' }}{% endblock %}</title>
   <link rel="icon" href="{{ product_logo_url or '/static/img/logo.png' }}"/>
   <link rel="stylesheet" href="/static/fonts/fonts.css"/>
@@ -16,7 +17,7 @@
   </style>
   {% block head %}{% endblock %}
 </head>
-<body>
+<body class="{% if hide_sidebar %}no-sidebar{% endif %}">
   <a class="skip-link" href="#main-content">Skip to content</a>
   {% if banner_enabled and banner_display %}
   <div class="custom-banner" style="font-family: {{ banner_font_css }}; color: {{ banner_color }}; font-size: {{ banner_size_px }};">
@@ -34,11 +35,11 @@
   {% endif %}
   <div class="top-bar"></div>
   {% if not hide_sidebar %}
-  <button type="button" class="sidebar-toggle" id="sidebar-toggle" aria-label="Open navigation">
+  <button type="button" class="sidebar-toggle" id="sidebar-toggle" aria-label="Open navigation" aria-expanded="false" aria-controls="app-sidebar">
     <svg width="20" height="20"><use href="/static/icons.svg#icon-menu"/></svg>
   </button>
   <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
-  <aside class="sidebar" aria-label="Main">
+  <aside class="sidebar" id="app-sidebar" aria-label="Main">
     <div class="sidebar-logo">
       <div class="sidebar-logo-row">
         <img class="product-logo" src="{{ product_logo_url or '/static/img/logo.png' }}" alt="RadioTAK"/>
@@ -54,20 +55,21 @@
         </div>
       </div>
     </div>
+
+    <div class="nav-section-label">Operate</div>
     <a class="nav-item {% if nav=='dashboard' %}active{% endif %}" href="/" title="Console" aria-label="Console">
       <span class="nav-icon"><svg><use href="/static/icons.svg#icon-cpu"/></svg></span><span class="label">Console</span>
     </a>
-    <a class="nav-item {% if nav=='marketplace' %}active{% endif %}" href="/marketplace" title="Marketplace" aria-label="Marketplace">
-      <span class="nav-icon"><svg><use href="/static/icons.svg#icon-grid"/></svg></span><span class="label">Marketplace</span>
-    </a>
-    <a class="nav-item {% if nav=='tak' %}active{% endif %}" href="/tak" title="TAK Servers" aria-label="TAK Servers">
-      <span class="nav-icon"><svg><use href="/static/icons.svg#icon-exchange"/></svg></span><span class="label">TAK Servers</span>
-    </a>
-    <a class="nav-item {% if nav=='units' %}active{% endif %}" href="/units" title="Units" aria-label="Units">
-      <span class="nav-icon"><svg><use href="/static/icons.svg#icon-users"/></svg></span><span class="label">Units</span>
+    <a class="nav-item {% if nav=='alerts' %}active{% endif %}" href="/alerts" title="Alerts" aria-label="Alerts">
+      <span class="nav-icon"><svg><use href="/static/icons.svg#icon-alert"/></svg></span>
+      <span class="label">Alerts</span>
+      <span class="nav-badge" id="nav-alert-badge" hidden>0</span>
     </a>
     <a class="nav-item {% if nav=='events' %}active{% endif %}" href="/events" title="Live Events" aria-label="Live Events">
       <span class="nav-icon"><svg><use href="/static/icons.svg#icon-activity"/></svg></span><span class="label">Live Events</span>
+    </a>
+    <a class="nav-item {% if nav=='units' %}active{% endif %}" href="/units" title="Units" aria-label="Units">
+      <span class="nav-icon"><svg><use href="/static/icons.svg#icon-users"/></svg></span><span class="label">Units</span>
     </a>
     <a class="nav-item {% if nav=='map' %}active{% endif %}" href="/map" title="Map" aria-label="Map">
       <span class="nav-icon"><svg><use href="/static/icons.svg#icon-map-pin"/></svg></span><span class="label">Map</span>
@@ -77,8 +79,18 @@
       <span class="nav-icon"><svg><use href="/static/icons.svg#icon-radio"/></svg></span><span class="label">SDR</span>
     </a>
     {% endif %}
+
+    <div class="nav-section-label">Connect</div>
+    <a class="nav-item {% if nav=='tak' %}active{% endif %}" href="/tak" title="TAK Servers" aria-label="TAK Servers">
+      <span class="nav-icon"><svg><use href="/static/icons.svg#icon-exchange"/></svg></span><span class="label">TAK Servers</span>
+    </a>
     <a class="nav-item {% if nav=='tailscale' %}active{% endif %}" href="/tailscale" title="Tailscale" aria-label="Tailscale">
       <span class="nav-icon"><svg><use href="/static/icons.svg#icon-cloud"/></svg></span><span class="label">Tailscale</span>
+    </a>
+
+    <div class="nav-section-label">Admin</div>
+    <a class="nav-item {% if nav=='marketplace' %}active{% endif %}" href="/marketplace" title="Marketplace" aria-label="Marketplace">
+      <span class="nav-icon"><svg><use href="/static/icons.svg#icon-grid"/></svg></span><span class="label">Marketplace</span>
     </a>
     <a class="nav-item {% if nav=='system' %}active{% endif %}" href="/system" title="System" aria-label="System">
       <span class="nav-icon"><svg><use href="/static/icons.svg#icon-server"/></svg></span><span class="label">System</span>
@@ -97,6 +109,30 @@
       <span class="nav-icon"><svg><use href="/static/icons.svg#icon-power"/></svg></span><span class="label">Logout</span>
     </a>
   </aside>
+
+  <nav class="bottom-nav" aria-label="Primary">
+    <a class="bottom-nav-item {% if nav=='dashboard' %}active{% endif %}" href="/">
+      <svg><use href="/static/icons.svg#icon-cpu"/></svg>
+      <span>Console</span>
+    </a>
+    <a class="bottom-nav-item {% if nav=='alerts' %}active{% endif %}" href="/alerts">
+      <svg><use href="/static/icons.svg#icon-alert"/></svg>
+      <span>Alerts</span>
+      <span class="nav-badge bottom-alert-badge" id="bottom-alert-badge" hidden>0</span>
+    </a>
+    <a class="bottom-nav-item {% if nav=='events' %}active{% endif %}" href="/events">
+      <svg><use href="/static/icons.svg#icon-activity"/></svg>
+      <span>Events</span>
+    </a>
+    <a class="bottom-nav-item {% if nav=='map' %}active{% endif %}" href="/map">
+      <svg><use href="/static/icons.svg#icon-map-pin"/></svg>
+      <span>Map</span>
+    </a>
+    <button type="button" class="bottom-nav-item" id="bottom-nav-more" aria-label="More navigation">
+      <svg><use href="/static/icons.svg#icon-menu"/></svg>
+      <span>More</span>
+    </button>
+  </nav>
   {% endif %}
   <main class="main" id="main-content">
     {% block content %}{% endblock %}

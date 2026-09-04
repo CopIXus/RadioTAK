@@ -25,7 +25,7 @@
     {% if e.reason %}<span class="{% if e.type=='blocked' %}bad{% elif e.type=='encrypted' %}warn{% elif e.type=='queued' %}ok{% else %}dim{% endif %}">{{ e.reason }}</span>{% endif %}
   </div>
   {% else %}
-  <div class="event-line dim">No events yet. Add a radio system on the SDR page and start the decoder. Encrypted talkgroups show up here even when the radio is not sending GPS.</div>
+  <div class="empty-state">No events yet. <a href="/modules/sdr">Add a radio system on the SDR page</a> and start the decoder. Encrypted talkgroups show up here even when the radio is not sending GPS.</div>
   {% endfor %}
 </div>
 {% endblock %}

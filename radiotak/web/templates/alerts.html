@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Alerts — {{ title or 'RadioTAK' }}{% endblock %}
+{% block content %}
+{% set alerts = alerts | default([]) %}
+{% set alert_counts = alert_counts | default({}) %}
+
+<div class="header">
+  <div>
+    <div class="header-title">Alerts</div>
+    <div class="header-subtitle">Operational conditions that need attention · not raw debug logs</div>
+  </div>
+  <div class="header-actions">
+    <a class="btn btn-sm" href="/">Console</a>
+    <a class="btn btn-sm" href="/events">Live events</a>
+    <a class="btn btn-sm" href="/system">System</a>
+  </div>
+</div>
+
+<div class="cards-grid cards-grid-stats" style="margin-bottom:20px">
+  <div class="card card-static">
+    <div class="card-title">Critical</div>
+    <div class="metric-value{% if alert_counts.critical %} bad{% endif %}">{{ alert_counts.critical | default(0) }}</div>
+  </div>
+  <div class="card card-static">
+    <div class="card-title">Error</div>
+    <div class="metric-value{% if alert_counts.error %} bad{% endif %}">{{ alert_counts.error | default(0) }}</div>
+  </div>
+  <div class="card card-static">
+    <div class="card-title">Warning</div>
+    <div class="metric-value{% if alert_counts.warning %} warn{% endif %}">{{ alert_counts.warning | default(0) }}</div>
+  </div>
+  <div class="card card-static">
+    <div class="card-title">Info</div>
+    <div class="metric-value">{{ alert_counts.info | default(0) }}</div>
+  </div>
+</div>
+
+<div class="alert-list">
+{% for a in alerts %}
+  <div class="ops-alert severity-{{ a.severity }}{% if a.acked %} is-acked{% endif %}" data-alert-id="{{ a.id }}">
+    <div class="ops-alert-main">
+      <span class="ops-alert-sev">{{ a.severity }}</span>
+      <span class="ops-alert-source">{{ a.source }}</span>
+      <strong class="ops-alert-title">{{ a.title }}</strong>
+      {% if a.acked %}<span class="badge">Dismissed</span>{% endif %}
+      <p class="ops-alert-detail">{{ a.detail }}</p>
+      {% if a.action %}<p class="ops-alert-action">{{ a.action }}</p>{% endif %}
+    </div>
+    <div class="ops-alert-actions">
+      {% if a.href %}<a class="btn btn-sm" href="{{ a.href }}">Open</a>{% endif %}
+      {% if not a.acked %}
+      <form method="post" action="/alerts/{{ a.id }}/ack">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+        <button class="btn btn-sm" type="submit">Dismiss</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+{% else %}
+  <div class="empty-state empty-state-ok">No alerts. Host, SDR, decoder, and TAK conditions look clear.</div>
+{% endfor %}
+</div>
+
+<div class="section-title" style="margin-top:28px">Recent operational events</div>
+<div class="ops-feed">
+{% for e in recent_ops | default([]) %}
+  <div class="ops-feed-line">
+    <span class="dim">{{ e.type or 'event' }}</span>
+    {% if e.title %}{{ e.title }}{% elif e.radio_id %}{{ e.protocol or '' }} {{ e.radio_id }}{% endif %}
+    {% if e.detail %}<span class="dim"> — {{ e.detail }}</span>{% elif e.reason %}<span class="dim"> — {{ e.reason }}</span>{% endif %}
+  </div>
+{% else %}
+  <div class="empty-state">No recent operational events. Detailed decoder traffic stays on Live Events.</div>
+{% endfor %}
+</div>
+{% endblock %}

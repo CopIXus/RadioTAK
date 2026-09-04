@@ -24,6 +24,7 @@
   </div>
 
   <div class="tab-panel active" id="tab-approved" data-panel="tab-approved">
+    <div class="table-wrap table-desktop">
     <table class="table" id="table-approved">
       <thead>
         <tr><th>Radio ID</th><th>Callsign</th><th>Agency</th><th>Status</th><th>System</th><th></th></tr>
@@ -56,9 +57,37 @@
       {% endfor %}
       </tbody>
     </table>
+    </div>
+    <div class="unit-cards" id="cards-approved">
+      {% for u in approved %}
+      <div class="unit-card" data-search="{{ u.radio_id }} {{ u.callsign or '' }} {{ u.agency or '' }} {{ u.system_id or '' }}">
+        <div class="unit-card-top">
+          <div class="unit-card-id">{{ u.radio_id }}</div>
+          <a class="btn btn-sm" href="/units/{{ u.id }}">Edit</a>
+        </div>
+        <div class="unit-card-meta">
+          <span>{{ u.callsign or 'No callsign' }}{% if u.agency %} · {{ u.agency }}{% endif %}</span>
+          <span>System {{ u.system_id or '—' }}</span>
+          <span>
+            {% if u.last_encrypted %}
+            <span class="badge badge-encrypted">Encrypted{% if u.last_talkgroup_id %} TG {{ u.last_talkgroup_id }}{% endif %}</span>
+            {% endif %}
+            {% if u.has_gps %}
+            <span class="badge badge-gps">GPS</span>
+            {% elif not u.last_encrypted %}
+            <span class="dim">No GPS yet</span>
+            {% endif %}
+          </span>
+        </div>
+      </div>
+      {% else %}
+      <div class="empty-state">No approved units yet. Approve observed radios or add one manually.</div>
+      {% endfor %}
+    </div>
   </div>
 
   <div class="tab-panel" id="tab-observed" data-panel="tab-observed">
+    <div class="table-wrap table-desktop">
     <table class="table" id="table-observed">
       <thead>
         <tr><th>Radio ID</th><th>Count</th><th>Last seen</th><th>Status</th><th>System</th><th></th></tr>
@@ -95,6 +124,34 @@
       {% endfor %}
       </tbody>
     </table>
+    </div>
+    <div class="unit-cards" id="cards-observed">
+      {% for u in observed %}
+      <div class="unit-card" data-search="{{ u.radio_id }} {{ u.system_id or '' }}">
+        <div class="unit-card-top">
+          <div class="unit-card-id">{{ u.radio_id }}</div>
+          <span class="dim">×{{ u.observation_count }}</span>
+        </div>
+        <div class="unit-card-meta">
+          <span>Last {{ u.last_observed_at or '—' }}</span>
+          <span>System {{ u.system_id or '—' }}</span>
+          <span>
+            {% if u.last_encrypted %}<span class="badge badge-encrypted">Encrypted</span>{% endif %}
+            {% if u.has_gps %}<span class="badge badge-gps">GPS</span>{% endif %}
+          </span>
+        </div>
+        <div class="unit-card-actions">
+          <form method="post" action="/units/{{ u.id }}/approve">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+            <button class="btn btn-sm btn-primary" type="submit">Approve</button>
+          </form>
+          <a class="btn btn-sm" href="/units/{{ u.id }}">Edit</a>
+        </div>
+      </div>
+      {% else %}
+      <div class="empty-state">No unknown radios observed yet. Start the decoder or replay a fixture.</div>
+      {% endfor %}
+    </div>
   </div>
 
   <div class="tab-panel" id="tab-add" data-panel="tab-add">

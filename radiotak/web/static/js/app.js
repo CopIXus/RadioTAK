@@ -187,12 +187,50 @@
   function wireSidebar() {
     var toggle = qs('#sidebar-toggle');
     var backdrop = qs('#sidebar-backdrop');
-    function open() { document.body.classList.add('sidebar-open'); }
-    function close() { document.body.classList.remove('sidebar-open'); }
-    if (toggle) toggle.addEventListener('click', function () {
-      document.body.classList.toggle('sidebar-open');
-    });
+    var more = qs('#bottom-nav-more');
+    function open() {
+      document.body.classList.add('sidebar-open');
+      if (toggle) toggle.setAttribute('aria-expanded', 'true');
+    }
+    function close() {
+      document.body.classList.remove('sidebar-open');
+      if (toggle) toggle.setAttribute('aria-expanded', 'false');
+    }
+    function toggleSidebar() {
+      if (document.body.classList.contains('sidebar-open')) close();
+      else open();
+    }
+    if (toggle) toggle.addEventListener('click', toggleSidebar);
+    if (more) more.addEventListener('click', open);
     if (backdrop) backdrop.addEventListener('click', close);
+    qsa('.sidebar .nav-item').forEach(function (link) {
+      link.addEventListener('click', close);
+    });
+  }
+
+  window.RadioTakSetAlertBadge = function (count) {
+    var n = Number(count) || 0;
+    ['#nav-alert-badge', '#bottom-alert-badge'].forEach(function (sel) {
+      var el = qs(sel);
+      if (!el) return;
+      if (n > 0) {
+        el.hidden = false;
+        el.textContent = n > 99 ? '99+' : String(n);
+      } else {
+        el.hidden = true;
+      }
+    });
+  };
+
+  function pollAlertsBadge() {
+    if (!qs('#nav-alert-badge') && !qs('#bottom-alert-badge')) return;
+    fetch('/api/v1/alerts', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!data || !data.counts) return;
+        window.RadioTakSetAlertBadge(data.counts.total || 0);
+      })
+      .catch(function () { /* ignore */ });
   }
 
   function wireTabs() {
@@ -254,7 +292,9 @@
     wireSidebar();
     wireTabs();
     pollVersion();
+    pollAlertsBadge();
     setInterval(pollVersion, 120000);
+    setInterval(pollAlertsBadge, 15000);
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/update-sw.js', { scope: '/' }).catch(function () { /* private mode / http */ });
     }

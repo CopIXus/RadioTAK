@@ -60,6 +60,13 @@ from radiotak.services import retention as retention_svc
 from radiotak.services import tailscale as tailscale_svc
 from radiotak.services import tak_runtime
 from radiotak.services import updater as updater_svc
+from radiotak.services.alerts import (
+    alert_store,
+    alert_summary,
+    collect_alerts,
+    metric_classes,
+    recent_ops_events,
+)
 from radiotak.services.audit import recent_audit, write_audit
 from radiotak.services.branding import (
     favicon_path,
@@ -422,6 +429,125 @@ async def logout():
 # ----- Dashboard -----
 
 
+def _tak_alert_rows(servers: list[TakServer]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for s in servers:
+        cert = s.certificate_not_after
+        rows.append(
+            {
+                "id": s.id,
+                "name": s.name,
+                "enabled": s.enabled,
+                "status": s.status,
+                "last_error": s.last_error,
+                "certificate_not_after": cert.isoformat() if cert else None,
+            }
+        )
+    return rows
+
+
+def _pipeline_status(
+    *,
+    sdr_on: bool,
+    decoder_on: bool,
+    has_radio_system: bool,
+    stats: dict[str, Any],
+    servers: list[TakServer],
+    connected: bool,
+) -> list[dict[str, Any]]:
+    if not sdr_on:
+        sdr = {
+            "key": "sdr",
+            "label": "SDR",
+            "state": "Not installed",
+            "class": "status-idle",
+            "href": "/marketplace",
+            "detail": "Install from Marketplace",
+        }
+    else:
+        sdr = {
+            "key": "sdr",
+            "label": "SDR",
+            "state": "Ready",
+            "class": "status-running",
+            "href": "/modules/sdr",
+            "detail": "Module installed",
+        }
+    if not sdr_on:
+        decoder = {
+            "key": "decoder",
+            "label": "Decoder",
+            "state": "Unavailable",
+            "class": "status-idle",
+            "href": "/marketplace",
+            "detail": "Needs SDR module",
+        }
+    elif decoder_on:
+        decoder = {
+            "key": "decoder",
+            "label": "Decoder",
+            "state": "Running",
+            "class": "status-running",
+            "href": "/modules/sdr",
+            "detail": "SDRTrunk active",
+        }
+    elif has_radio_system:
+        decoder = {
+            "key": "decoder",
+            "label": "Decoder",
+            "state": "Stopped",
+            "class": "status-stopped",
+            "href": "/modules/sdr",
+            "detail": "Start on SDR page",
+        }
+    else:
+        decoder = {
+            "key": "decoder",
+            "label": "Decoder",
+            "state": "Idle",
+            "class": "status-idle",
+            "href": "/modules/sdr",
+            "detail": "Configure a radio system",
+        }
+    hears = int(stats.get("total_hears") or 0)
+    locations = {
+        "key": "locations",
+        "label": "Locations",
+        "state": "Active" if hears > 0 else "Waiting",
+        "class": "status-running" if hears > 0 else "status-idle",
+        "href": "/units",
+        "detail": f"{stats.get('approved', 0)} approved · {stats.get('observed', 0)} observed",
+    }
+    if connected:
+        tak = {
+            "key": "tak",
+            "label": "TAK",
+            "state": "Connected",
+            "class": "status-running",
+            "href": "/tak",
+            "detail": f"{len(servers)} server(s)",
+        }
+    elif servers:
+        tak = {
+            "key": "tak",
+            "label": "TAK",
+            "state": "Configured",
+            "class": "status-warn",
+            "href": "/tak",
+            "detail": f"{len(servers)} server(s) · not connected",
+        }
+    else:
+        tak = {
+            "key": "tak",
+            "label": "TAK",
+            "state": "Not configured",
+            "class": "status-idle",
+            "href": "/tak",
+            "detail": "Add a TAK server",
+        }
+    return [sdr, decoder, locations, tak]
+
+
 @pages.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, _user=Depends(require_auth)):
     Session = get_session_factory()
@@ -442,7 +568,17 @@ async def dashboard(request: Request, _user=Depends(require_auth)):
     sdr_on = modules_svc.is_installed("sdr_location_gateway")
     decoder_on = bool(sdr_on and get_platform().service_active("sdrtrunk"))
     connected = any(s.status == "connected" for s in servers)
-    tak_status = "CONNECTED" if connected else ("CONFIGURED" if servers else "NOT CONFIGURED")
+    metrics = get_platform().system_info()
+    gauges = hearing_gauges.snapshot()
+    alerts = collect_alerts(
+        metrics=metrics,
+        gauges=gauges,
+        sdr_installed=sdr_on,
+        decoder_running=decoder_on,
+        has_radio_system=has_radio_system,
+        tak_servers=_tak_alert_rows(servers),
+        stats=stats,
+    )
     checklist = _build_checklist(
         has_tak_server=bool(servers),
         has_enrolled_cert=has_enrolled_cert,
@@ -451,36 +587,96 @@ async def dashboard(request: Request, _user=Depends(require_auth)):
         has_radio_system=has_radio_system,
         decoder_running=decoder_on,
     )
+    incomplete = [c for c in checklist if not c["done"]]
+    decoder_href = "/modules/sdr" if sdr_on else "/marketplace"
     ctx = base_context(
         request,
         nav="dashboard",
-        metrics=get_platform().system_info(),
+        metrics=metrics,
+        metric_classes=metric_classes(metrics),
         stats=stats,
         counts=stats,
-        gauges=hearing_gauges.snapshot(),
-        checklist=checklist,
+        gauges=gauges,
+        checklist=incomplete,
+        alerts=alerts,
+        alert_counts=alert_summary(alerts),
+        recent_ops=recent_ops_events(12),
+        pipeline=_pipeline_status(
+            sdr_on=sdr_on,
+            decoder_on=decoder_on,
+            has_radio_system=has_radio_system,
+            stats=stats,
+            servers=servers,
+            connected=connected,
+        ),
         latest_json=json.dumps(latest),
+        latest_count=len(latest),
         cc_markers_hz=json.dumps(cc_markers),
         novnc_enabled=bool(novnc.get("enabled")),
         novnc_url=novnc.get("url") or "/novnc/",
         sdr_installed=sdr_on,
+        sdr_href="/modules/sdr" if sdr_on else "/marketplace",
+        decoder_href=decoder_href,
         sdr_summary="Open SDR to set frequencies and start the decoder"
         if sdr_on
         else "Install SDR Location Gateway from Marketplace",
-        sdr_status="READY" if sdr_on else "NOT INSTALLED",
+        sdr_status="Ready" if sdr_on else "Not installed",
         sdr_status_class="status-running" if sdr_on else "status-idle",
         decoder_summary="Listening via SDRTrunk"
         if decoder_on
         else (
             "Configure frequencies on the SDR page" if sdr_on else "Install the SDR module first"
         ),
-        decoder_status="RUNNING" if decoder_on else "IDLE",
+        decoder_status="Running" if decoder_on else "Idle",
         decoder_status_class="status-running" if decoder_on else "status-idle",
         tak_summary=f"{len(servers)} server(s)",
-        tak_status=tak_status,
-        tak_status_class="status-running" if connected else "status-idle",
+        tak_status="Connected" if connected else ("Configured" if servers else "Not configured"),
+        tak_status_class="status-running" if connected else ("status-warn" if servers else "status-idle"),
     )
     return TEMPLATES.TemplateResponse(request, "dashboard.html", ctx)
+
+
+@pages.get("/alerts", response_class=HTMLResponse)
+async def alerts_page(request: Request, _user=Depends(require_auth)):
+    Session = get_session_factory()
+    db = Session()
+    try:
+        stats = _dashboard_stats(db)
+        servers = list(db.scalars(select(TakServer)))
+        has_radio_system = bool(db.scalar(select(func.count()).select_from(RadioSystem)))
+    finally:
+        db.close()
+    sdr_on = modules_svc.is_installed("sdr_location_gateway")
+    decoder_on = bool(sdr_on and get_platform().service_active("sdrtrunk"))
+    metrics = get_platform().system_info()
+    alerts = collect_alerts(
+        metrics=metrics,
+        sdr_installed=sdr_on,
+        decoder_running=decoder_on,
+        has_radio_system=has_radio_system,
+        tak_servers=_tak_alert_rows(servers),
+        stats=stats,
+        include_acked=True,
+    )
+    return TEMPLATES.TemplateResponse(
+        request,
+        "alerts.html",
+        base_context(
+            request,
+            nav="alerts",
+            alerts=alerts,
+            alert_counts=alert_summary(alerts),
+            recent_ops=recent_ops_events(30),
+        ),
+    )
+
+
+@pages.post("/alerts/{alert_id}/ack")
+async def alerts_ack_page(alert_id: str, request: Request, _user=Depends(require_auth)):
+    form = await request.form()
+    verify_csrf(request, form.get("csrf_token"))
+    alert_store.acknowledge(alert_id)
+    return redirect("/alerts")
 
 
 # ----- Branding / customization -----
@@ -1437,14 +1633,36 @@ async def status(_user=Depends(require_auth)):
     db = Session()
     try:
         stats = _dashboard_stats(db)
+        servers = list(db.scalars(select(TakServer)))
+        has_radio_system = bool(db.scalar(select(func.count()).select_from(RadioSystem)))
     finally:
         db.close()
     last_age = None
     if spectrum_hub.last_frame_at is not None:
         last_age = round(time.time() - spectrum_hub.last_frame_at, 1)
+    metrics = get_platform().system_info()
+    gauges = hearing_gauges.snapshot()
+    sdr_on = modules_svc.is_installed("sdr_location_gateway")
+    decoder_on = bool(sdr_on and get_platform().service_active("sdrtrunk"))
+    spectrum = {
+        "frames_received": spectrum_hub.frames_received,
+        "last_frame_age": last_age,
+    }
+    alerts = collect_alerts(
+        metrics=metrics,
+        gauges=gauges,
+        sdr_installed=sdr_on,
+        decoder_running=decoder_on,
+        has_radio_system=has_radio_system,
+        tak_servers=_tak_alert_rows(servers),
+        stats=stats,
+        spectrum=spectrum,
+    )
+    connected = any(s.status == "connected" for s in servers)
     return {
         "version": updater_svc.current_version(),
-        "metrics": get_platform().system_info(),
+        "metrics": metrics,
+        "metric_classes": metric_classes(metrics),
         "modules": {
             k: {"installed": v.get("installed"), "status": v.get("status")}
             for k, v in modules_svc.list_modules().items()
@@ -1458,13 +1676,54 @@ async def status(_user=Depends(require_auth)):
             }
             for m in tak_registry.all()
         ],
-        "gauges": hearing_gauges.snapshot(),
+        "gauges": gauges,
         "stats": stats,
-        "spectrum": {
-            "frames_received": spectrum_hub.frames_received,
-            "last_frame_age": last_age,
-        },
+        "spectrum": spectrum,
+        "alerts": alerts,
+        "alert_counts": alert_summary(alerts),
+        "pipeline": _pipeline_status(
+            sdr_on=sdr_on,
+            decoder_on=decoder_on,
+            has_radio_system=has_radio_system,
+            stats=stats,
+            servers=servers,
+            connected=connected,
+        ),
+        "recent_ops": recent_ops_events(12),
     }
+
+
+@api.get("/alerts")
+async def alerts_api(_user=Depends(require_auth)):
+    Session = get_session_factory()
+    db = Session()
+    try:
+        stats = _dashboard_stats(db)
+        servers = list(db.scalars(select(TakServer)))
+        has_radio_system = bool(db.scalar(select(func.count()).select_from(RadioSystem)))
+    finally:
+        db.close()
+    sdr_on = modules_svc.is_installed("sdr_location_gateway")
+    alerts = collect_alerts(
+        metrics=get_platform().system_info(),
+        sdr_installed=sdr_on,
+        decoder_running=bool(sdr_on and get_platform().service_active("sdrtrunk")),
+        has_radio_system=has_radio_system,
+        tak_servers=_tak_alert_rows(servers),
+        stats=stats,
+        include_acked=True,
+    )
+    return {"alerts": alerts, "counts": alert_summary(alerts)}
+
+
+@api.post("/alerts/{alert_id}/ack")
+async def alerts_ack(alert_id: str, request: Request, _user=Depends(require_auth)):
+    form = await request.form()
+    verify_csrf(request, form.get("csrf_token"))
+    ok = alert_store.acknowledge(alert_id)
+    if not ok:
+        return {"ok": False}
+    return {"ok": True, "id": alert_id}
 
 
 @api.get("/locations/latest")

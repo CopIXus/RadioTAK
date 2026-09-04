@@ -56,18 +56,18 @@ class HearingGauges:
             lock_class = "warn"
         else:
             lock = "idle"
-            lock_class = "bad"
+            lock_class = ""
         return {
             "messages_per_min": mpm,
             "last_event_age_s": age,
             "decoder_running": decoder_on,
             "cc_lock": lock,
             "cc_lock_class": lock_class,
-            "gauge_mpm_class": "ok" if mpm > 0 else ("warn" if decoder_on else "bad"),
+            "gauge_mpm_class": "ok" if mpm > 0 else ("warn" if decoder_on else ""),
             "gauge_age_class": (
                 "ok"
                 if age is not None and age < 30
-                else ("warn" if age is not None and age < 120 else "bad")
+                else ("warn" if age is not None and age < 120 else ("bad" if decoder_on else ""))
             ),
         }
 
