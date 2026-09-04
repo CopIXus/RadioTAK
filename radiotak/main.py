@@ -53,10 +53,16 @@ async def lifespan(app: FastAPI):
     settings.ensure_dirs()
     setup_logging()
     init_db()
+    try:
+        from radiotak.services.updater import reconcile_update_state_on_startup
+
+        reconcile_update_state_on_startup()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("update-state reconcile failed: %s", exc)
 
     def _on_pipeline(event: dict) -> None:
         event_bus.publish(event)
-        if event.get("type") in ("queued", "blocked"):
+        if event.get("type") in ("queued", "blocked", "encrypted", "heard"):
             hearing_gauges.note()
 
     pipeline.add_listener(_on_pipeline)

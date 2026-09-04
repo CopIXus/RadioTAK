@@ -17,6 +17,8 @@ from radiotak.services.updater import current_version
 
 
 REDACT_KEYS = {
+    "key_hex",
+    "traffic_key",
     "password",
     "token",
     "secret",

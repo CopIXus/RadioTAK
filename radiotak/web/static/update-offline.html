@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Update in progress — RadioTAK</title>
+  <style>
+    :root { --bg:#0a0e1a; --card:#111827; --text:#e2e8f0; --dim:#94a3b8; --cyan:#06b6d4; --accent:#3b82f6; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh;
+      font-family: ui-monospace, 'JetBrains Mono', monospace;
+      background: var(--bg); color: var(--text);
+      display: flex; align-items: center; justify-content: center; padding: 24px;
+    }
+    .card {
+      width: min(860px, 100%);
+      background: var(--card);
+      border: 1px solid rgba(59,130,246,.25);
+      border-radius: 14px; padding: 22px;
+    }
+    .kicker { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--cyan); font-weight: 700; }
+    h1 { font-size: 20px; margin: 8px 0; }
+    p { color: var(--dim); font-size: 13px; line-height: 1.5; }
+    pre {
+      background: #05080f; border: 1px solid rgba(59,130,246,.25);
+      border-radius: 10px; padding: 12px 14px; color: #fbbf24;
+      white-space: pre-wrap; word-break: break-word;
+      max-height: 48vh; overflow: auto; font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="kicker">System update</div>
+    <h1 id="title">Console is offline</h1>
+    <p id="sub">RadioTAK is restarting after an update. This page will return automatically when the console is back.</p>
+    <pre id="term">Waiting for RadioTAK to come back…</pre>
+    <p id="hint">Keep this tab open. Do not power-cycle the Pi.</p>
+  </div>
+  <script>
+    (function () {
+      var KEY = 'radiotak_update';
+      var title = document.getElementById('title');
+      var sub = document.getElementById('sub');
+      var term = document.getElementById('term');
+      var hint = document.getElementById('hint');
+      var stored = null;
+      try { stored = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { stored = null; }
+      var updating = !!(stored && stored.active);
+      if (stored && stored.log) term.textContent = stored.log;
+      if (!updating) {
+        title.textContent = 'Console unreachable';
+        sub.textContent = 'RadioTAK did not respond. Retrying automatically.';
+        hint.textContent = 'If this persists, check power, network, and: sudo radiotak status';
+      } else {
+        title.textContent = 'Update in progress';
+        sub.textContent = 'The console went offline while installing the update. Waiting for it to come back.';
+      }
+
+      function go(path) {
+        try { localStorage.removeItem(KEY); } catch (e) {}
+        window.location.replace(path);
+      }
+
+      function tick() {
+        fetch('/api/v1/health', { credentials: 'same-origin', cache: 'no-store' })
+          .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+          .then(function (data) {
+            var st = (data && data.update && data.update.state) || 'idle';
+            var ver = (data && data.version) || '';
+            if (st === 'running' || st === 'restarting') {
+              window.location.replace('/system?updating=1');
+              return;
+            }
+            if (st === 'failed') {
+              go('/system?err=' + encodeURIComponent('Update failed during restart'));
+              return;
+            }
+            if (updating) {
+              go('/system?msg=' + encodeURIComponent('Update complete' + (ver ? ': ' + ver : '')));
+            } else {
+              window.location.replace('/system');
+            }
+          })
+          .catch(function () { /* still down */ });
+      }
+      tick();
+      setInterval(tick, 2000);
+    })();
+  </script>
+</body>
+</html>

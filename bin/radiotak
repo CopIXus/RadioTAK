@@ -37,15 +37,42 @@ case "$cmd" in
     ;;
   update)
     BRANCH="${1:-main}"
-    cd "$INSTALL_DIR"
-    git -c "safe.directory=$INSTALL_DIR" fetch https://github.com/CopIXus/RadioTAK.git "$BRANCH"
-    git -c "safe.directory=$INSTALL_DIR" checkout --force -B "$BRANCH" FETCH_HEAD
+    # Always fetch as the service user so UI updates are not blocked by root-owned
+    # objects left behind from a previous `sudo git` / installer run.
+    if [[ $EUID -eq 0 ]]; then
+      PRIV=""
+      [[ -x "$INSTALL_DIR/bin/radiotak-priv" ]] && PRIV="$INSTALL_DIR/bin/radiotak-priv"
+      [[ -z "$PRIV" && -x /usr/local/sbin/radiotak-priv ]] && PRIV=/usr/local/sbin/radiotak-priv
+      if [[ -n "$PRIV" ]]; then
+        "$PRIV" git-update "$BRANCH" CopIXus/RadioTAK || {
+          echo "Privilege helper git-update unavailable; fetching as service user"
+          chown -R radiotak:radiotak "$INSTALL_DIR" 2>/dev/null || true
+          sudo -u radiotak git -c "safe.directory=$INSTALL_DIR" -C "$INSTALL_DIR" fetch https://github.com/CopIXus/RadioTAK.git "$BRANCH"
+          sudo -u radiotak git -c "safe.directory=$INSTALL_DIR" -C "$INSTALL_DIR" checkout --force -B "$BRANCH" FETCH_HEAD
+          chown -R radiotak:radiotak "$INSTALL_DIR" 2>/dev/null || true
+        }
+      else
+        echo "Privilege helper git-update unavailable; fetching as service user"
+        chown -R radiotak:radiotak "$INSTALL_DIR" 2>/dev/null || true
+        sudo -u radiotak git -c "safe.directory=$INSTALL_DIR" -C "$INSTALL_DIR" fetch https://github.com/CopIXus/RadioTAK.git "$BRANCH"
+        sudo -u radiotak git -c "safe.directory=$INSTALL_DIR" -C "$INSTALL_DIR" checkout --force -B "$BRANCH" FETCH_HEAD
+        chown -R radiotak:radiotak "$INSTALL_DIR" 2>/dev/null || true
+      fi
+    else
+      git -c "safe.directory=$INSTALL_DIR" -C "$INSTALL_DIR" fetch https://github.com/CopIXus/RadioTAK.git "$BRANCH"
+      git -c "safe.directory=$INSTALL_DIR" -C "$INSTALL_DIR" checkout --force -B "$BRANCH" FETCH_HEAD
+    fi
     if [[ -x "$INSTALL_DIR/.venv/bin/pip" ]]; then
       "$INSTALL_DIR/.venv/bin/pip" install -r requirements.txt -q
       "$INSTALL_DIR/.venv/bin/pip" install -e "$INSTALL_DIR" -q
     fi
+    if [[ $EUID -eq 0 ]]; then
+      install -m 0755 "$INSTALL_DIR/bin/radiotak-priv" /usr/local/sbin/radiotak-priv 2>/dev/null || true
+      install -m 0755 "$INSTALL_DIR/bin/radiotak" /usr/local/bin/radiotak 2>/dev/null || true
+      chown -R radiotak:radiotak "$INSTALL_DIR" 2>/dev/null || true
+    fi
     systemctl restart "$SERVICE"
-    echo "Updated to $(cat VERSION 2>/dev/null || echo unknown) ($BRANCH)"
+    echo "Updated to $(cat "$INSTALL_DIR/VERSION" 2>/dev/null || echo unknown) ($BRANCH)"
     ;;
   reset-password)
     [[ $EUID -eq 0 ]] || { echo "Run as root"; exit 1; }

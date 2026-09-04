@@ -58,6 +58,19 @@
   </div>
 </div>
 
+<div class="section-title">Spectrum waterfall</div>
+<div class="waterfall-wrap">
+  <canvas id="waterfall-canvas" aria-label="RF spectrum waterfall"></canvas>
+  <div class="waterfall-axis">
+    <span id="wf-fmin">— MHz</span>
+    <span id="wf-fmax">— MHz</span>
+  </div>
+  <div class="waterfall-note" id="wf-note" hidden></div>
+</div>
+
+<div class="section-title">Recent authorized units</div>
+<div id="mini-map"></div>
+
 <div class="section-title">Operational stats</div>
 <div class="cards-grid">
   <div class="card card-static">
@@ -112,36 +125,29 @@
 
 {% if checklist %}
 <div class="section-title">Getting started</div>
-<ul class="checklist">
+<div class="cards-grid">
   {% for item in checklist %}
-  <li>
-    <span class="{% if item.done %}done{% else %}todo{% endif %}">{% if item.done %}✓{% else %}○{% endif %}</span>
-    {% if item.href and not item.done %}
-    <a href="{{ item.href }}">{{ item.label }}</a>
-    {% else %}
-    <span>{{ item.label }}</span>
-    {% endif %}
-  </li>
-  {% endfor %}
-</ul>
-{% endif %}
-
-<div class="section-title">Spectrum waterfall</div>
-<div class="waterfall-wrap">
-  <canvas id="waterfall-canvas" aria-label="RF spectrum waterfall"></canvas>
-  <div class="waterfall-axis">
-    <span id="wf-fmin">— MHz</span>
-    <span id="wf-fmax">— MHz</span>
+  {% if item.href and not item.done %}
+  <a class="card" href="{{ item.href }}">
+    <div class="card-title">{{ item.label }}</div>
+    <div class="card-desc">Action needed to finish setup</div>
+    <div class="status-pill status-warn"><span class="dot"></span>To do</div>
+  </a>
+  {% else %}
+  <div class="card card-static">
+    <div class="card-title">{{ item.label }}</div>
+    <div class="card-desc">Setup step complete</div>
+    <div class="status-pill status-running"><span class="dot"></span>Done</div>
   </div>
+  {% endif %}
+  {% endfor %}
 </div>
+{% endif %}
 
 {% if novnc_enabled %}
 <div class="section-title">SDRTrunk console (noVNC)</div>
 <iframe class="novnc-frame" src="{{ novnc_url | default('/novnc/') }}" title="SDRTrunk noVNC"></iframe>
 {% endif %}
-
-<div class="section-title">Recent authorized units</div>
-<div id="mini-map"></div>
 {% endblock %}
 
 {% block scripts %}
@@ -164,16 +170,13 @@
   var wfCanvas = document.getElementById('waterfall-canvas');
   var wf = wfCanvas ? new RadioTakWaterfall(wfCanvas, { ccMarkersHz: ccMarkers }) : null;
   if (wf) {
+    wf.setAxisElements({
+      fmin: document.getElementById('wf-fmin'),
+      fmax: document.getElementById('wf-fmax'),
+      note: document.getElementById('wf-note')
+    });
     var proto = location.protocol === 'https:' ? 'wss' : 'ws';
     wf.connect(proto + '://' + location.host + '/api/v1/ws/spectrum');
-    var origPush = wf.pushFrame.bind(wf);
-    wf.pushFrame = function (frame) {
-      origPush(frame);
-      if (frame && frame.f_min != null && frame.f_max != null) {
-        document.getElementById('wf-fmin').textContent = (frame.f_min / 1e6).toFixed(3) + ' MHz';
-        document.getElementById('wf-fmax').textContent = (frame.f_max / 1e6).toFixed(3) + ' MHz';
-      }
-    };
   }
 
   function setGaugeClass(el, cls) {

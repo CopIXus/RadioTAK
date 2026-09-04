@@ -1,0 +1,2 @@
+{"schema":"sdr2tak.decode.v1","decoder":"sdrtrunk","protocol":"P25","system_id":"TN-P25","radio_id":"5550001","talkgroup":"11025","encrypted":true,"algorithm_id":132,"algorithm_id_hex":"84","key_id":1,"key_loaded":false,"raw_event_type":"CALL_GROUP_ENCRYPTED","observed_at":"2026-09-04T15:00:00.000Z"}
+{"schema":"sdr2tak.decode.v1","decoder":"sdrtrunk","protocol":"P25","system_id":"TN-P25","radio_id":"5550002","talkgroup":"12001","encrypted":false,"raw_event_type":"CALL_GROUP","observed_at":"2026-09-04T15:00:02.000Z"}

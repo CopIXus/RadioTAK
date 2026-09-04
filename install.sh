@@ -55,8 +55,10 @@ chmod 700 "$DATA_DIR/secrets"
 
 if [[ -d "$INSTALL_DIR/.git" ]]; then
   info "Updating existing install at $INSTALL_DIR"
-  git_ok -C "$INSTALL_DIR" fetch "$REPO_URL" "$BRANCH"
-  git_ok -C "$INSTALL_DIR" checkout --force -B "$BRANCH" FETCH_HEAD
+  # Fetch as the service user so .git/objects stay writable by the console.
+  chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
+  sudo -u "$SERVICE_USER" git -c "safe.directory=$INSTALL_DIR" -C "$INSTALL_DIR" fetch "$REPO_URL" "$BRANCH"
+  sudo -u "$SERVICE_USER" git -c "safe.directory=$INSTALL_DIR" -C "$INSTALL_DIR" checkout --force -B "$BRANCH" FETCH_HEAD
 else
   info "Cloning $REPO_URL ($BRANCH) → $INSTALL_DIR"
   rm -rf "$INSTALL_DIR"

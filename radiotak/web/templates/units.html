@@ -5,7 +5,7 @@
 <div class="header">
   <div>
     <div class="header-title">Radio units</div>
-    <div class="header-subtitle">Allowlist — unknown radios are not forwarded by default</div>
+    <div class="header-subtitle">Allowlist — unknown radios are not forwarded by default. Encrypted talkgroups are flagged even when no GPS arrives.</div>
   </div>
 </div>
 
@@ -26,7 +26,7 @@
   <div class="tab-panel active" id="tab-approved" data-panel="tab-approved">
     <table class="table" id="table-approved">
       <thead>
-        <tr><th>Radio ID</th><th>Callsign</th><th>Agency</th><th>Last GPS</th><th>System</th><th></th></tr>
+        <tr><th>Radio ID</th><th>Callsign</th><th>Agency</th><th>Status</th><th>System</th><th></th></tr>
       </thead>
       <tbody>
       {% for u in approved %}
@@ -34,7 +34,20 @@
           <td>{{ u.radio_id }}</td>
           <td>{{ u.callsign or '—' }}</td>
           <td>{{ u.agency or '—' }}</td>
-          <td>{% if u.last_latitude %}{{ '%.5f'|format(u.last_latitude) }}, {{ '%.5f'|format(u.last_longitude) }}{% else %}—{% endif %}</td>
+          <td>
+            {% if u.last_encrypted %}
+            <span class="badge badge-encrypted" title="{{ u.hear_label }}">Encrypted{% if u.last_talkgroup_id %} TG {{ u.last_talkgroup_id }}{% endif %}{% if u.last_key_loaded %} · key on file{% endif %}</span>
+            {% endif %}
+            {% if u.has_gps %}
+            <span class="badge badge-gps">{{ '%.5f'|format(u.last_latitude) }}, {{ '%.5f'|format(u.last_longitude) }}</span>
+            {% elif u.last_encrypted %}
+            <span class="dim">no GPS</span>
+            {% elif u.hear_kind == 'heard' %}
+            <span class="badge badge-heard">{{ u.hear_label }}</span>
+            {% else %}
+            <span class="dim">—</span>
+            {% endif %}
+          </td>
           <td>{{ u.system_id or '—' }}</td>
           <td><a class="btn btn-sm" href="/units/{{ u.id }}">Edit</a></td>
         </tr>
@@ -48,7 +61,7 @@
   <div class="tab-panel" id="tab-observed" data-panel="tab-observed">
     <table class="table" id="table-observed">
       <thead>
-        <tr><th>Radio ID</th><th>Count</th><th>Last seen</th><th>System</th><th></th></tr>
+        <tr><th>Radio ID</th><th>Count</th><th>Last seen</th><th>Status</th><th>System</th><th></th></tr>
       </thead>
       <tbody>
       {% for u in observed %}
@@ -56,6 +69,18 @@
           <td>{{ u.radio_id }}</td>
           <td>{{ u.observation_count }}</td>
           <td>{{ u.last_observed_at or '—' }}</td>
+          <td>
+            {% if u.last_encrypted %}
+            <span class="badge badge-encrypted">Encrypted{% if u.last_talkgroup_id %} TG {{ u.last_talkgroup_id }}{% endif %}{% if u.last_key_loaded %} · key on file{% endif %}</span>
+            {% if not u.has_gps %}<span class="dim"> no GPS</span>{% endif %}
+            {% elif u.has_gps %}
+            <span class="badge badge-gps">GPS</span>
+            {% elif u.hear_kind == 'heard' %}
+            <span class="badge badge-heard">{{ u.hear_label }}</span>
+            {% else %}
+            <span class="dim">—</span>
+            {% endif %}
+          </td>
           <td>{{ u.system_id or '—' }}</td>
           <td style="display:flex;gap:6px;flex-wrap:wrap">
             <form method="post" action="/units/{{ u.id }}/approve">
@@ -66,7 +91,7 @@
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="5" class="dim">No unknown radios observed yet. Start the decoder or replay a fixture.</td></tr>
+        <tr><td colspan="6" class="dim">No unknown radios observed yet. Start the decoder or replay a fixture. Encrypted calls now appear here even without GPS.</td></tr>
       {% endfor %}
       </tbody>
     </table>

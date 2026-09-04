@@ -135,6 +135,8 @@ def test_ensure_export_properties_appends_missing_keys(tmp_path):
     assert "spectrum_export_enabled=true" in text
     assert "spectrum_export_port=29501" in text
     assert "geo_event_export_port=29500" in text
+    assert "traffic_keys_path=" in text
+    assert str(tmp_path).replace("\\", "/") in text.replace("\\", "/")
     ensure_export_properties(settings)
     assert text.count("spectrum_export_enabled=true") == 1
 

@@ -34,10 +34,13 @@
 </div>
 
 <div class="btn-row" style="margin-bottom:28px">
-  <form method="post" action="/system/update">
+  <form method="post" action="/system/update" id="update-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
-    <button class="btn btn-primary" type="submit" data-busy="Updating…"
-      data-confirm="Pull updates from GitHub and restart services?">
+    <button class="btn btn-primary" type="submit" id="update-btn"
+      data-confirm="The console will go offline while RadioTAK pulls from GitHub, installs packages, and restarts. Keep this tab open — you will see live progress, then a waiting screen until the console comes back."
+      data-confirm-title="Install update?"
+      data-confirm-ok="Install update"
+      data-confirm-danger="false">
       {% if update_available %}Update available — install now{% else %}Update now{% endif %}
     </button>
   </form>
@@ -71,4 +74,19 @@
   </tbody>
 </table>
 {% endif %}
+
+<div id="update-overlay" class="update-overlay" hidden>
+  <div class="update-overlay-card">
+    <div class="update-overlay-kicker">System update</div>
+    <h2 id="update-overlay-title">Update in progress</h2>
+    <p id="update-overlay-sub" class="update-overlay-sub">
+      RadioTAK is pulling a new build. The console will restart and this page will wait until it comes back.
+    </p>
+    <pre id="update-term" class="update-term" aria-live="polite"></pre>
+    <p class="update-overlay-hint" id="update-overlay-hint">Keep this tab open. Do not power-cycle the Pi.</p>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/system-update.js"></script>
 {% endblock %}

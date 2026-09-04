@@ -12,6 +12,8 @@ from sqlalchemy import select
 from radiotak.db import RadioSystem, SdrDevice, get_session_factory
 from radiotak.platform import get_platform
 from radiotak.services import modules as modules_svc
+from radiotak.services import traffic_keys as keys_svc
+from radiotak.services.audit import write_audit
 from radiotak.web.deps import TEMPLATES, base_context, redirect, require_auth, verify_csrf
 
 from .sdrtrunk.build import build_label, sdrtrunk_build_info
@@ -78,6 +80,7 @@ def _page(request: Request, **extra):
     try:
         saved = list(db.scalars(select(SdrDevice).order_by(SdrDevice.name)))
         systems = list(db.scalars(select(RadioSystem).order_by(RadioSystem.name)))
+        keys = keys_svc.list_keys(db)
     finally:
         db.close()
     tuner_count = _tuner_count(devices)
@@ -130,6 +133,8 @@ def _page(request: Request, **extra):
             starved_count=starved_count,
             tuner_count=tuner_count,
             cc_markers_hz=cc_markers,
+            traffic_keys=keys,
+            key_algorithms=keys_svc.algorithm_choices(),
             **extra,
         ),
     )
@@ -369,6 +374,83 @@ async def sdr_system_delete(
     finally:
         db.close()
     return redirect("/modules/sdr?msg=" + quote("System removed"))
+
+
+@router.post("/keys")
+async def sdr_key_add(
+    request: Request,
+    label: str = Form(""),
+    protocol: str = Form("P25"),
+    algorithm: str = Form("AES-256"),
+    algorithm_id: str = Form(""),
+    key_id: str = Form(...),
+    key_hex: str = Form(...),
+    csrf_token: str = Form(""),
+    _user=Depends(require_auth),
+):
+    verify_csrf(request, csrf_token)
+    actor = (getattr(request.state, "session", None) or {}).get("u") or "operator"
+    Session = get_session_factory()
+    db = Session()
+    try:
+        row = keys_svc.add_key(
+            db,
+            label=label,
+            protocol=protocol,
+            algorithm=algorithm,
+            key_id=key_id,
+            key_hex=key_hex,
+            algorithm_id=algorithm_id or None,
+        )
+        _rebuild_playlist(db)
+        write_audit(
+            "traffic_key_add",
+            actor=actor,
+            target=row["id"],
+            detail={"label": row["label"], "algorithm": row["algorithm"], "key_id": row["key_id"]},
+        )
+    except ValueError as exc:
+        db.rollback()
+        return redirect("/modules/sdr?err=" + quote(str(exc)))
+    finally:
+        db.close()
+    if _service_active():
+        get_platform().service_action("sdrtrunk", "restart")
+        return redirect(
+            "/modules/sdr?msg="
+            + quote(
+                f"Stored {row['label']} (ALGID {row['algorithm_id_hex']} "
+                f"KID {row['key_id']}) and restarted the decoder"
+            )
+        )
+    return redirect(
+        "/modules/sdr?msg="
+        + quote(
+            f"Stored {row['label']} (ALGID {row['algorithm_id_hex']} "
+            f"KID {row['key_id']}). Start the decoder to load it."
+        )
+    )
+
+
+@router.post("/keys/{key_id}/delete")
+async def sdr_key_delete(
+    key_id: str, request: Request, csrf_token: str = Form(""), _user=Depends(require_auth)
+):
+    verify_csrf(request, csrf_token)
+    actor = (getattr(request.state, "session", None) or {}).get("u") or "operator"
+    Session = get_session_factory()
+    db = Session()
+    deleted = False
+    try:
+        deleted = keys_svc.delete_key(db, key_id)
+        if deleted:
+            _rebuild_playlist(db)
+            write_audit("traffic_key_delete", actor=actor, target=key_id)
+    finally:
+        db.close()
+    if deleted and _service_active():
+        get_platform().service_action("sdrtrunk", "restart")
+    return redirect("/modules/sdr?msg=" + quote("Key removed" if deleted else "Key not found"))
 
 
 @router.post("/apply")

@@ -39,6 +39,7 @@ from radiotak.db import (
 )
 from radiotak.gateway.constants import DEFAULT_STALE_SECONDS, DETECTION_COT_TYPE
 from radiotak.gateway.events import event_bus
+from radiotak.gateway.identities import hear_status
 from radiotak.gateway.marker_style import resolve_style
 from radiotak.gateway.tak import ConnectionState, TakConnectionManager, tak_registry
 from radiotak.gateway.tak.enrollment import enroll_with_pytak, import_pkcs12
@@ -127,6 +128,7 @@ def _tak_server_view(server: TakServer) -> SimpleNamespace:
 
 
 def _unit_view(unit: RadioIdentity) -> SimpleNamespace:
+    status = hear_status(unit)
     return SimpleNamespace(
         id=unit.id,
         radio_id=unit.radio_id,
@@ -146,6 +148,7 @@ def _unit_view(unit: RadioIdentity) -> SimpleNamespace:
         last_longitude=unit.last_longitude,
         last_observed_at=unit.last_observed_at,
         observation_count=unit.observation_count,
+        **status,
     )
 
 
@@ -1016,8 +1019,8 @@ async def units_page(request: Request, _user=Depends(require_auth)):
     db = Session()
     try:
         all_units = list(db.scalars(select(RadioIdentity).order_by(RadioIdentity.radio_id)))
-        approved = [u for u in all_units if u.forward_to_tak]
-        observed = [u for u in all_units if not u.forward_to_tak]
+        approved = [_unit_view(u) for u in all_units if u.forward_to_tak]
+        observed = [_unit_view(u) for u in all_units if not u.forward_to_tak]
     finally:
         db.close()
     return TEMPLATES.TemplateResponse(
@@ -1209,6 +1212,7 @@ async def system_page(request: Request, _user=Depends(require_auth)):
             audit_rows=recent_audit(50),
             message=request.query_params.get("msg"),
             error=request.query_params.get("err"),
+            updating=request.query_params.get("updating"),
         ),
     )
 
@@ -1216,11 +1220,9 @@ async def system_page(request: Request, _user=Depends(require_auth)):
 @pages.post("/system/update")
 async def system_update(request: Request, csrf_token: str = Form(""), _user=Depends(require_auth)):
     verify_csrf(request, csrf_token)
-    code, out = updater_svc.update_now()
-    write_audit("system_update", actor=_actor(request), detail={"code": code})
-    if code == 0:
-        return redirect("/system?msg=" + quote(out[:1500]))
-    return redirect("/system?err=" + quote(out[:1500]))
+    write_audit("system_update", actor=_actor(request), detail={"via": "form"})
+    updater_svc.start_update_job()
+    return redirect("/system?updating=1")
 
 
 @pages.post("/system/restart")
@@ -1364,7 +1366,43 @@ async def tailscale_down(request: Request, csrf_token: str = Form(""), _user=Dep
 
 @api.get("/health")
 async def health():
-    return {"status": "ok", "version": updater_svc.current_version()}
+    state = updater_svc.load_update_state()
+    return {
+        "status": "ok",
+        "version": updater_svc.current_version(),
+        "update": {"state": state.get("state") or "idle"},
+    }
+
+
+@api.get("/system/update")
+async def api_update_status(_user=Depends(require_auth)):
+    return updater_svc.update_status_payload()
+
+
+@api.post("/system/update")
+async def api_system_update(request: Request, _user=Depends(require_auth)):
+    token = request.headers.get("X-CSRF-Token") or ""
+    if not token:
+        try:
+            body = await request.json()
+        except Exception:  # noqa: BLE001
+            body = {}
+        token = (body or {}).get("csrf_token") or ""
+    verify_csrf(request, token)
+    write_audit("system_update", actor=_actor(request), detail={"via": "api"})
+    state = updater_svc.start_update_job()
+    payload = updater_svc.update_status_payload()["update"]
+    return {"ok": True, "update": payload, "started": state.get("state")}
+
+
+@pages.get("/update-sw.js")
+async def update_service_worker():
+    path = Path(__file__).resolve().parent.parent / "static" / "js" / "update-sw.js"
+    return FileResponse(
+        str(path),
+        media_type="application/javascript",
+        headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"},
+    )
 
 
 @api.get("/version")

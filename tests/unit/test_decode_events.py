@@ -1,0 +1,136 @@
+"""Decode events (encrypted / heard, no GPS) through the pipeline."""
+
+from __future__ import annotations
+
+import os
+from datetime import UTC
+from pathlib import Path
+
+import pytest
+
+os.environ.setdefault("RADIOTAK_DATA_DIR", str(Path(__file__).resolve().parents[2] / ".data-test"))
+
+
+@pytest.fixture()
+def db_env(tmp_path, monkeypatch):
+    monkeypatch.setenv("RADIOTAK_DATA_DIR", str(tmp_path))
+    import radiotak.db as dbmod
+    from radiotak.config import reload_settings
+
+    reload_settings()
+    dbmod._engine = None
+    dbmod._SessionLocal = None
+    from radiotak.db import get_session_factory, init_db
+
+    init_db()
+    Session = get_session_factory()
+    db = Session()
+    yield db
+    db.close()
+
+
+def test_encrypted_call_creates_unit_without_gps(db_env):
+    from sqlalchemy import select
+
+    from radiotak.db import RadioIdentity
+    from radiotak.gateway.identities import hear_status
+    from radiotak.gateway.pipeline import LocationPipeline
+
+    pipe = LocationPipeline()
+    seen = []
+    pipe.add_listener(seen.append)
+    result = pipe.process_dict(
+        db_env,
+        {
+            "schema": "sdr2tak.decode.v1",
+            "radio_id": "5550001",
+            "system_id": "TN-P25",
+            "talkgroup": "11025",
+            "protocol": "P25",
+            "encrypted": True,
+            "algorithm_id": 132,
+            "key_id": 1,
+            "observed_at": "2026-09-04T15:00:00Z",
+        },
+    )
+    assert result.heard is True
+    assert result.forwarded is False
+    assert result.observation is None
+    assert "ENCRYPTED" in result.reason
+    assert "no matching key" in result.reason
+    identity = db_env.scalar(select(RadioIdentity).where(RadioIdentity.radio_id == "5550001"))
+    assert identity.radio_id == "5550001"
+    assert identity.last_encrypted is True
+    assert identity.last_talkgroup_id == "11025"
+    assert identity.last_latitude is None
+    status = hear_status(identity)
+    assert status["hear_kind"] == "encrypted"
+    assert "no GPS" in status["hear_label"]
+    assert seen and seen[0]["type"] == "encrypted"
+
+
+def test_clear_call_without_gps_is_heard(db_env):
+    from radiotak.gateway.identities import hear_status
+    from radiotak.gateway.pipeline import LocationPipeline
+
+    pipe = LocationPipeline()
+    result = pipe.process_dict(
+        db_env,
+        {
+            "schema": "sdr2tak.decode.v1",
+            "radio_id": "5550002",
+            "talkgroup": "12001",
+            "encrypted": False,
+            "observed_at": "2026-09-04T15:00:02Z",
+        },
+    )
+    assert result.heard is True
+    from sqlalchemy import select
+
+    from radiotak.db import RadioIdentity
+
+    identity = db_env.scalar(select(RadioIdentity).where(RadioIdentity.radio_id == "5550002"))
+    status = hear_status(identity)
+    assert status["hear_kind"] == "heard"
+    assert identity.last_encrypted is False
+
+
+def test_encrypted_then_gps_keeps_encrypted_badge(db_env):
+    from datetime import datetime
+
+    from sqlalchemy import select
+
+    from radiotak.db import RadioIdentity
+    from radiotak.gateway.identities import hear_status
+    from radiotak.gateway.pipeline import LocationPipeline
+
+    pipe = LocationPipeline()
+    pipe.process_dict(
+        db_env,
+        {
+            "schema": "sdr2tak.decode.v1",
+            "radio_id": "1234567",
+            "system_id": "TN-P25",
+            "talkgroup": "11025",
+            "encrypted": True,
+            "observed_at": "2026-09-04T15:00:00Z",
+        },
+    )
+    now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    gps = pipe.process_dict(
+        db_env,
+        {
+            "schema": "sdr2tak.location.v1",
+            "radio_id": "1234567",
+            "system_id": "TN-P25",
+            "latitude": 36.29531,
+            "longitude": -82.27922,
+            "observed_at": now,
+        },
+    )
+    assert gps.forwarded is False  # not approved
+    identity = db_env.scalar(select(RadioIdentity).where(RadioIdentity.radio_id == "1234567"))
+    status = hear_status(identity)
+    assert identity.last_encrypted is True
+    assert status["has_gps"] is True
+    assert status["hear_kind"] == "encrypted-gps"

@@ -29,11 +29,32 @@ GPS on P25/DMR is a **separate TCP path** from the waterfall. RadioTAK listens o
 }
 ```
 
-Until a patched build is installed, Live Events and Units stay empty even while the decoder is running. Preferences: `geo_event_export_enabled`, `geo_event_export_host`, `geo_event_export_port`. RadioTAK writes those into `SDRTrunk.properties` when it writes the playlist.
+Until a patched build is installed, Live Events and Units stay empty even while the decoder is running. Preferences: `geo_event_export_enabled`, `geo_event_export_host`, `geo_event_export_port`, `traffic_keys_path`. RadioTAK writes those into `SDRTrunk.properties` when it writes the playlist.
+
+## Encrypted calls
+
+The same `:29500` feed also accepts `sdr2tak.decode.v1` (no lat/lon). The CopIXus exporter emits those for voice/data calls, including `CALL_ENCRYPTED`, so Live Events / Units can show **Encrypted — no GPS** instead of looking idle.
+
+```json
+{
+  "schema": "sdr2tak.decode.v1",
+  "decoder": "sdrtrunk",
+  "protocol": "P25",
+  "radio_id": "1234567",
+  "talkgroup": "11025",
+  "encrypted": true,
+  "algorithm_id": 132,
+  "key_id": 1,
+  "key_loaded": false,
+  "observed_at": "2026-09-04T15:00:00Z"
+}
+```
+
+Authorized traffic keys are entered on the SDR page and written to `/var/lib/radiotak/SDRTrunk/traffic_keys.json` (mode 0600). SDRTrunk does not decrypt P25/DMR audio; RadioTAK uses the file to match ALGID+KID and label events **key on file**.
 
 ## Spectrum export
 
-`DftFrameExporter` downsamples FFT bins (~512) and streams NDJSON to RadioTAK on **127.0.0.1:29501**. Enable with `spectrum_export_enabled`. Installer tag: `v0.6.2-radiotak.2` from `CopIXus/sdrtrunk` releases. Stock 0.6.1 leaves the canvas black.
+`DftFrameExporter` downsamples FFT bins (~512) and streams NDJSON to RadioTAK on **127.0.0.1:29501**. Enable with `spectrum_export_enabled`. Installer tag: `v0.6.2-radiotak.3` from `CopIXus/sdrtrunk` releases. Stock 0.6.1 leaves the canvas black.
 
 The exporter is registered on `SpectralDisplayPanel`'s `ComplexDecibelConverter`, so it only produces frames once SDRTrunk has a tuner shown in its spectral display. Under Xvfb that happens automatically (`showFirstTuner()` after the main window opens) — roughly 50 s after `sdrtrunk.service` starts on a Pi 4. If `spectral.display.enabled=false` is ever set in `SDRTrunk.properties`, no frames are exported.
 
@@ -58,7 +79,7 @@ The decoder binary is **not** part of the RadioTAK git checkout; it is a zip unp
 
 ### Canvas waterfall
 
-The Console dashboard and **SDR** module render frames in a canvas waterfall (`waterfall.js` over WebSocket). Each frame carries `bins`, `f_min`, `f_max`, and optional `cc_hz` control-channel markers. Use it to confirm the decoder is centered on the expected spectrum segment.
+The Console dashboard and **SDR** module render frames in a canvas waterfall (`waterfall.js` over WebSocket). Each frame carries `bins`, `f_min`, `f_max`, and optional `cc_hz` control-channel markers. When SDRTrunk's spectral panel is still parked on `showFirstTuner()` (often ~100 MHz FM) after a listening channel has retuned the stick, RadioTAK recenters `f_min`/`f_max` on the playlist CCs and keeps the original panel span in `panel_f_min`/`panel_f_max` so the UI can warn. Use cyan CC markers plus the CC-lock gauge to confirm the decoder is on the expected segment.
 
 ### noVNC fallback
 

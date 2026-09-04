@@ -14,7 +14,9 @@
   <files>                   mode 0600
 ```
 
-Never returned by normal GET APIs. Never logged (passwords, tokens, private keys redacted).
+Never returned by normal GET APIs. Never logged (passwords, tokens, private keys, traffic key hex redacted).
+
+Traffic encryption keys live in `secrets/traffic_keys/` plus a 0600 decoder file at `SDRTrunk/traffic_keys.json`. The UI never redisplays hex after save.
 
 ## Privilege model
 
@@ -30,4 +32,4 @@ Never returned by normal GET APIs. Never logged (passwords, tokens, private keys
 
 ## Diagnostics
 
-Sanitized ZIP excludes passwords, tokens, private keys, and PKCS#12 contents. Optional GPS redaction.
+Sanitized ZIP excludes passwords, tokens, private keys, PKCS#12 contents, and traffic encryption keys. Optional GPS redaction.

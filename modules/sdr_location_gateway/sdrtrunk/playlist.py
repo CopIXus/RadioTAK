@@ -50,17 +50,44 @@ EXPORT_PROPERTY_DEFAULTS = {
 }
 
 
+def traffic_keys_export_path(settings=None) -> Path:
+    if settings is None:
+        from radiotak.config import get_settings
+
+        settings = get_settings()
+    return Path(settings.data_dir) / "SDRTrunk" / "traffic_keys.json"
+
+
+def export_property_defaults(settings=None) -> dict[str, str]:
+    defaults = dict(EXPORT_PROPERTY_DEFAULTS)
+    defaults["traffic_keys_path"] = str(traffic_keys_export_path(settings)).replace("\\", "/")
+    return defaults
+
+
+def _upsert_properties(text: str, values: dict[str, str]) -> str:
+    lines = text.splitlines()
+    seen: set[str] = set()
+    out: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        key = stripped.split("=", 1)[0] if "=" in stripped and not stripped.startswith("#") else None
+        if key and key in values:
+            out.append(f"{key}={values[key]}")
+            seen.add(key)
+        else:
+            out.append(line)
+    for key, value in values.items():
+        if key not in seen:
+            out.append(f"{key}={value}")
+    return "\n".join(out).rstrip() + "\n"
+
+
 def ensure_export_properties(settings=None) -> Path:
     """Ensure CopIXus exporter keys exist in SDRTrunk.properties (do not clobber other keys)."""
     path = properties_path(settings)
     path.parent.mkdir(parents=True, exist_ok=True)
     text = path.read_text(encoding="utf-8", errors="replace") if path.exists() else ""
-    missing = [f"{k}={v}" for k, v in EXPORT_PROPERTY_DEFAULTS.items() if f"{k}=" not in text]
-    if to_add := missing:
-        prefix = "" if not text or text.endswith("\n") else "\n"
-        path.write_text(text + prefix + "\n".join(to_add) + "\n", encoding="utf-8")
-    elif not path.exists():
-        path.write_text("\n".join(f"{k}={v}" for k, v in EXPORT_PROPERTY_DEFAULTS.items()) + "\n", encoding="utf-8")
+    path.write_text(_upsert_properties(text, export_property_defaults(settings)), encoding="utf-8")
     return path
 
 
@@ -340,6 +367,12 @@ def rebuild_default_playlist(rows, settings=None, devices=None, tuner_count: int
         settings = get_settings()
     write_tuner_preferences(devices or [], settings=settings)
     ensure_export_properties(settings=settings)
+    try:
+        from radiotak.services.traffic_keys import write_decoder_keyfile
+
+        write_decoder_keyfile(settings=settings)
+    except Exception:  # noqa: BLE001
+        pass
     systems = systems_from_db_rows(rows, devices=devices)
     if tuner_count is not None:
         apply_tuner_slots(systems, tuner_count)

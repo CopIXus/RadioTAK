@@ -13,6 +13,36 @@ from radiotak.services.settings_store import load_settings_file
 log = logging.getLogger("radiotak.spectrum")
 
 
+def align_span_to_control_channels(
+    f_min: Any,
+    f_max: Any,
+    cc_hz: list[Any],
+) -> tuple[Any, Any, Any, Any]:
+    """Label the listening-channel window when SDRTrunk's spectral panel is idle.
+
+    ``showFirstTuner()`` often leaves OverlayPanel parked near 100 MHz (FM band)
+    after a P25/DMR channel has already retuned the same stick. Bins are still
+    one tuner-bandwidth wide, so we keep that width and recenter on the CCs.
+
+    Returns ``(f_min, f_max, panel_f_min, panel_f_max)``. Panel fields are set
+    only when the axis was remapped.
+    """
+    try:
+        lo = float(f_min)
+        hi = float(f_max)
+        ccs = [float(x) for x in (cc_hz or []) if x is not None and float(x) > 0]
+    except (TypeError, ValueError):
+        return f_min, f_max, None, None
+    if hi <= lo or not ccs:
+        return f_min, f_max, None, None
+    if any(lo <= cc <= hi for cc in ccs):
+        return f_min, f_max, None, None
+    bw = hi - lo
+    span_lo, span_hi = min(ccs), max(ccs)
+    center = (span_lo + span_hi) / 2.0 if (span_hi - span_lo) <= bw else ccs[0]
+    return center - bw / 2.0, center + bw / 2.0, lo, hi
+
+
 class SpectrumHub:
     def __init__(self) -> None:
         self.latest: Optional[dict[str, Any]] = None
@@ -62,14 +92,27 @@ class SpectrumHub:
             if len(bins) > 512:
                 step = len(bins) / 512.0
                 bins = [bins[int(i * step)] for i in range(512)]
-            return {
+            cc_hz = data.get("cc_hz") or data.get("control_channels_hz") or []
+            f_min = data.get("f_min") or data.get("freq_min_hz")
+            f_max = data.get("f_max") or data.get("freq_max_hz")
+            panel_min = data.get("panel_f_min")
+            panel_max = data.get("panel_f_max")
+            if panel_min is None or panel_max is None:
+                f_min, f_max, panel_min, panel_max = align_span_to_control_channels(
+                    f_min, f_max, cc_hz
+                )
+            frame: dict[str, Any] = {
                 "schema": data.get("schema", "sdr2tak.spectrum.v1"),
                 "bins": [float(x) for x in bins],
-                "f_min": data.get("f_min") or data.get("freq_min_hz"),
-                "f_max": data.get("f_max") or data.get("freq_max_hz"),
-                "cc_hz": data.get("cc_hz") or data.get("control_channels_hz") or [],
+                "f_min": f_min,
+                "f_max": f_max,
+                "cc_hz": cc_hz,
                 "ts": data.get("ts") or time.time(),
             }
+            if panel_min is not None and panel_max is not None:
+                frame["panel_f_min"] = panel_min
+                frame["panel_f_max"] = panel_max
+            return frame
         except Exception as exc:  # noqa: BLE001
             log.debug("spectrum parse failed: %s", exc)
             return None

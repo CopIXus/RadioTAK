@@ -89,6 +89,53 @@ def test_spectrum_parse_and_downsample():
     assert frame is not None
     assert len(frame["bins"]) == 512
     assert frame["cc_hz"] == [851012500]
+    assert frame["f_min"] == 850e6
+    assert "panel_f_min" not in frame
+
+
+def test_spectrum_recenters_when_cc_outside_panel():
+    from modules.sdr_location_gateway.sdrtrunk.spectrum import spectrum_hub
+
+    frame = spectrum_hub.parse_frame(
+        '{"bins": [0.1, 0.2], "f_min": 99900000, "f_max": 102300000,'
+        ' "cc_hz": [854562500, 856737500]}'
+    )
+    assert frame is not None
+    assert frame["panel_f_min"] == 99900000
+    assert frame["panel_f_max"] == 102300000
+    bw = 102300000 - 99900000
+    midpoint = (854562500 + 856737500) / 2
+    assert frame["f_min"] == midpoint - bw / 2
+    assert frame["f_max"] == midpoint + bw / 2
+    assert 854562500 >= frame["f_min"]
+    assert 856737500 <= frame["f_max"]
+
+
+def test_spectrum_preserves_exporter_panel_fields():
+    from modules.sdr_location_gateway.sdrtrunk.spectrum import spectrum_hub
+
+    frame = spectrum_hub.parse_frame(
+        '{"bins": [0.1], "f_min": 854000000, "f_max": 856400000, '
+        '"panel_f_min": 99900000, "panel_f_max": 102300000, "cc_hz": [854562500]}'
+    )
+    assert frame is not None
+    assert frame["f_min"] == 854000000
+    assert frame["panel_f_min"] == 99900000
+
+
+def test_align_span_uses_first_cc_when_they_do_not_fit():
+    from modules.sdr_location_gateway.sdrtrunk.spectrum import align_span_to_control_channels
+
+    f_min, f_max, panel_min, panel_max = align_span_to_control_channels(
+        99_900_000,
+        102_300_000,
+        [851_012_500, 860_012_500],
+    )
+    bw = 2_400_000
+    assert panel_min == 99_900_000
+    assert f_min == 851_012_500 - bw / 2
+    assert f_max == 851_012_500 + bw / 2
+    assert 860_012_500 > f_max
 
 
 def test_playlist_preferred_tuner(tmp_path):

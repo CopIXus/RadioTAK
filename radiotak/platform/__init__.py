@@ -24,6 +24,12 @@ class Platform(ABC):
     @abstractmethod
     def run_priv(self, *args: str) -> tuple[int, str]: ...
 
+    def run_priv_stream(self, *args: str, on_line, timeout: int = 600) -> int:
+        code, out = self.run_priv(*args)
+        for line in (out or "").splitlines():
+            on_line(line)
+        return code
+
     @abstractmethod
     def list_sdr_devices(self) -> list[dict[str, Any]]: ...
 
@@ -136,16 +142,75 @@ class LinuxPlatform(Platform):
             return "Active: active" in (status or "")
         return False
 
+    def _priv_cmd(self, *args: str) -> list[str]:
+        from radiotak.config import get_settings
+
+        candidates: list[str] = []
+        try:
+            candidates.append(str(get_settings().install_dir / "bin" / "radiotak-priv"))
+        except Exception:  # noqa: BLE001
+            pass
+        which = shutil.which("radiotak-priv")
+        if which:
+            candidates.append(which)
+        candidates.extend(["/usr/local/sbin/radiotak-priv", "/opt/radiotak/bin/radiotak-priv"])
+        helper = None
+        seen: set[str] = set()
+        for cand in candidates:
+            if not cand or cand in seen:
+                continue
+            seen.add(cand)
+            if os.access(cand, os.X_OK) or os.path.isfile(cand):
+                helper = cand
+                break
+        helper = helper or "/opt/radiotak/bin/radiotak-priv"
+        return ["sudo", "-n", helper, *args]
+
+    def _priv_timeout(self, args: tuple[str, ...]) -> int:
+        if args and args[0] in ("module-install", "git-update"):
+            return 900
+        if args and args[0] == "fix-git":
+            return 180
+        return 300
+
     def run_priv(self, *args: str) -> tuple[int, str]:
-        helper = shutil.which("radiotak-priv") or "/opt/radiotak/bin/radiotak-priv"
-        cmd = ["sudo", "-n", helper, *args]
-        timeout = 900 if args and args[0] == "module-install" else 300
+        # Prefer the checkout copy so newly added priv commands work before the
+        # next installer pass copies the helper into /usr/local/sbin.
+        cmd = self._priv_cmd(*args)
+        timeout = self._priv_timeout(args)
         try:
             proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
             out = (proc.stdout or "") + (proc.stderr or "")
             return proc.returncode, out.strip()
         except Exception as exc:  # noqa: BLE001
             return 1, str(exc)
+
+    def run_priv_stream(self, *args: str, on_line, timeout: int = 0) -> int:
+        cmd = self._priv_cmd(*args)
+        limit = timeout or self._priv_timeout(args)
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+            )
+        except Exception as exc:  # noqa: BLE001
+            on_line(str(exc))
+            return 1
+        try:
+            assert proc.stdout is not None
+            for line in proc.stdout:
+                on_line(line.rstrip("\n"))
+            return proc.wait(timeout=limit)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            on_line("timed out")
+            return 1
+        except Exception as exc:  # noqa: BLE001
+            on_line(str(exc))
+            return 1
 
     def list_sdr_devices(self) -> list[dict[str, Any]]:
         devices: list[dict[str, Any]] = []

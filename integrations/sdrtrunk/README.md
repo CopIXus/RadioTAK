@@ -24,8 +24,16 @@ Example frame (`sdr2tak.spectrum.v1`):
 ```
 
 - `bins`: linear magnitudes, target length **512**
-- `f_min` / `f_max`: tuner sweep edges in Hz
+- `f_min` / `f_max`: tuner sweep edges in Hz. Prefer the live tuner LO feeding the DFT, not a stale `showFirstTuner()` overlay. When a processing playlist channel sits outside the spectral-panel window, the span is recentered on those CCs (same bandwidth) and the original overlay is copied to `panel_f_min` / `panel_f_max`.
 - `cc_hz`: playlist control-channel markers (cyan lines on the canvas)
+
+`SpectralDisplayPanel` should construct the exporter as:
+
+```java
+mDftFrameExporter = new DftFrameExporter(mOverlayPanel, mChannelModel, this::getTuner);
+```
+
+and call `mDftFrameExporter.bindTuner(mTuner)` from `showTuner` / `clearTuner` so frequency-change events update labels even if OverlayPanel misses them. The two-argument constructor remains for older hook lines.
 
 ## Preferences (`SDRTrunk.properties`)
 

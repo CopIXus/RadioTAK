@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import json
+import os
 import re
 import subprocess
+import threading
 import time
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 import httpx
 
@@ -17,6 +21,11 @@ from radiotak.services.settings_store import load_settings_file
 _STAMP_RE = re.compile(r"^\d{2}\.\d{4}\.\d{4}$")
 _update_cache: dict[str, Any] = {"ts": 0.0, "payload": None}
 _UPDATE_CACHE_SECONDS = 120.0
+_LOG_CAP_CHARS = 80_000
+_job_lock = threading.Lock()
+_job_thread: Optional[threading.Thread] = None
+
+EmitFn = Callable[[str], None]
 
 
 def _git(install: Path, *args: str) -> tuple[int, str]:
@@ -184,7 +193,170 @@ async def check_for_update(force: bool = False) -> dict[str, Any]:
     return payload
 
 
-def update_now(branch: Optional[str] = None) -> tuple[int, str]:
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _state_path() -> Path:
+    return get_settings().data_dir / "update-state.json"
+
+
+def _idle_state() -> dict[str, Any]:
+    return {
+        "state": "idle",
+        "log": "",
+        "started_at": None,
+        "finished_at": None,
+        "from_version": None,
+        "to_version": None,
+        "code": None,
+        "error": None,
+    }
+
+
+def load_update_state() -> dict[str, Any]:
+    path = _state_path()
+    data = _idle_state()
+    if not path.exists():
+        return data
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(raw, dict):
+            data.update(raw)
+    except (OSError, json.JSONDecodeError):
+        pass
+    return data
+
+
+def save_update_state(data: dict[str, Any]) -> None:
+    path = _state_path()
+    payload = _idle_state()
+    payload.update(data)
+    log = payload.get("log") or ""
+    if len(log) > _LOG_CAP_CHARS:
+        payload["log"] = log[-_LOG_CAP_CHARS:]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    tmp.replace(path)
+
+
+def reconcile_update_state_on_startup() -> None:
+    """Mark a restarting update as finished once the new process is up."""
+    data = load_update_state()
+    state = data.get("state")
+    if state == "restarting":
+        data["state"] = "done"
+        data["code"] = 0
+        data["to_version"] = current_version()
+        data["finished_at"] = _now_iso()
+        data["log"] = (data.get("log") or "") + (
+            f"\nConsole is back. Version {data['to_version']}.\n"
+        )
+        save_update_state(data)
+    elif state == "running":
+        data["state"] = "failed"
+        data["code"] = 1
+        data["error"] = "Update interrupted before restart completed."
+        data["finished_at"] = _now_iso()
+        data["log"] = (data.get("log") or "") + (
+            "\nUpdate interrupted (service restarted or crashed).\n"
+        )
+        save_update_state(data)
+
+
+def _append_log(line: str) -> None:
+    data = load_update_state()
+    log = data.get("log") or ""
+    if log and not log.endswith("\n"):
+        log += "\n"
+    log += line if line.endswith("\n") else line + "\n"
+    data["log"] = log
+    save_update_state(data)
+
+
+def _stream_cmd(
+    cmd: list[str],
+    cwd: Path,
+    emit: EmitFn,
+    env: Optional[dict[str, str]] = None,
+    timeout: int = 600,
+) -> int:
+    emit(f"$ {' '.join(cmd)}")
+    merged = os.environ.copy()
+    if env:
+        merged.update(env)
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            cwd=str(cwd),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            env=merged,
+        )
+    except OSError as exc:
+        emit(str(exc))
+        return 1
+    try:
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            emit(line.rstrip("\n"))
+        return proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        emit("command timed out")
+        return 1
+    except Exception as exc:  # noqa: BLE001
+        emit(str(exc))
+        return 1
+
+
+def _git_fetch_local(install: Path, repo: str, branch: str, emit: EmitFn) -> int:
+    remote = f"https://github.com/{repo}.git"
+    git = ["git", "-c", f"safe.directory={install}"]
+    env = {"GIT_TERMINAL_PROMPT": "0"}
+    if _stream_cmd([*git, "fetch", "--progress", remote, branch], install, emit, env=env) != 0:
+        return 1
+    return _stream_cmd(
+        [*git, "checkout", "--force", "-B", branch, "FETCH_HEAD"],
+        install,
+        emit,
+        env=env,
+    )
+
+
+def _git_fetch(install: Path, repo: str, branch: str, emit: EmitFn) -> int:
+    """Pull via radiotak-priv when possible so root-owned .git/objects get repaired."""
+    from radiotak.platform import get_platform
+
+    plat = get_platform()
+    if plat.__class__.__name__ == "LinuxPlatform":
+        captured: list[str] = []
+
+        def priv_emit(line: str) -> None:
+            captured.append(line)
+            emit(line)
+
+        emit("Repairing repository permissions, then fetching from GitHub…")
+        code = plat.run_priv_stream("git-update", branch, repo, on_line=priv_emit)
+        blob = "\n".join(captured)
+        if code == 0:
+            return 0
+        if "unknown command" in blob:
+            emit(
+                "Privilege helper is older than this build — "
+                "repairing ownership, then fetching locally."
+            )
+            plat.run_priv_stream("fix-git", on_line=emit)
+        else:
+            emit("Privileged git-update failed — trying a local fetch after ownership repair.")
+            plat.run_priv_stream("fix-git", on_line=emit)
+    return _git_fetch_local(install, repo, branch, emit)
+
+
+def update_now(branch: Optional[str] = None, on_line: Optional[EmitFn] = None) -> tuple[int, str]:
     settings = get_settings()
     data = load_settings_file()
     branch = branch or data.get("github_branch") or settings.github_branch
@@ -192,47 +364,158 @@ def update_now(branch: Optional[str] = None) -> tuple[int, str]:
     install = settings.install_dir
     lines: list[str] = []
 
-    def run(cmd: list[str], cwd: Path | None = None) -> int:
-        proc = subprocess.run(
-            cmd, cwd=str(cwd or install), capture_output=True, text=True, check=False
-        )
-        out = (proc.stdout or "") + (proc.stderr or "")
-        lines.append(f"$ {' '.join(cmd)}\n{out}")
-        return proc.returncode
+    def emit(msg: str) -> None:
+        text = msg.rstrip("\n")
+        lines.append(text)
+        if on_line:
+            on_line(text)
 
-    remote = f"https://github.com/{repo}.git"
-    git = ["git", "-c", f"safe.directory={install}"]
-    if run([*git, "fetch", remote, branch]) != 0:
-        return 1, "\n".join(lines)
-    if run([*git, "checkout", "--force", "-B", branch, "FETCH_HEAD"]) != 0:
-        return 1, "\n".join(lines)
+    if _git_fetch(install, repo, branch, emit) != 0:
+        emit(
+            "Git fetch failed. If you see 'insufficient permission' for .git/objects, "
+            "SSH in and run: sudo radiotak update"
+        )
+        return 1, "\n".join(lines) + "\n"
 
     try:
         stamp = write_version_stamp(install)
-        lines.append(f"VERSION stamped: {stamp}\n")
+        emit(f"VERSION stamped: {stamp}")
     except OSError as exc:
-        lines.append(f"VERSION stamp failed: {exc}\n")
+        emit(f"VERSION stamp failed: {exc}")
 
     venv_pip = install / ".venv" / "bin" / "pip"
     if not venv_pip.exists():
         venv_pip = install / ".venv" / "Scripts" / "pip.exe"
-    if venv_pip.exists():
-        run([str(venv_pip), "install", "-r", "requirements.txt"])
-    else:
-        run(["pip", "install", "-r", "requirements.txt"])
+    pip_cmd = [str(venv_pip)] if venv_pip.exists() else ["pip"]
+    emit("Installing Python dependencies…")
+    _stream_cmd([*pip_cmd, "install", "-r", "requirements.txt"], install, emit)
+    if (install / "pyproject.toml").exists() or (install / "setup.py").exists():
+        _stream_cmd([*pip_cmd, "install", "-e", str(install)], install, emit)
 
     from radiotak.platform import get_platform
 
-    code, out = get_platform().service_action("radiotak", "restart")
-    lines.append(out)
+    try:
+        from radiotak.services import modules as modules_svc
+
+        if modules_svc.is_installed(modules_svc.SDR_MODULE_ID):
+            if modules_svc.decoder_upgrade_needed():
+                emit("Upgrading SDRTrunk decoder (this may take several minutes)…")
+                code, out = modules_svc.install_module(modules_svc.SDR_MODULE_ID)
+                for line in (out or "").splitlines()[-12:]:
+                    emit(line)
+                emit(f"SDRTrunk decoder upgrade: exit {code}")
+            else:
+                emit("SDRTrunk decoder build already current")
+    except Exception as exc:  # noqa: BLE001
+        emit(f"decoder upgrade skipped: {exc}")
+
+    emit("Restarting RadioTAK — the console will go offline for a short time.")
     _update_cache["ts"] = 0.0
     _update_cache["payload"] = None
-    return code, "\n".join(lines)
+    code, out = get_platform().service_action("radiotak", "restart")
+    if out:
+        emit(out)
+    return code, "\n".join(lines) + "\n"
+
+
+def _run_update_job() -> None:
+    from_version = current_version()
+    try:
+        save_update_state(
+            {
+                "state": "running",
+                "log": f"Starting update from {from_version}…\n",
+                "started_at": _now_iso(),
+                "finished_at": None,
+                "from_version": from_version,
+                "to_version": None,
+                "code": None,
+                "error": None,
+            }
+        )
+
+        def on_line(msg: str) -> None:
+            _append_log(msg)
+
+        code, _out = update_now(on_line=on_line)
+        data = load_update_state()
+        if code == 0:
+            from radiotak.platform import get_platform
+
+            data = load_update_state()
+            if get_platform().__class__.__name__ == "DevPlatform":
+                data["state"] = "done"
+                data["code"] = 0
+                data["to_version"] = current_version()
+                data["finished_at"] = _now_iso()
+                data["log"] = (data.get("log") or "") + (
+                    "\n[dev] restart skipped — update finished.\n"
+                )
+            else:
+                data["state"] = "restarting"
+                data["log"] = (data.get("log") or "") + "Waiting for console to come back…\n"
+            save_update_state(data)
+        else:
+            data["state"] = "failed"
+            data["code"] = code
+            data["error"] = "Update command failed. See log."
+            data["finished_at"] = _now_iso()
+            save_update_state(data)
+    except Exception as exc:  # noqa: BLE001
+        data = load_update_state()
+        data["state"] = "failed"
+        data["code"] = 1
+        data["error"] = str(exc)
+        data["finished_at"] = _now_iso()
+        data["log"] = (data.get("log") or "") + f"\n{exc}\n"
+        save_update_state(data)
+
+
+def start_update_job() -> dict[str, Any]:
+    """Kick off a background update. Returns current state."""
+    global _job_thread
+    with _job_lock:
+        if _job_thread and _job_thread.is_alive():
+            return load_update_state()
+        data = load_update_state()
+        if data.get("state") in ("running", "restarting"):
+            return data
+        save_update_state(
+            {
+                "state": "running",
+                "log": "Starting update…\n",
+                "started_at": _now_iso(),
+                "finished_at": None,
+                "from_version": current_version(),
+                "to_version": None,
+                "code": None,
+                "error": None,
+            }
+        )
+        _job_thread = threading.Thread(target=_run_update_job, name="radiotak-update", daemon=True)
+        _job_thread.start()
+        return load_update_state()
+
+
+def update_job_busy() -> bool:
+    data = load_update_state()
+    return data.get("state") in ("running", "restarting")
 
 
 def update_status_payload() -> dict[str, Any]:
+    state = load_update_state()
     return {
         "installed": current_version(),
         "branch": load_settings_file().get("github_branch", "main"),
         "repo": get_settings().github_repo,
+        "update": {
+            "state": state.get("state") or "idle",
+            "log": state.get("log") or "",
+            "started_at": state.get("started_at"),
+            "finished_at": state.get("finished_at"),
+            "from_version": state.get("from_version"),
+            "to_version": state.get("to_version") or current_version(),
+            "code": state.get("code"),
+            "error": state.get("error"),
+        },
     }

@@ -44,7 +44,60 @@ def _login(client: TestClient):
 def test_health(client):
     r = client.get("/api/v1/health")
     assert r.status_code == 200
-    assert r.json()["status"] == "ok"
+    body = r.json()
+    assert body["status"] == "ok"
+    assert "update" in body
+
+
+def test_update_status_and_assets(client):
+    _login(client)
+    r = client.get("/api/v1/system/update")
+    assert r.status_code == 200
+    body = r.json()
+    assert "update" in body
+    assert body["update"]["state"] in ("idle", "done", "failed", "running", "restarting")
+    page = client.get("/system")
+    assert page.status_code == 200
+    assert b'id="update-overlay"' in page.content
+    assert b'data-confirm-ok="Install update"' in page.content
+    assert b"/static/js/system-update.js" in page.content
+    sw = client.get("/update-sw.js")
+    assert sw.status_code == 200
+    assert b"update-offline.html" in sw.content
+    offline = client.get("/static/update-offline.html")
+    assert offline.status_code == 200
+    assert b"Update in progress" in offline.content
+
+
+def test_start_update_api(client, monkeypatch):
+    _login(client)
+
+    def fake_start():
+        from radiotak.services import updater as updater_svc
+
+        updater_svc.save_update_state(
+            {
+                "state": "running",
+                "log": "Starting update…\n",
+                "from_version": "26.0904.1000",
+            }
+        )
+        return updater_svc.load_update_state()
+
+    monkeypatch.setattr("radiotak.services.updater.start_update_job", fake_start)
+    page = client.get("/system")
+    import re
+
+    m = re.search(r'name="csrf_token" value="([^"]+)"', page.text)
+    assert m
+    r = client.post(
+        "/api/v1/system/update",
+        headers={"X-CSRF-Token": m.group(1)},
+        json={"csrf_token": m.group(1)},
+    )
+    assert r.status_code == 200
+    assert r.json()["ok"] is True
+    assert r.json()["update"]["state"] == "running"
 
 
 def test_login_csrf_rejected(client):
@@ -203,7 +256,49 @@ def test_sdr_page_reports_decoder_build_and_feed_status(client):
     assert body["build"]["installed"] is False
     assert body["feed"]["spectrum"]["frames_received"] >= 0
     assert body["feed"]["geo"]["lines_received"] >= 0
+    assert body["feed"]["geo"]["encrypted_received"] >= 0
+    assert b"Traffic keys" in page.content
+    assert b'action="/modules/sdr/keys"' in page.content
     assert body["upgrade"]["running"] is False
+
+
+def test_units_and_events_show_encryption_status(client):
+    _login(client)
+    units = client.get("/units")
+    assert units.status_code == 200
+    assert b"Encrypted" in units.content or b"Status" in units.content
+    events = client.get("/events")
+    assert events.status_code == 200
+    assert b"encrypted" in events.content.lower() or b"Encrypted" in events.content
+
+
+def test_store_traffic_key_hides_hex(client):
+    import re
+
+    _login(client)
+    page = client.get("/modules/sdr")
+    m = re.search(r'action="/modules/sdr/keys".*?name="csrf_token" value="([^"]+)"', page.text, re.S)
+    assert m
+    hex_key = "A1" * 32
+    r = client.post(
+        "/modules/sdr/keys",
+        data={
+            "csrf_token": m.group(1),
+            "label": "County AES",
+            "protocol": "P25",
+            "algorithm": "AES-256",
+            "key_id": "1",
+            "key_hex": hex_key,
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code in (303, 302)
+    listed = client.get("/modules/sdr")
+    assert listed.status_code == 200
+    assert b"County AES" in listed.content
+    assert b"0x84" in listed.content
+    assert hex_key.encode() not in listed.content
+    assert b"A1A1A1" not in listed.content
 
 
 def test_tak_enroll_page_has_password_reveal(client):

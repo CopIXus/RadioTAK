@@ -107,3 +107,22 @@ def test_schema_accepts_valid():
     )
     assert ev.radio_id == "1234567"
     assert ev.observed_at.tzinfo is not None
+
+
+def test_decode_schema_does_not_need_gps():
+    from radiotak.gateway import DecodeEventIn
+
+    ev = DecodeEventIn.model_validate(
+        {
+            "schema": "sdr2tak.decode.v1",
+            "radio_id": "5550001",
+            "encrypted": True,
+            "talkgroup": "11025",
+            "algorithm_id": 132,
+            "key_id": 1,
+            "observed_at": "2026-09-04T15:00:00Z",
+        }
+    )
+    assert ev.encrypted is True
+    assert ev.talkgroup == "11025"
+    assert ev.algorithm_id == "132"

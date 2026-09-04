@@ -110,7 +110,7 @@ HELP: dict[str, dict[str, str]] = {
     "unit.radio_id": {
         "label": "Radio ID",
         "what": "Subscriber / radio unit ID from the trunked system (RID).",
-        "where": "Observed Units table after the decoder hears GPS, or your radio programming.",
+        "where": "Observed Units table after the decoder hears a radio (GPS or encrypted/clear call), or your radio programming.",
         "example": "1234567",
     },
     "unit.system_id": {
@@ -166,6 +166,36 @@ HELP: dict[str, dict[str, str]] = {
         "what": "Decoder mode written into the SDRTrunk playlist.",
         "where": "P25 C4FM, P25 LSM/CQPSK, DMR, or NFM conventional.",
         "example": "P25",
+    },
+    "sdr.traffic_key": {
+        "label": "Traffic key label",
+        "what": "Friendly name for an authorized TEK from the agency keyfill. The hex is stored in secrets and never shown again.",
+        "where": "SDR page → Traffic keys. Only keys you are authorized to hold.",
+        "example": "County AES TEK 1",
+    },
+    "sdr.traffic_alg": {
+        "label": "Algorithm",
+        "what": "P25/DMR encryption algorithm. Sets the ALGID used to match encrypted calls (AES-256 = 0x84, DES-OFB = 0x81, ADP = 0xAA).",
+        "where": "From the radio shop / keyloader. Use Other only if you have a non-standard ALGID.",
+        "example": "AES-256",
+    },
+    "sdr.traffic_algid": {
+        "label": "ALGID",
+        "what": "Numeric algorithm ID from the air interface. Required only when Algorithm is Other.",
+        "where": "Shown on encrypted Live Events and in SDRTrunk call details.",
+        "example": "0x84",
+    },
+    "sdr.traffic_kid": {
+        "label": "Key ID",
+        "what": "16-bit Key ID (KID) the system uses for this TEK. Encrypted calls advertise this on the air.",
+        "where": "Keyloader / radio programming, or the KID shown on an Encrypted Live Event.",
+        "example": "1",
+    },
+    "sdr.traffic_hex": {
+        "label": "Key (hex)",
+        "what": "Traffic encryption key as hexadecimal. AES-256 is 32 bytes (64 hex digits), AES-128 is 16 bytes, DES-OFB is 8 bytes, ADP is 5 bytes.",
+        "where": "Paste from an authorized keyfill. Stored under secrets/ and written to SDRTrunk/traffic_keys.json (mode 0600).",
+        "example": "",
     },
     "tailscale.auth_key": {
         "label": "Tailscale auth key",

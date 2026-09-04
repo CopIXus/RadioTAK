@@ -86,7 +86,11 @@
         var msg = el.getAttribute('data-confirm');
         if (!msg) return;
         e.preventDefault();
-        confirmModal(msg, { title: el.getAttribute('data-confirm-title') || 'Confirm' }).then(function (ok) {
+        confirmModal(msg, {
+          title: el.getAttribute('data-confirm-title') || 'Confirm',
+          okLabel: el.getAttribute('data-confirm-ok') || 'Confirm',
+          danger: el.getAttribute('data-confirm-danger') !== 'false',
+        }).then(function (ok) {
           if (!ok) return;
           if (el.tagName === 'A' && el.href) {
             window.location = el.href;
@@ -251,5 +255,8 @@
     wireTabs();
     pollVersion();
     setInterval(pollVersion, 120000);
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/update-sw.js', { scope: '/' }).catch(function () { /* private mode / http */ });
+    }
   });
 })();

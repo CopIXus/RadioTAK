@@ -43,7 +43,8 @@
     <span class="dim">▼</span>
   </div>
   <div class="help-card-body">
-    <p>Radios heard by the decoder appear under <strong>Observed</strong>. Only <strong>Approved</strong> units are forwarded to TAK unless Settings → Forwarding allows unknown radios.</p>
+    <p>Radios heard by the decoder appear under <strong>Observed</strong> — including encrypted talkgroups that never send GPS. Only <strong>Approved</strong> units are forwarded to TAK unless Settings → Forwarding allows unknown radios.</p>
+    <p>Status distinguishes <strong>Encrypted — no GPS</strong> (the radio is on a protected TG; the decoder is working) from <strong>Heard — no GPS</strong> (clear traffic, radio not sending location) and from a live GPS fix.</p>
     <p>Approve a unit to add it to the allowlist, then edit callsign, CoT type, team, and role. Per-unit settings override TAK server defaults.</p>
     <p>Each forwarded radio is published as a named marker (callsign or radio ID). By default that marker is <strong>not</strong> an ATAK contact. Radio locations stay on the map until they stale — default <strong>20 minutes</strong>, configurable under Settings → Forwarding.</p>
     <p>Default policy is <strong>deny</strong> for unknown radios — this keeps your TAK map free of unauthorized subscribers.</p>
@@ -60,6 +61,7 @@
     <p>For trunked P25/DMR enter the <strong>control channel (CC)</strong> in MHz — not random voice channels. Use RadioReference or agency programming as reference.</p>
     <p>Use <strong>Listen / Stop</strong> on each radio system to include it in the decoder playlist. <strong>Green</strong> means that system has a dongle. <strong>Yellow</strong> means it is on but waiting for another SDR. One RTL-SDR typically runs one trunked system at a time.</p>
     <p><strong>Write playlist &amp; restart</strong> applies frequency changes. Start/Stop controls the decoder service directly.</p>
+    <p><strong>Traffic keys</strong> store authorized TEKs (ALGID + Key ID + hex) from the agency keyfill. Encrypted calls are flagged on Live Events even without keys. A matching key is labeled “key on file”; SDRTrunk still does not decrypt that audio or embedded GPS.</p>
   </div>
 </div>
 
@@ -71,7 +73,8 @@
   <div class="help-card-body">
     <p>The Console waterfall displays DFT frames exported from SDRTrunk over a local TCP feed (default <code class="block">127.0.0.1:29501</code>).</p>
     <p>Cyan vertical lines mark configured control-channel frequencies. Use the waterfall to verify the decoder is tuned to the correct spectrum segment.</p>
-    <p>GPS / Live Events use a different port (<code class="block">127.0.0.1:29500</code>). A moving waterfall does not mean units will appear — that requires a radio to send lat/lon through the geo exporter.</p>
+    <p>If the axis shows the listening channel (for example 854 MHz) but a note says the SDRTrunk spectral panel was still near 100 MHz, the exporter recentered the labels onto the playlist CCs. Confirm CC lock on the Console gauges — a moving waterfall alone is not a lock.</p>
+    <p>GPS / Live Events use a different port (<code class="block">127.0.0.1:29500</code>). A moving waterfall does not mean units will appear — that requires a radio to send lat/lon <em>or</em> a call event (including encrypted) through the geo exporter.</p>
     <p>The <strong>Decoder build</strong> card on the SDR page shows which SDRTrunk is installed. A stock DSheirer build has no exporters, so the canvas stays black and no GPS arrives even while it decodes audio. Press <strong>Upgrade decoder</strong> there (or wait — RadioTAK re-runs the module installer automatically about 20 s after it starts when the build is behind, and after <strong>System → Update</strong>).</p>
     <p>Below the canvas, <strong>Spectrum feed</strong> and <strong>GPS feed</strong> report whether the exporters are connected and how many frames / GPS lines have arrived. SDRTrunk takes about a minute to start on a Raspberry Pi; the spectrum exporter connects only after the tuner is shown in its spectral display.</p>
   </div>

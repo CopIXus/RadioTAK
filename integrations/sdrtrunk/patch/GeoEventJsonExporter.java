@@ -30,16 +30,21 @@ import io.github.dsheirer.protocol.Protocol;
 import io.github.dsheirer.sample.Listener;
 import java.time.Instant;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.jdesktop.swingx.mapviewer.GeoPosition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Streams PlottableDecodeEvent GPS as NDJSON to RadioTAK (default 127.0.0.1:29500).
+ * Streams PlottableDecodeEvent GPS and encrypted/clear call metadata as NDJSON
+ * to RadioTAK (default 127.0.0.1:29500).
  *
  * Isolated from decoder/audio paths. Enable with geo_event_export_enabled in
- * SDRTrunk.properties.
+ * SDRTrunk.properties. Call events are rate-limited per radio/talkgroup.
  */
 public class GeoEventJsonExporter implements Listener<IDecodeEvent>
 {
@@ -47,9 +52,15 @@ public class GeoEventJsonExporter implements Listener<IDecodeEvent>
     public static final String ENABLED = "geo_event_export_enabled";
     public static final String HOST = "geo_event_export_host";
     public static final String PORT = "geo_event_export_port";
+    private static final long DECODE_MIN_INTERVAL_MS = 2500L;
+    private static final Pattern ALG_KEY = Pattern.compile(
+        "(?:ALGORITHM|ALGID)\\s*[:=]\\s*(?:0x)?([0-9A-Fa-f]+).*?(?:KEY(?:\\s*ID)?)\\s*[:=]\\s*(?:0x)?([0-9A-Fa-f]+)",
+        Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
     private final NdjsonTcpClient mClient;
     private final boolean mEnabled;
+    private final TrafficKeyStore mKeys;
+    private final Map<String, Long> mLastDecode = new ConcurrentHashMap<>();
 
     public GeoEventJsonExporter()
     {
@@ -57,6 +68,7 @@ public class GeoEventJsonExporter implements Listener<IDecodeEvent>
         mEnabled = props.get(ENABLED, true);
         String host = props.get(HOST, "127.0.0.1");
         int port = props.get(PORT, 29500);
+        mKeys = new TrafficKeyStore(props.get(TrafficKeyStore.PATH_PROPERTY, ""));
         if(mEnabled)
         {
             mClient = new NdjsonTcpClient("geo", host, port);
@@ -72,14 +84,33 @@ public class GeoEventJsonExporter implements Listener<IDecodeEvent>
     @Override
     public void receive(IDecodeEvent decodeEvent)
     {
-        if(!mEnabled || !(decodeEvent instanceof PlottableDecodeEvent plottable))
+        if(!mEnabled || decodeEvent == null)
         {
             return;
         }
-        if(!plottable.isValidLocation())
+        if(decodeEvent instanceof PlottableDecodeEvent plottable && plottable.isValidLocation())
+        {
+            emitLocation(plottable);
+            return;
+        }
+        DecodeEventType type = decodeEvent.getEventType();
+        if(!isCallLike(type))
         {
             return;
         }
+        emitDecode(decodeEvent);
+    }
+
+    public void dispose()
+    {
+        if(mClient != null)
+        {
+            mClient.stop();
+        }
+    }
+
+    private void emitLocation(PlottableDecodeEvent plottable)
+    {
         GeoPosition pos = plottable.getLocation();
         IdentifierCollection ids = plottable.getIdentifierCollection();
         Identifier from = ids != null ? ids.getFromIdentifier() : null;
@@ -129,15 +160,116 @@ public class GeoEventJsonExporter implements Listener<IDecodeEvent>
         mClient.send(sb.toString());
     }
 
-    public void dispose()
+    private void emitDecode(IDecodeEvent event)
     {
-        if(mClient != null)
+        IdentifierCollection ids = event.getIdentifierCollection();
+        Identifier from = ids != null ? ids.getFromIdentifier() : null;
+        if(from == null || from.getValue() == null)
         {
-            mClient.stop();
+            return;
         }
+        String radioId = String.valueOf(from.getValue());
+        if(radioId.isBlank())
+        {
+            return;
+        }
+        Identifier to = ids != null ? ids.getToIdentifier() : null;
+        String talkgroup = to != null && to.getValue() != null ? String.valueOf(to.getValue()) : "";
+        DecodeEventType type = event.getEventType();
+        boolean encrypted = isEncrypted(type, event.getDetails());
+        String dedupe = radioId + "|" + talkgroup + "|" + encrypted;
+        long now = System.currentTimeMillis();
+        Long last = mLastDecode.get(dedupe);
+        if(last != null && now - last < DECODE_MIN_INTERVAL_MS)
+        {
+            return;
+        }
+        mLastDecode.put(dedupe, now);
+
+        Integer algId = encryptionAlgorithm(event.getDetails());
+        Integer keyId = encryptionKeyId(event.getDetails());
+        boolean keyLoaded = mKeys.hasKey(algId, keyId);
+
+        StringBuilder sb = new StringBuilder(256);
+        sb.append("{\"schema\":\"sdr2tak.decode.v1\"");
+        sb.append(",\"event_id\":\"").append(UUID.randomUUID()).append('"');
+        sb.append(",\"decoder\":\"sdrtrunk\"");
+        field(sb, "protocol", protocol(event));
+        field(sb, "system_name", aliasListName(ids));
+        field(sb, "radio_id", radioId);
+        if(!talkgroup.isBlank())
+        {
+            field(sb, "talkgroup", talkgroup);
+        }
+        sb.append(",\"encrypted\":").append(encrypted);
+        sb.append(",\"key_loaded\":").append(keyLoaded);
+        if(algId != null)
+        {
+            sb.append(",\"algorithm_id\":").append(algId);
+            field(sb, "algorithm_id_hex", String.format(Locale.US, "%02X", algId));
+        }
+        if(keyId != null)
+        {
+            sb.append(",\"key_id\":").append(keyId);
+        }
+        IChannelDescriptor channel = event.getChannelDescriptor();
+        if(channel != null && channel.getDownlinkFrequency() > 0)
+        {
+            sb.append(",\"frequency_hz\":").append(channel.getDownlinkFrequency());
+        }
+        sb.append(",\"emergency\":").append(type == DecodeEventType.EMERGENCY);
+        field(sb, "raw_event_type", type != null ? type.name() : null);
+        field(sb, "details", event.getDetails());
+        sb.append(",\"observed_at\":\"").append(Instant.ofEpochMilli(event.getTimeStart())).append('"');
+        sb.append('}');
+        mClient.send(sb.toString());
     }
 
-    private static String protocol(PlottableDecodeEvent event)
+    private static boolean isCallLike(DecodeEventType type)
+    {
+        if(type == null)
+        {
+            return false;
+        }
+        String name = type.name();
+        return name.startsWith("CALL") || name.startsWith("DATA_CALL");
+    }
+
+    private static boolean isEncrypted(DecodeEventType type, String details)
+    {
+        if(type != null && type.name().contains("ENCRYPTED"))
+        {
+            return true;
+        }
+        if(details == null)
+        {
+            return false;
+        }
+        String upper = details.toUpperCase(Locale.ROOT);
+        return upper.contains("ENCRYPTED") && !upper.contains("UNENCRYPTED");
+    }
+
+    private static Integer encryptionAlgorithm(String details)
+    {
+        Matcher matcher = ALG_KEY.matcher(details == null ? "" : details);
+        if(matcher.find())
+        {
+            return TrafficKeyStore.parseHexInt(matcher.group(1));
+        }
+        return null;
+    }
+
+    private static Integer encryptionKeyId(String details)
+    {
+        Matcher matcher = ALG_KEY.matcher(details == null ? "" : details);
+        if(matcher.find())
+        {
+            return TrafficKeyStore.parseHexInt(matcher.group(2));
+        }
+        return null;
+    }
+
+    private static String protocol(IDecodeEvent event)
     {
         Protocol p = event.getProtocol();
         return p == null ? null : p.name();

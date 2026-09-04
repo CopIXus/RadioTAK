@@ -58,6 +58,55 @@ case "$cmd" in
     export DEBIAN_FRONTEND=noninteractive
     apt-get install -y "${pkgs[@]}"
     ;;
+  fix-git)
+    # Root-owned objects from `sudo git` / install.sh break UI updates (radiotak user).
+    echo "Repairing ownership of $INSTALL_DIR"
+    if ! git config --system --get-all safe.directory 2>/dev/null | grep -qx "$INSTALL_DIR"; then
+      git config --system --add safe.directory "$INSTALL_DIR" || true
+    fi
+    if [[ -d "$INSTALL_DIR/.git" ]]; then
+      chown -R radiotak:radiotak "$INSTALL_DIR/.git"
+      chmod -R u+rwX "$INSTALL_DIR/.git" || true
+    fi
+    chown -R radiotak:radiotak "$INSTALL_DIR"
+    echo "Ownership repaired"
+    ;;
+  git-update)
+    branch=${1:-main}
+    repo=${2:-CopIXus/RadioTAK}
+    [[ "$branch" =~ ^[A-Za-z0-9._/-]+$ ]] || die "invalid branch"
+    [[ "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die "invalid repo"
+    if [[ -z "${RADIOTAK_PRIV_STDBUF:-}" ]] && command -v stdbuf >/dev/null 2>&1; then
+      export RADIOTAK_PRIV_STDBUF=1
+      exec stdbuf -oL -eL "$0" git-update "$branch" "$repo"
+    fi
+    remote="https://github.com/${repo}.git"
+    if ! git config --system --get-all safe.directory 2>/dev/null | grep -qx "$INSTALL_DIR"; then
+      git config --system --add safe.directory "$INSTALL_DIR" || true
+    fi
+    echo "==> Repairing git ownership so the service user can unpack objects"
+    if [[ -d "$INSTALL_DIR/.git" ]]; then
+      chown -R radiotak:radiotak "$INSTALL_DIR/.git"
+      chmod -R u+rwX "$INSTALL_DIR/.git" || true
+    fi
+    chown -R radiotak:radiotak "$INSTALL_DIR"
+    echo "==> Fetching ${branch} from ${remote}"
+    sudo -u radiotak env GIT_TERMINAL_PROMPT=0 git -c "safe.directory=$INSTALL_DIR" -C "$INSTALL_DIR" fetch --progress "$remote" "$branch"
+    echo "==> Checking out ${branch}"
+    sudo -u radiotak env GIT_TERMINAL_PROMPT=0 git -c "safe.directory=$INSTALL_DIR" -C "$INSTALL_DIR" checkout --force -B "$branch" FETCH_HEAD
+    chown -R radiotak:radiotak "$INSTALL_DIR"
+    if [[ -f "$INSTALL_DIR/bin/radiotak-priv" ]]; then
+      install -m 0755 "$INSTALL_DIR/bin/radiotak-priv" /usr/local/sbin/radiotak-priv
+    fi
+    if [[ -f "$INSTALL_DIR/bin/radiotak" ]]; then
+      install -m 0755 "$INSTALL_DIR/bin/radiotak" /usr/local/bin/radiotak
+    fi
+    if [[ -f "$INSTALL_DIR/deploy/sudoers/radiotak" ]]; then
+      cp "$INSTALL_DIR/deploy/sudoers/radiotak" /etc/sudoers.d/radiotak
+      chmod 440 /etc/sudoers.d/radiotak
+    fi
+    echo "==> Git update complete"
+    ;;
   *)
     die "unknown command: $cmd"
     ;;

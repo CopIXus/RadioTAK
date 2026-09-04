@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+from datetime import UTC
 from pathlib import Path
-from typing import AsyncIterator, Optional
 
 from radiotak.db import get_session_factory
 from radiotak.gateway.pipeline import pipeline
@@ -15,11 +15,11 @@ from radiotak.services.logging_setup import log_event
 
 def replay_jsonl(path: str | Path, send_to_tak: bool = True, refresh_timestamps: bool = True) -> dict:
     """Synchronously replay a JSONL fixture through the pipeline."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     path = Path(path)
     Session = get_session_factory()
-    stats = {"total": 0, "forwarded": 0, "blocked": 0, "rejected": 0}
+    stats = {"total": 0, "forwarded": 0, "blocked": 0, "rejected": 0, "heard": 0}
     with path.open(encoding="utf-8") as fh:
         for line in fh:
             line = line.strip()
@@ -27,12 +27,14 @@ def replay_jsonl(path: str | Path, send_to_tak: bool = True, refresh_timestamps:
                 continue
             raw = json.loads(line)
             if refresh_timestamps:
-                raw["observed_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+                raw["observed_at"] = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
             stats["total"] += 1
             db = Session()
             try:
                 result = pipeline.process_dict(db, raw)
-                if result.observation is None:
+                if result.heard:
+                    stats["heard"] += 1
+                elif result.observation is None:
                     stats["rejected"] += 1
                 elif result.forwarded:
                     stats["forwarded"] += 1
@@ -65,12 +67,15 @@ _geo_stats: dict[str, object] = {
     "clients": 0,
     "connections_total": 0,
     "lines_received": 0,
+    "gps_received": 0,
+    "decode_received": 0,
+    "encrypted_received": 0,
     "last_line_at": None,
 }
 
 
 def geo_stats() -> dict:
-    """Counters for the :29500 GPS feed (exporter connected? any lines yet?)."""
+    """Counters for the :29500 GPS / decode feed (exporter connected? any lines yet?)."""
     import time
 
     last = _geo_stats["last_line_at"]
@@ -78,6 +83,9 @@ def geo_stats() -> dict:
         "clients": _geo_stats["clients"],
         "connections_total": _geo_stats["connections_total"],
         "lines_received": _geo_stats["lines_received"],
+        "gps_received": _geo_stats["gps_received"],
+        "decode_received": _geo_stats["decode_received"],
+        "encrypted_received": _geo_stats["encrypted_received"],
         "last_line_age": round(time.time() - last, 1) if isinstance(last, float) else None,
     }
 
@@ -101,6 +109,13 @@ async def listen_ndjson_tcp(host: str = "127.0.0.1", port: int = 29500) -> None:
                     continue
                 _geo_stats["lines_received"] = int(_geo_stats["lines_received"]) + 1
                 _geo_stats["last_line_at"] = time.time()
+                schema = str(raw.get("schema") or "")
+                if schema == "sdr2tak.decode.v1":
+                    _geo_stats["decode_received"] = int(_geo_stats["decode_received"]) + 1
+                    if raw.get("encrypted"):
+                        _geo_stats["encrypted_received"] = int(_geo_stats["encrypted_received"]) + 1
+                else:
+                    _geo_stats["gps_received"] = int(_geo_stats["gps_received"]) + 1
                 db = Session()
                 try:
                     result = pipeline.process_dict(db, raw)

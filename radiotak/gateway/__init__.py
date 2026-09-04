@@ -26,6 +26,52 @@ def _parse_dt(value: Any) -> datetime:
     return datetime.fromisoformat(text).astimezone(timezone.utc)
 
 
+class DecodeEventIn(BaseModel):
+    """Inbound decoder call event — sdr2tak.decode.v1 (no GPS required)."""
+
+    schema_name: str = Field(default="sdr2tak.decode.v1", alias="schema")
+    event_id: Optional[str] = None
+    decoder: str = "sdrtrunk"
+    protocol: Optional[str] = None
+    system_name: Optional[str] = None
+    system_id: Optional[str] = None
+    frequency_hz: Optional[int] = None
+    talkgroup: Optional[str] = None
+    radio_id: str
+    source_alias: Optional[str] = None
+    encrypted: bool = False
+    algorithm_id: Optional[str] = None
+    algorithm_id_hex: Optional[str] = None
+    key_id: Optional[str] = None
+    key_loaded: bool = False
+    emergency: bool = False
+    observed_at: datetime
+    raw_event_type: Optional[str] = None
+    details: Optional[str] = None
+
+    model_config = {"populate_by_name": True}
+
+    @field_validator("radio_id")
+    @classmethod
+    def _radio(cls, v: str) -> str:
+        text = str(v or "").strip()
+        if not text:
+            raise ValueError("radio_id is required")
+        return text
+
+    @field_validator("talkgroup", "algorithm_id", "algorithm_id_hex", "key_id", mode="before")
+    @classmethod
+    def _stringify(cls, v: Any) -> Optional[str]:
+        if v is None or v == "":
+            return None
+        return str(v).strip()
+
+    @field_validator("observed_at", mode="before")
+    @classmethod
+    def _obs(cls, v: Any) -> datetime:
+        return _parse_dt(v)
+
+
 class LocationEventIn(BaseModel):
     """Inbound decoder event — sdr2tak.location.v1."""
 

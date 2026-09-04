@@ -73,4 +73,12 @@ def test_geo_stats_counters_shape():
     from modules.sdr_location_gateway.sdrtrunk.adapter import geo_stats
 
     s = geo_stats()
-    assert set(s) == {"clients", "connections_total", "lines_received", "last_line_age"}
+    assert set(s) == {
+        "clients",
+        "connections_total",
+        "lines_received",
+        "gps_received",
+        "decode_received",
+        "encrypted_received",
+        "last_line_age",
+    }

@@ -13,6 +13,9 @@ def test_version_stamp_now_format():
 
 
 def test_version_stamp_from_git_matches_format():
+    from radiotak.config import reload_settings
+
+    reload_settings()
     stamp = updater.version_stamp_from_git()
     assert stamp is not None
     assert re.match(r"^\d{2}\.\d{4}\.\d{4}$", stamp)

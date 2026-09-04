@@ -109,6 +109,13 @@ class RadioIdentity(Base):
     last_latitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     last_longitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     last_observed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_gps_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_call_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_talkgroup_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    last_encrypted: Mapped[bool] = mapped_column(Boolean, default=False)
+    last_encryption_algorithm: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    last_encryption_key_id: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    last_key_loaded: Mapped[bool] = mapped_column(Boolean, default=False)
     observation_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
@@ -211,6 +218,25 @@ class RadioSystem(Base):
     )
 
 
+class TrafficKey(Base):
+    """Metadata for an authorized P25/DMR traffic key. Material lives in SecretStore."""
+
+    __tablename__ = "traffic_keys"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    label: Mapped[str] = mapped_column(String(128))
+    protocol: Mapped[str] = mapped_column(String(32), default="P25")
+    algorithm: Mapped[str] = mapped_column(String(32), default="AES-256")
+    algorithm_id: Mapped[int] = mapped_column(Integer)
+    key_id: Mapped[int] = mapped_column(Integer)
+    key_length_bytes: Mapped[int] = mapped_column(Integer)
+    secret_ref: Mapped[str] = mapped_column(String(256))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+
 class ForwardingEvent(Base):
     __tablename__ = "forwarding_events"
 
@@ -283,6 +309,13 @@ def _sqlite_add_missing_columns(engine) -> None:
         "ALTER TABLE tak_servers ADD COLUMN cot_how VARCHAR(32) DEFAULT 'm-g'",
         "ALTER TABLE tak_servers ADD COLUMN default_ce_feet FLOAT DEFAULT 2000",
         "ALTER TABLE audit_log ADD COLUMN target VARCHAR(256)",
+        "ALTER TABLE radio_identities ADD COLUMN last_gps_at DATETIME",
+        "ALTER TABLE radio_identities ADD COLUMN last_call_at DATETIME",
+        "ALTER TABLE radio_identities ADD COLUMN last_talkgroup_id VARCHAR(64)",
+        "ALTER TABLE radio_identities ADD COLUMN last_encrypted BOOLEAN DEFAULT 0",
+        "ALTER TABLE radio_identities ADD COLUMN last_encryption_algorithm VARCHAR(32)",
+        "ALTER TABLE radio_identities ADD COLUMN last_encryption_key_id VARCHAR(32)",
+        "ALTER TABLE radio_identities ADD COLUMN last_key_loaded BOOLEAN DEFAULT 0",
     ]
     with engine.begin() as conn:
         for sql in statements:

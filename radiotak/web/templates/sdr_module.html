@@ -92,16 +92,17 @@
 
 {% if waterfall_enabled | default(true) %}
 <div class="section-title">Spectrum waterfall</div>
-<p class="card-desc" style="margin-bottom:10px">Canvas frames come from the CopIXus SDRTrunk exporter on port 29501. GPS for Live Events uses port 29500. Stock SDRTrunk still decodes without either feed.</p>
+<p class="card-desc" style="margin-bottom:10px">Canvas frames come from the CopIXus SDRTrunk exporter on port 29501. GPS and encrypted-call events use port 29500. Stock SDRTrunk still decodes without either feed.</p>
 <div class="waterfall-wrap">
   <canvas id="sdr-waterfall" aria-label="RF spectrum waterfall"></canvas>
   <div class="waterfall-axis">
     <span id="sdr-wf-fmin">— MHz</span>
     <span id="sdr-wf-fmax">— MHz</span>
   </div>
+  <div class="waterfall-note" id="sdr-wf-note" hidden></div>
 </div>
 <div class="card-desc" id="sdr-feed-status" style="margin-top:8px">
-  Spectrum feed: <span id="sdr-feed-spec">checking…</span> · GPS feed: <span id="sdr-feed-geo">checking…</span>
+  Spectrum feed: <span id="sdr-feed-spec">checking…</span> · Events feed: <span id="sdr-feed-geo">checking…</span>
 </div>
 {% endif %}
 
@@ -242,6 +243,48 @@
     </form>
   </div>
 </div>
+
+<div class="section-title">Traffic keys</div>
+<p class="card-desc" style="margin-bottom:12px">If the agency gives you a keyfill, store the traffic encryption keys here. RadioTAK matches heard ALGID / Key ID on encrypted calls so Live Events can show <strong>encrypted, key on file</strong> vs <strong>encrypted, no matching key</strong>. SDRTrunk still cannot decrypt audio or GPS from those keys — only the system owner’s radios can. Load only keys you are authorized to hold.</p>
+{% if traffic_keys %}
+<table class="table" style="margin-bottom:20px">
+  <thead>
+    <tr><th>Label</th><th>Protocol</th><th>Algorithm</th><th>ALGID</th><th>Key ID</th><th>Length</th><th></th></tr>
+  </thead>
+  <tbody>
+  {% for k in traffic_keys %}
+    <tr>
+      <td>{{ k.label }}</td>
+      <td>{{ k.protocol }}</td>
+      <td>{{ k.algorithm }}</td>
+      <td>0x{{ k.algorithm_id_hex }}</td>
+      <td>{{ k.key_id }}</td>
+      <td>{{ k.key_length_bytes }} bytes</td>
+      <td>
+        <form method="post" action="/modules/sdr/keys/{{ k.id }}/delete">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+          <button class="btn btn-sm btn-danger" type="submit" data-confirm="Remove traffic key «{{ k.label }}» (KID {{ k.key_id }})? The hex is deleted from this appliance.">Delete</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty-state" style="margin-bottom:20px">No traffic keys stored. Encrypted calls are still flagged; audio and GPS on those TGs stay unavailable until a matching authorized key is loaded <em>and</em> a decoder that can apply it is in use.</div>
+{% endif %}
+<div class="form-panel" style="max-width:560px">
+  <form method="post" action="/modules/sdr/keys" data-busy="Storing key…">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+    {{ field('label', 'Label', placeholder='County AES TEK 1', help_key='sdr.traffic_key') }}
+    {{ select('protocol', 'Protocol', [('P25', 'P25'), ('DMR', 'DMR')], value='P25') }}
+    {{ select('algorithm', 'Algorithm', key_algorithms, value='AES-256', help_key='sdr.traffic_alg') }}
+    {{ field('algorithm_id', 'ALGID (Other only)', placeholder='0x84', help_key='sdr.traffic_algid') }}
+    {{ field('key_id', 'Key ID (KID)', required=True, placeholder='1', help_key='sdr.traffic_kid') }}
+    {{ field('key_hex', 'Key (hex)', type='password', required=True, placeholder='64 hex digits for AES-256', help_key='sdr.traffic_hex', autocomplete='off') }}
+    <button class="btn btn-primary" type="submit">Store key</button>
+  </form>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -258,6 +301,11 @@
     ? 'No spectrum frames — installed SDRTrunk is a stock build without the CopIXus exporter. Use “Upgrade decoder”.'
     : (!decoderRunning ? 'Decoder stopped — press Start to begin streaming spectrum frames.' : 'Waiting for spectrum frames from SDRTrunk (:29501)…');
   var wf = new RadioTakWaterfall(canvas, { ccMarkersHz: ccMarkers, emptyText: emptyText });
+  wf.setAxisElements({
+    fmin: document.getElementById('sdr-wf-fmin'),
+    fmax: document.getElementById('sdr-wf-fmax'),
+    note: document.getElementById('sdr-wf-note')
+  });
   var proto = location.protocol === 'https:' ? 'wss' : 'ws';
   wf.connect(proto + '://' + location.host + '/api/v1/ws/spectrum');
 
@@ -280,9 +328,14 @@
           else specEl.textContent = 'decoder running, exporter not connected yet';
         }
         if (geoEl) {
-          if (geo.lines_received > 0) geoEl.textContent = geo.lines_received + ' GPS lines (last ' + geo.last_line_age + ' s ago)';
-          else if (geo.clients > 0) geoEl.textContent = 'exporter connected, no GPS reports yet (radios must transmit lat/lon)';
-          else if (s.build && !s.build.has_exporters) geoEl.textContent = 'no exporter — stock SDRTrunk build';
+          var gpsN = geo.gps_received || 0;
+          var decN = geo.decode_received || 0;
+          var encN = geo.encrypted_received || 0;
+          if (geo.lines_received > 0) {
+            geoEl.textContent = gpsN + ' GPS, ' + decN + ' calls (' + encN + ' encrypted), last ' + geo.last_line_age + ' s ago';
+          } else if (geo.clients > 0) {
+            geoEl.textContent = 'exporter connected, no GPS or call events yet';
+          } else if (s.build && !s.build.has_exporters) geoEl.textContent = 'no exporter — stock SDRTrunk build';
           else geoEl.textContent = 'exporter not connected';
         }
         var upgrading = s.upgrade && s.upgrade.running;
@@ -294,16 +347,6 @@
   }
   poll();
   setInterval(poll, 3000);
-  var origPush = wf.pushFrame.bind(wf);
-  wf.pushFrame = function (frame) {
-    origPush(frame);
-    if (frame && frame.f_min != null && frame.f_max != null) {
-      var fmin = document.getElementById('sdr-wf-fmin');
-      var fmax = document.getElementById('sdr-wf-fmax');
-      if (fmin) fmin.textContent = (frame.f_min / 1e6).toFixed(3) + ' MHz';
-      if (fmax) fmax.textContent = (frame.f_max / 1e6).toFixed(3) + ' MHz';
-    }
-  };
 })();
 </script>
 {% endif %}

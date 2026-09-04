@@ -7,16 +7,21 @@ import json
 import math
 import time
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from radiotak.db import ForwardingStatus, LocationObservation, TakServer, utcnow
-from radiotak.gateway import LocationEventIn, stable_cot_uid
-from radiotak.gateway.cot import build_cot_xml
+from radiotak.gateway import DecodeEventIn, LocationEventIn, stable_cot_uid
 from radiotak.gateway.constants import DEFAULT_STALE_SECONDS, DETECTION_COT_TYPE
-from radiotak.gateway.identities import is_forward_allowed, observe_or_create
+from radiotak.gateway.cot import build_cot_xml
+from radiotak.gateway.identities import (
+    hear_status,
+    is_forward_allowed,
+    observe_call,
+    observe_or_create,
+)
 from radiotak.gateway.marker_style import resolve_style
 from radiotak.gateway.tak import tak_registry
 from radiotak.services.logging_setup import log_event
@@ -34,11 +39,12 @@ def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 @dataclass
 class PipelineResult:
-    observation: Optional[LocationObservation]
+    observation: LocationObservation | None
     forwarded: bool
     reason: str
-    cot_xml: Optional[str] = None
-    cot_uid: Optional[str] = None
+    cot_xml: str | None = None
+    cot_uid: str | None = None
+    heard: bool = False
 
 
 @dataclass
@@ -62,6 +68,16 @@ class LocationPipeline:
                 pass
 
     def process_dict(self, db: Session, raw: dict[str, Any]) -> PipelineResult:
+        schema = str(raw.get("schema") or "")
+        if schema == "sdr2tak.decode.v1":
+            try:
+                event = DecodeEventIn.model_validate(raw)
+            except Exception as exc:  # noqa: BLE001
+                log_event("pipeline", "schema_reject", detail=str(exc))
+                self._emit({"type": "reject", "reason": f"schema: {exc}", "raw": raw})
+                return PipelineResult(None, False, f"schema: {exc}")
+            return self.process_decode(db, event)
+
         try:
             event = LocationEventIn.model_validate(raw)
         except Exception as exc:  # noqa: BLE001
@@ -71,8 +87,58 @@ class LocationPipeline:
 
         return self.process_event(db, event, raw)
 
+    def process_decode(self, db: Session, event: DecodeEventIn) -> PipelineResult:
+        key_loaded = bool(event.key_loaded)
+        if not key_loaded and (event.algorithm_id or event.algorithm_id_hex) and event.key_id:
+            try:
+                from radiotak.services.traffic_keys import matching_key
+
+                key_loaded = matching_key(
+                    db, event.algorithm_id or event.algorithm_id_hex, event.key_id
+                ) is not None
+            except Exception:  # noqa: BLE001
+                key_loaded = bool(event.key_loaded)
+
+        identity = observe_call(
+            db,
+            radio_id=event.radio_id,
+            system_id=event.system_id,
+            alias=event.source_alias,
+            talkgroup=event.talkgroup,
+            encrypted=event.encrypted,
+            algorithm_id=event.algorithm_id_hex or event.algorithm_id,
+            key_id=event.key_id,
+            key_loaded=key_loaded,
+        )
+        tg = event.talkgroup or identity.last_talkgroup_id
+        if event.encrypted:
+            reason = f"ENCRYPTED TG {tg}" if tg else "ENCRYPTED CALL"
+            if key_loaded:
+                reason += " · key on file"
+            else:
+                reason += " · no matching key"
+            event_type = "encrypted"
+        else:
+            reason = f"HEARD TG {tg} · no GPS" if tg else "HEARD · no GPS"
+            event_type = "heard"
+        payload = {
+            "type": event_type,
+            "radio_id": event.radio_id,
+            "callsign": identity.callsign,
+            "talkgroup": tg,
+            "protocol": event.protocol,
+            "encrypted": event.encrypted,
+            "key_loaded": key_loaded,
+            "algorithm_id": event.algorithm_id_hex or event.algorithm_id,
+            "key_id": event.key_id,
+            "reason": reason,
+            **hear_status(identity),
+        }
+        self._emit(payload)
+        return PipelineResult(None, False, reason, heard=True)
+
     def process_event(
-        self, db: Session, event: LocationEventIn, raw: Optional[dict] = None
+        self, db: Session, event: LocationEventIn, raw: dict | None = None
     ) -> PipelineResult:
         settings = load_settings_file()
         fwd = settings.get("forwarding", {})

@@ -4,7 +4,7 @@
 <div class="header">
   <div>
     <div class="header-title">Live events</div>
-    <div class="header-subtitle">Decoder and forwarding stream</div>
+    <div class="header-subtitle">Decoder GPS, encrypted calls, and TAK forwarding</div>
   </div>
   <div class="header-actions">
     <span class="ws-badge" id="ws-badge"><span class="dot"></span><span id="ws-label">Connecting…</span></span>
@@ -14,14 +14,18 @@
 
 <div class="event-stream" id="events" aria-live="polite">
   {% for e in history %}
-  <div class="event-line">
+  <div class="event-line{% if e.encrypted or e.type=='encrypted' %} encrypted{% endif %}">
     <span class="dim">{{ e.type }}</span>
     {{ e.protocol or '' }} {{ e.radio_id or '' }}
+    {% if e.talkgroup %}TG {{ e.talkgroup }}{% endif %}
+    {% if e.encrypted or e.type=='encrypted' %}
+    <span class="badge badge-encrypted">Encrypted{% if e.key_loaded %} · key on file{% endif %}</span>
+    {% endif %}
     {% if e.lat %}{{ e.lat }}, {{ e.lon }}{% endif %}
-    {% if e.reason %}<span class="{% if e.type=='blocked' %}bad{% else %}ok{% endif %}">{{ e.reason }}</span>{% endif %}
+    {% if e.reason %}<span class="{% if e.type=='blocked' %}bad{% elif e.type=='encrypted' %}warn{% elif e.type=='queued' %}ok{% else %}dim{% endif %}">{{ e.reason }}</span>{% endif %}
   </div>
   {% else %}
-  <div class="event-line dim">No events yet. Add a radio system on the SDR page, start the decoder, then allowlist units to forward GPS.</div>
+  <div class="event-line dim">No events yet. Add a radio system on the SDR page and start the decoder. Encrypted talkgroups show up here even when the radio is not sending GPS.</div>
   {% endfor %}
 </div>
 {% endblock %}
@@ -39,18 +43,28 @@
 
   function appendEvent(e) {
     var div = document.createElement('div');
-    div.className = 'event-line';
+    var encrypted = !!(e.encrypted || e.type === 'encrypted');
+    div.className = 'event-line' + (encrypted ? ' encrypted' : '');
     var typeSpan = document.createElement('span');
     typeSpan.className = 'dim';
     typeSpan.textContent = e.type || '';
     div.appendChild(typeSpan);
-    div.appendChild(document.createTextNode(' ' + (e.protocol || '') + ' ' + (e.radio_id || '') + ' '));
+    var bits = [' ', e.protocol || '', ' ', e.radio_id || '', ' '];
+    if (e.talkgroup) bits.push('TG ', String(e.talkgroup), ' ');
+    div.appendChild(document.createTextNode(bits.join('')));
+    if (encrypted) {
+      var enc = document.createElement('span');
+      enc.className = 'badge badge-encrypted';
+      enc.textContent = e.key_loaded ? 'Encrypted · key on file' : 'Encrypted';
+      div.appendChild(enc);
+      div.appendChild(document.createTextNode(' '));
+    }
     if (e.lat != null) {
       div.appendChild(document.createTextNode(String(e.lat) + ', ' + String(e.lon) + ' '));
     }
     if (e.reason) {
       var reason = document.createElement('span');
-      reason.className = e.type === 'blocked' ? 'bad' : (e.type === 'queued' ? 'ok' : 'dim');
+      reason.className = e.type === 'blocked' ? 'bad' : (e.type === 'encrypted' ? 'warn' : (e.type === 'queued' ? 'ok' : 'dim'));
       reason.textContent = e.reason;
       div.appendChild(reason);
     }
