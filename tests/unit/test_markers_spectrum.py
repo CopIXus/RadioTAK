@@ -143,6 +143,12 @@ def test_playlist_preferred_tuner(tmp_path):
     assert "preferred_tuner" in text
     assert "00000001" in text
 
+    nameless = SimpleNamespace(enabled=True, serial_number=None, name="Realtek Semiconductor Corp. RTL2838 DVB-T")
+    systems = systems_from_db_rows([system], devices=[nameless])
+    assert not systems[0].get("preferred_tuner")
+    text = write_playlist(tmp_path / "no-serial.xml", systems).read_text(encoding="utf-8")
+    assert "preferred_tuner" not in text
+
 
 def test_help_registry_nonempty():
     assert "tak.host" in help_keys()

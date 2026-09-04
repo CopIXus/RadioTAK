@@ -126,6 +126,24 @@ if [[ "$NEED_DOWNLOAD" == "1" ]]; then
 fi
 
 chown -R radiotak:radiotak "$SDR_DIR" "$DATA_DIR/modules" 2>/dev/null || true
+# Headphone / HDMI jack: Java Sound only sees ALSA cards if radiotak is in `audio`.
+usermod -aG audio radiotak 2>/dev/null || true
+
+# Skip the SIMD calibration modal — nobody can click it under Xvfb, and it
+# blocks playlist auto-start (empty Now Playing / no heard events).
+PREFS_DIR="$DATA_DIR/.java/.userPrefs/io/github/dsheirer/preference/calibration"
+mkdir -p "$PREFS_DIR"
+if [[ ! -f "$PREFS_DIR/prefs.xml" ]] || ! grep -q 'hide.calibration.dialog' "$PREFS_DIR/prefs.xml" 2>/dev/null; then
+    cat > "$PREFS_DIR/prefs.xml" <<'PREFS'
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE map SYSTEM "http://java.sun.com/dtd/preferences.dtd">
+<map MAP_XML_VERSION="1.0">
+  <entry key="hide.calibration.dialog" value="true"/>
+  <entry key="vector.enabled" value="false"/>
+</map>
+PREFS
+fi
+chown -R radiotak:radiotak "$DATA_DIR/.java" 2>/dev/null || true
 
 # systemd units
 cat > /etc/systemd/system/sdrtrunk.service <<EOF
@@ -137,6 +155,7 @@ After=network.target radiotak.service
 Type=simple
 User=radiotak
 Group=radiotak
+SupplementaryGroups=audio
 Environment=DISPLAY=:99
 Environment=HOME=$DATA_DIR
 WorkingDirectory=$DEST

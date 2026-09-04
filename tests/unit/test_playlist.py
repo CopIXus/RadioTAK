@@ -11,6 +11,7 @@ import pytest
 
 from modules.sdr_location_gateway.sdrtrunk.playlist import (
     ensure_export_properties,
+    ensure_hide_calibration_dialog,
     hz_to_mhz_str,
     parse_frequencies,
     write_p25_playlist,
@@ -139,6 +140,52 @@ def test_ensure_export_properties_appends_missing_keys(tmp_path):
     assert str(tmp_path).replace("\\", "/") in text.replace("\\", "/")
     ensure_export_properties(settings)
     assert text.count("spectrum_export_enabled=true") == 1
+    prefs = (
+        tmp_path
+        / ".java"
+        / ".userPrefs"
+        / "io"
+        / "github"
+        / "dsheirer"
+        / "preference"
+        / "calibration"
+        / "prefs.xml"
+    )
+    assert prefs.is_file()
+    prefs_text = prefs.read_text(encoding="utf-8")
+    assert 'key="hide.calibration.dialog"' in prefs_text
+    assert 'key="vector.enabled"' in prefs_text
+    assert 'value="false"' in prefs_text
+
+
+def test_ensure_hide_calibration_dialog_upserts(tmp_path):
+    from types import SimpleNamespace
+
+    from modules.sdr_location_gateway.sdrtrunk.playlist import vector_calibration_prefs_path
+
+    settings = SimpleNamespace(data_dir=tmp_path)
+    path = vector_calibration_prefs_path(settings)
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        '<?xml version="1.0"?>\n<map MAP_XML_VERSION="1.0">\n'
+        '  <entry key="vector.enabled" value="true"/>\n</map>\n',
+        encoding="utf-8",
+    )
+    ensure_hide_calibration_dialog(settings)
+    text = path.read_text(encoding="utf-8")
+    assert 'key="vector.enabled"' in text
+    assert 'key="hide.calibration.dialog"' in text
+    path.write_text(
+        text.replace(
+            'key="hide.calibration.dialog" value="true"',
+            'key="hide.calibration.dialog" value="false"',
+            1,
+        ),
+        encoding="utf-8",
+    )
+    ensure_hide_calibration_dialog(settings)
+    assert 'key="hide.calibration.dialog" value="true"' in path.read_text(encoding="utf-8")
+    assert 'key="vector.enabled" value="false"' in path.read_text(encoding="utf-8")
 
 
 def test_apply_tuner_slots_keeps_first_auto_start():

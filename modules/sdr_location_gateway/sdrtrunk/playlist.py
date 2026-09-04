@@ -97,6 +97,74 @@ def ensure_export_properties(settings=None) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     text = path.read_text(encoding="utf-8", errors="replace") if path.exists() else ""
     path.write_text(_upsert_properties(text, export_property_defaults(settings)), encoding="utf-8")
+    ensure_hide_calibration_dialog(settings)
+    return path
+
+
+def vector_calibration_prefs_path(settings=None) -> Path:
+    """Java ``Preferences.userNodeForPackage(VectorCalibrationPreference)`` file."""
+    if settings is None:
+        from radiotak.config import get_settings
+
+        settings = get_settings()
+    return (
+        Path(settings.data_dir)
+        / ".java"
+        / ".userPrefs"
+        / "io"
+        / "github"
+        / "dsheirer"
+        / "preference"
+        / "calibration"
+        / "prefs.xml"
+    )
+
+
+_HIDE_CALIBRATION_KEY = "hide.calibration.dialog"
+_VECTOR_ENABLED_KEY = "vector.enabled"
+_JAVA_PREFS_TEMPLATE = """\
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE map SYSTEM "http://java.sun.com/dtd/preferences.dtd">
+<map MAP_XML_VERSION="1.0">
+{entries}
+</map>
+"""
+
+
+def _upsert_java_pref_entry(text: str, key: str, value: str) -> str:
+    pattern = rf'(<entry\s+key="{re.escape(key)}"\s+value=")[^"]*(")'
+    if re.search(pattern, text):
+        return re.sub(pattern, rf"\g<1>{value}\2", text, count=1)
+    if "</map>" in text:
+        return text.replace("</map>", f'  <entry key="{key}" value="{value}"/>\n</map>', 1)
+    entries = f'  <entry key="{key}" value="{value}"/>'
+    return _JAVA_PREFS_TEMPLATE.format(entries=entries)
+
+
+def ensure_hide_calibration_dialog(settings=None) -> Path:
+    """Skip SDRTrunk's SIMD calibration modal so Xvfb auto-start is not blocked.
+
+    Under a virtual display nobody can click **Cancel**. The modal sits in front
+    of the playlist and the DMR/P25 channel never starts, so RadioTAK never
+    receives heard events even while the waterfall shows RF.
+
+    Vector SIMD stays off (scalar mixers) so skipped calibration does not leave
+    ``Implementation.UNCALIBRATED`` and fail to source the control channel.
+    """
+    path = vector_calibration_prefs_path(settings)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = path.read_text(encoding="utf-8", errors="replace") if path.is_file() else ""
+    wanted = {
+        _HIDE_CALIBRATION_KEY: "true",
+        _VECTOR_ENABLED_KEY: "false",
+    }
+    if not text.strip():
+        entries = "\n".join(f'  <entry key="{k}" value="{v}"/>' for k, v in wanted.items())
+        text = _JAVA_PREFS_TEMPLATE.format(entries=entries)
+    else:
+        for key, value in wanted.items():
+            text = _upsert_java_pref_entry(text, key, value)
+    path.write_text(text, encoding="utf-8")
     return path
 
 
@@ -162,6 +230,12 @@ def apply_tuner_center_frequency(frequency_hz: int, settings=None) -> Path | Non
 
 
 def _preferred_tuner_from_devices(devices) -> str | None:
+    """SDRTrunk preferred_tuner must match a tuner unique ID or serial.
+
+    USB product strings (e.g. lsusb "Realtek ... RTL2838 DVB-T") do not match
+    SDRTrunk's ``RTL-2832 USB Bus:N Port:M`` names, so the channel fails to
+    source and Now Playing stays empty. Only a real serial is safe.
+    """
     if not devices:
         return None
     for dev in devices:
@@ -170,9 +244,6 @@ def _preferred_tuner_from_devices(devices) -> str | None:
         serial = getattr(dev, "serial_number", None)
         if serial and str(serial).strip():
             return str(serial).strip()
-        name = getattr(dev, "name", None)
-        if name and str(name).strip():
-            return str(name).strip()
     return None
 
 
@@ -389,7 +460,7 @@ def systems_from_db_rows(rows, devices=None) -> list[dict[str, Any]]:
                 "site": cfg.get("site") or "1",
                 "frequencies_hz": [int(f) for f in freqs],
                 "auto_start": bool(cfg.get("auto_start", True)),
-                "preferred_tuner": preferred or cfg.get("preferred_tuner"),
+                "preferred_tuner": preferred,
             }
         )
     return out
