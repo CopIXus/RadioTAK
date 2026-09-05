@@ -158,8 +158,8 @@ HELP: dict[str, dict[str, str]] = {
     "sdr.frequencies": {
         "label": "Frequencies (MHz)",
         "what": "Control-channel frequencies for trunked P25/DMR, or conventional NFM channels.",
-        "where": "RadioReference / FCC license / agency programming — enter CC, not random voice channels.",
-        "example": "851.0125",
+        "where": "RadioReference / FCC license / agency programming — enter CC, not random voice channels. East TN TACN Elizabethton example below.",
+        "example": "854.4375",
     },
     "sdr.protocol": {
         "label": "Protocol",

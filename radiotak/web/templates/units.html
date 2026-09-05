@@ -11,9 +11,19 @@
 
 {% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
 
-<div class="form-field" style="max-width:320px;margin-bottom:20px">
-  <label class="field-label" for="unit-search">Search</label>
-  <input id="unit-search" type="search" placeholder="Filter by radio ID, callsign, agency…"/>
+<div class="unit-toolbar">
+  <div class="form-field unit-search-field">
+    <label class="field-label" for="unit-search">Search</label>
+    <input id="unit-search" type="search" placeholder="Filter by radio ID, callsign, agency…"/>
+  </div>
+  <div class="form-field unit-gps-field">
+    <span class="field-label" id="gps-filter-label">GPS</span>
+    <div class="seg-filter" role="group" aria-labelledby="gps-filter-label">
+      <button type="button" class="seg-btn active" data-gps-filter="all" aria-pressed="true">All</button>
+      <button type="button" class="seg-btn" data-gps-filter="yes" aria-pressed="false">Has GPS</button>
+      <button type="button" class="seg-btn" data-gps-filter="no" aria-pressed="false">No GPS</button>
+    </div>
+  </div>
 </div>
 
 <div data-tabs>
@@ -31,7 +41,7 @@
       </thead>
       <tbody>
       {% for u in approved %}
-        <tr data-search="{{ u.radio_id }} {{ u.callsign or '' }} {{ u.agency or '' }} {{ u.system_id or '' }}">
+        <tr data-search="{{ u.radio_id }} {{ u.callsign or '' }} {{ u.agency or '' }} {{ u.system_id or '' }}" data-gps="{{ 'yes' if u.has_gps else 'no' }}">
           <td>{{ u.radio_id }}</td>
           <td>{{ u.callsign or '—' }}</td>
           <td>{{ u.agency or '—' }}</td>
@@ -55,12 +65,13 @@
       {% else %}
         <tr><td colspan="6" class="dim">No approved units yet.</td></tr>
       {% endfor %}
+        <tr class="unit-filter-empty" hidden><td colspan="6" class="dim">No approved units match this GPS filter.</td></tr>
       </tbody>
     </table>
     </div>
     <div class="unit-cards" id="cards-approved">
       {% for u in approved %}
-      <div class="unit-card" data-search="{{ u.radio_id }} {{ u.callsign or '' }} {{ u.agency or '' }} {{ u.system_id or '' }}">
+      <div class="unit-card" data-search="{{ u.radio_id }} {{ u.callsign or '' }} {{ u.agency or '' }} {{ u.system_id or '' }}" data-gps="{{ 'yes' if u.has_gps else 'no' }}">
         <div class="unit-card-top">
           <div class="unit-card-id">{{ u.radio_id }}</div>
           <a class="btn btn-sm" href="/units/{{ u.id }}">Edit</a>
@@ -83,6 +94,7 @@
       {% else %}
       <div class="empty-state">No approved units yet. Approve observed radios or add one manually.</div>
       {% endfor %}
+      <div class="empty-state unit-filter-empty" hidden>No approved units match this GPS filter.</div>
     </div>
   </div>
 
@@ -94,7 +106,7 @@
       </thead>
       <tbody>
       {% for u in observed %}
-        <tr data-search="{{ u.radio_id }} {{ u.system_id or '' }}">
+        <tr data-search="{{ u.radio_id }} {{ u.system_id or '' }}" data-gps="{{ 'yes' if u.has_gps else 'no' }}">
           <td>{{ u.radio_id }}</td>
           <td>{{ u.observation_count }}</td>
           <td>{{ u.last_observed_at or '—' }}</td>
@@ -122,12 +134,13 @@
       {% else %}
         <tr><td colspan="6" class="dim">No unknown radios observed yet. Start the decoder or replay a fixture. Encrypted calls now appear here even without GPS.</td></tr>
       {% endfor %}
+        <tr class="unit-filter-empty" hidden><td colspan="6" class="dim">No observed units match this GPS filter.</td></tr>
       </tbody>
     </table>
     </div>
     <div class="unit-cards" id="cards-observed">
       {% for u in observed %}
-      <div class="unit-card" data-search="{{ u.radio_id }} {{ u.system_id or '' }}">
+      <div class="unit-card" data-search="{{ u.radio_id }} {{ u.system_id or '' }}" data-gps="{{ 'yes' if u.has_gps else 'no' }}">
         <div class="unit-card-top">
           <div class="unit-card-id">{{ u.radio_id }}</div>
           <span class="dim">×{{ u.observation_count }}</span>
@@ -151,6 +164,7 @@
       {% else %}
       <div class="empty-state">No unknown radios observed yet. Start the decoder or replay a fixture.</div>
       {% endfor %}
+      <div class="empty-state unit-filter-empty" hidden>No observed units match this GPS filter.</div>
     </div>
   </div>
 
@@ -174,14 +188,53 @@
 <script>
 (function () {
   var input = document.getElementById('unit-search');
-  if (!input) return;
-  input.addEventListener('input', function () {
-    var q = input.value.trim().toLowerCase();
+  var gpsBtns = document.querySelectorAll('[data-gps-filter]');
+  var STORAGE_KEY = 'radiotak.units.gpsFilter';
+  var gps = 'all';
+  try {
+    var stored = sessionStorage.getItem(STORAGE_KEY);
+    if (stored === 'yes' || stored === 'no' || stored === 'all') gps = stored;
+  } catch (e) { /* ignore */ }
+
+  function applyFilters() {
+    var q = input ? input.value.trim().toLowerCase() : '';
     document.querySelectorAll('[data-search]').forEach(function (row) {
       var hay = (row.getAttribute('data-search') || '').toLowerCase();
-      row.style.display = !q || hay.indexOf(q) >= 0 ? '' : 'none';
+      var rowGps = row.getAttribute('data-gps') || 'no';
+      var matchText = !q || hay.indexOf(q) >= 0;
+      var matchGps = gps === 'all' || rowGps === gps;
+      row.hidden = !(matchText && matchGps);
+    });
+    ['tab-approved', 'tab-observed'].forEach(function (id) {
+      var panel = document.getElementById(id);
+      if (!panel) return;
+      var items = panel.querySelectorAll('[data-search]');
+      var visible = 0;
+      items.forEach(function (el) { if (!el.hidden) visible += 1; });
+      panel.querySelectorAll('.unit-filter-empty').forEach(function (empty) {
+        empty.hidden = !(items.length && visible === 0);
+      });
+    });
+  }
+
+  function setGpsFilter(next) {
+    gps = next;
+    try { sessionStorage.setItem(STORAGE_KEY, gps); } catch (e) { /* ignore */ }
+    gpsBtns.forEach(function (btn) {
+      var on = btn.getAttribute('data-gps-filter') === gps;
+      btn.classList.toggle('active', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    applyFilters();
+  }
+
+  gpsBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      setGpsFilter(btn.getAttribute('data-gps-filter') || 'all');
     });
   });
+  if (input) input.addEventListener('input', applyFilters);
+  setGpsFilter(gps);
 })();
 </script>
 {% endblock %}

@@ -95,6 +95,32 @@ The Console **hearing gauges** summarize decoder activity without FFT:
 
 Gauges turn green when the decoder is running and traffic is recent; amber when intermittent; red when idle or decoder stopped.
 
+## East TN TACN sample
+
+TN Interop names (**TN CALL**, **TN IO 1–15**) are **talkgroups** on TACN, not frequencies you paste into the playlist. Lock a nearby site control channel; Live Events / Units then show the TGID (for example `1471` = TN CALL).
+
+Preset data: [`modules/sdr_location_gateway/samples/east_tn_tacn.json`](../modules/sdr_location_gateway/samples/east_tn_tacn.json). The SDR page **Fill Elizabethton (P25)** / **Fill Buffalo Mtn (LSM)** buttons copy those CCs into the Add form; they do not auto-seed the database. Save and Listen only for systems you are authorized to monitor. One RTL-SDR typically runs one trunked system.
+
+| Sample | Protocol | Site | Control channels (MHz) |
+|--------|----------|------|------------------------|
+| Elizabethton (Carter) | P25 C4FM | 78 | 854.4375 (primary), 854.0375 |
+| Buffalo Mtn simulcast (Washington) | P25 LSM CQPSK | 51 | 856.2375, 857.2375 |
+| Fall Branch (optional 700 MHz) | P25 | 45 | 769.83125, 771.33125 |
+
+Do **not** enter Elizabethton voice channels (`858.0375`, `858.7125`) as CCs. Simulcast sites need LSM; standalone sites use C4FM.
+
+### Interop / mutual-aid TGIDs (event matching only)
+
+| DEC | Name | Notes |
+|-----|------|--------|
+| 1471 | TN CALL | 24/7 hailing |
+| 1473–1485 (odd) | TN IO 1–7 | East districts |
+| 4001–4015 (odd) | TN IO 8–15 | West on zone map |
+| 4055 / 4057 / 4059 | LAW MA 07–09 | THP District 5 |
+| 47101 | PSAP-3 | District 5 PSAP |
+
+County dispatch near Johnson City is often encrypted; Interop/MA are the practical decoder-alive check. GPS still requires a radio transmitting Motorola unit GPS. Re-check [RadioReference SID 6355](https://www.radioreference.com/db/sid/6355) if control-channel lock fails. Official zone layout: [TN.gov TACN talkgroups](https://www.tn.gov/safety/tacn/talkgroups.html).
+
 ## Fallback
 
 `bin/radiotak replay tests/fixtures/*.jsonl` exercises the full pipeline without RF.

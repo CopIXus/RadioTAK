@@ -267,9 +267,49 @@ def test_units_and_events_show_encryption_status(client):
     units = client.get("/units")
     assert units.status_code == 200
     assert b"Encrypted" in units.content or b"Status" in units.content
+    assert b'data-gps-filter="yes"' in units.content
+    assert b'data-gps-filter="no"' in units.content
+    assert b"Has GPS" in units.content
+    assert b"No GPS" in units.content
     events = client.get("/events")
     assert events.status_code == 200
     assert b"encrypted" in events.content.lower() or b"Encrypted" in events.content
+
+
+def test_units_page_marks_observed_gps_for_filter(client):
+    from radiotak.db import RadioIdentity, get_session_factory
+
+    _login(client)
+    Session = get_session_factory()
+    db = Session()
+    try:
+        db.add(
+            RadioIdentity(
+                radio_id="1015461",
+                forward_to_tak=False,
+                last_latitude=35.12345,
+                last_longitude=-85.54321,
+            )
+        )
+        db.add(
+            RadioIdentity(
+                radio_id="1015468",
+                forward_to_tak=False,
+                last_encrypted=True,
+                last_talkgroup_id="15188",
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    page = client.get("/units")
+    assert page.status_code == 200
+    text = page.text
+    assert 'data-gps="yes"' in text
+    assert 'data-gps="no"' in text
+    assert "1015461" in text
+    assert "1015468" in text
 
 
 def test_store_traffic_key_hides_hex(client):

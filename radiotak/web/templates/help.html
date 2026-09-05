@@ -44,6 +44,7 @@
   </div>
   <div class="help-card-body">
     <p>Radios heard by the decoder appear under <strong>Observed</strong> — including encrypted talkgroups that never send GPS. Only <strong>Approved</strong> units are forwarded to TAK unless Settings → Forwarding allows unknown radios.</p>
+    <p>Use the <strong>GPS</strong> filter (All / Has GPS / No GPS) to isolate radios that already have a location from those that only showed up as audio or encrypted traffic. That makes it faster to approve units you can actually place on TAK.</p>
     <p>Status distinguishes <strong>Encrypted — no GPS</strong> (the radio is on a protected TG; the decoder is working) from <strong>Heard — no GPS</strong> (clear traffic, radio not sending location) and from a live GPS fix.</p>
     <p>Approve a unit to add it to the allowlist, then edit callsign, CoT type, team, and role. Per-unit settings override TAK server defaults.</p>
     <p>Each forwarded radio is published as a named marker (callsign or radio ID). By default that marker is <strong>not</strong> an ATAK contact. Radio locations stay on the map until they stale — default <strong>20 minutes</strong>, configurable under Settings → Forwarding.</p>
@@ -62,6 +63,30 @@
     <p>Use <strong>Listen / Stop</strong> on each radio system to include it in the decoder playlist. <strong>Green</strong> means that system has a dongle. <strong>Yellow</strong> means it is on but waiting for another SDR. One RTL-SDR typically runs one trunked system at a time.</p>
     <p><strong>Write playlist &amp; restart</strong> applies frequency changes. Start/Stop controls the decoder service directly.</p>
     <p><strong>Traffic keys</strong> store authorized TEKs (ALGID + Key ID + hex) from the agency keyfill. Encrypted calls are flagged on Live Events with the cipher name (ADP, AES-256, DES-OFB / DES-XL) and Key ID even without keys. Those labels are what you give the radio shop / KMF — they name the key slot; they are not the key. A matching stored key is labeled “key on file”; SDRTrunk still does not decrypt that audio or embedded GPS.</p>
+  </div>
+</div>
+
+<div class="help-card">
+  <div class="help-card-header" onclick="helpToggle(this)" role="button" tabindex="0" aria-expanded="false">
+    <h2>East TN TACN sample</h2>
+    <span class="dim">▼</span>
+  </div>
+  <div class="help-card-body">
+    <p><strong>TN Interop</strong> (TN CALL, TN IO 1–15) is not a frequency list — those names are <strong>talkgroups</strong> on the Tennessee Advanced Communications Network (TACN). On the SDR page enter a nearby site <strong>control channel (CC)</strong> in MHz. Decode events then show the talkgroup ID (for example <code class="block">1471</code> = TN CALL).</p>
+    <p>Only monitor systems you own, administer, or are explicitly authorized to monitor. One RTL-SDR typically listens to one trunked system at a time.</p>
+    <p><strong>Primary — Elizabethton (Carter Co.)</strong> standalone 800 MHz, protocol <strong>P25 (C4FM)</strong>, site <code class="block">78</code>:</p>
+    <p><code class="block">854.4375</code> (primary) and <code class="block">854.0375</code> (alternate). Do not enter voice channels such as 858.0375.</p>
+    <p><strong>Optional — Buffalo Mtn simulcast (Washington Co.)</strong> protocol <strong>P25 LSM (CQPSK)</strong>, site <code class="block">51</code>: <code class="block">856.2375</code> / <code class="block">857.2375</code>. Use a second dongle or instead of Elizabethton.</p>
+    <p>If 800 MHz is weak: Fall Branch 700 MHz CCs <code class="block">769.83125</code> / <code class="block">771.33125</code>, protocol P25, site <code class="block">45</code>.</p>
+    <p>On the SDR page, <strong>Fill Elizabethton (P25)</strong> / <strong>Fill Buffalo Mtn (LSM)</strong> populate the Add form; you still Save and Listen.</p>
+    <p><strong>Interop TGIDs</strong> (clear digital on RadioReference — match on Live Events / Units):</p>
+    <p><code class="block">1471</code> TN CALL · <code class="block">1473</code>–<code class="block">1485</code> (odd) TN IO 1–7 · <code class="block">4001</code>–<code class="block">4015</code> (odd) TN IO 8–15</p>
+    <p>District 5 mutual aid: LAW MA 07–09 = <code class="block">4055</code> / <code class="block">4057</code> / <code class="block">4059</code>. PSAP-3 = <code class="block">47101</code>.</p>
+    <p>County dispatch around Johnson City is often encrypted; Interop/MA traffic is the realistic “is the decoder alive?” check. GPS appears only if a radio sends unit location on that site. Control channels change — re-check RadioReference if CC lock fails.</p>
+    <p>
+      <a href="https://www.radioreference.com/db/sid/6355" target="_blank" rel="noopener">RadioReference TACN (SID 6355)</a><br/>
+      <a href="https://www.tn.gov/safety/tacn/talkgroups.html" target="_blank" rel="noopener">TN.gov TACN talkgroups</a>
+    </p>
   </div>
 </div>
 

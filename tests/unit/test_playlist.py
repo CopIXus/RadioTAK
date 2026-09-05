@@ -188,6 +188,43 @@ def test_ensure_hide_calibration_dialog_upserts(tmp_path):
     assert 'key="vector.enabled" value="false"' in path.read_text(encoding="utf-8")
 
 
+def test_east_tn_tacn_sample_json():
+    import json
+
+    sample_path = (
+        Path(__file__).resolve().parents[2]
+        / "modules"
+        / "sdr_location_gateway"
+        / "samples"
+        / "east_tn_tacn.json"
+    )
+    data = json.loads(sample_path.read_text(encoding="utf-8"))
+    by_id = {s["id"]: s for s in data["systems"]}
+
+    eliz = by_id["elizabethton"]
+    assert eliz["name"] == "TACN Elizabethton"
+    assert eliz["protocol"] == "P25"
+    assert eliz["site"] == "78"
+    assert parse_frequencies("\n".join(eliz["frequencies_mhz"])) == [
+        854437500,
+        854037500,
+    ]
+
+    buffalo = by_id["buffalo_mtn"]
+    assert buffalo["name"] == "TACN Buffalo Mtn"
+    assert buffalo["protocol"] == "P25_LSM"
+    assert buffalo["site"] == "51"
+    assert parse_frequencies("\n".join(buffalo["frequencies_mhz"])) == [
+        856237500,
+        857237500,
+    ]
+
+    tg_ids = {t["id"] for t in data["talkgroups"]}
+    assert "1471" in tg_ids
+    assert "4055" in tg_ids
+    assert hz_to_mhz_str(854437500) == "854.4375"
+
+
 def test_apply_tuner_slots_keeps_first_auto_start():
     from modules.sdr_location_gateway.sdrtrunk.playlist import apply_tuner_slots
 

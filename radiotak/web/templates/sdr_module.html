@@ -200,7 +200,7 @@
           <button type="button" class="help-icon" data-help="sdr.frequencies" aria-label="Help: Frequencies">?</button>
         </div>
         <textarea id="id_frequencies_{{ s.id }}" name="frequencies" rows="3" required>{{ s.frequencies_text }}</textarea>
-        <div class="freq-help">One per line or comma-separated. Example: 851.0125</div>
+        <div class="freq-help">One per line or comma-separated. Example: 854.4375</div>
       </div>
       <div class="btn-row">
         <button class="btn btn-sm btn-primary" type="submit">Save</button>
@@ -216,24 +216,35 @@
 
   <div class="card card-static">
     <div class="card-title">Add radio system</div>
-    <div class="card-desc">Enter the control channel(s) you are authorized to monitor.</div>
-    <form method="post" action="/modules/sdr/systems" style="margin-top:12px" data-busy="Saving…">
+    <div class="card-desc">Enter the control channel(s) you are authorized to monitor. TN Interop names (TN CALL, TN IO) are talkgroups on TACN — enter a nearby site CC, then match TGIDs on Live Events (see Help).</div>
+    <div class="btn-row" style="margin-top:8px;flex-wrap:wrap;gap:8px">
+      <button type="button" class="btn btn-sm" id="fill-elizabethton" title="Fill Elizabethton TACN control channels (P25 C4FM)">Fill Elizabethton (P25)</button>
+      <button type="button" class="btn btn-sm" id="fill-buffalo-mtn" title="Fill Buffalo Mountain simulcast CCs (P25 LSM)">Fill Buffalo Mtn (LSM)</button>
+    </div>
+    <p class="card-desc" style="margin:8px 0 0;font-size:12px">Fill buttons only populate the form — Save when ready. One RTL-SDR typically listens to one trunked system.</p>
+    <form id="add-radio-system" method="post" action="/modules/sdr/systems" style="margin-top:12px" data-busy="Saving…">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
-      {{ field('name', 'Name', required=True, placeholder='County P25') }}
-      {{ select('protocol', 'Protocol', [
-        ('P25', 'P25 (C4FM) — Phase 1 CC / Phase 2 trunk'),
-        ('P25_LSM', 'P25 LSM (CQPSK)'),
-        ('DMR', 'DMR'),
-        ('NFM', 'NFM conventional')
-      ], value='P25', help_key='sdr.protocol') }}
-      {{ field('site', 'Site', value='1') }}
+      {{ field('name', 'Name', required=True, placeholder='TACN Elizabethton', input_id='id_name_new') }}
+      <div class="form-field">
+        <div class="label-row">
+          <label class="field-label" for="id_protocol_new">Protocol</label>
+          <button type="button" class="help-icon" data-help="sdr.protocol" aria-label="Help: Protocol" title="Help">?</button>
+        </div>
+        <select id="id_protocol_new" name="protocol">
+          <option value="P25" selected>P25 (C4FM) — Phase 1 CC / Phase 2 trunk</option>
+          <option value="P25_LSM">P25 LSM (CQPSK)</option>
+          <option value="DMR">DMR</option>
+          <option value="NFM">NFM conventional</option>
+        </select>
+      </div>
+      {{ field('site', 'Site', value='78', input_id='id_site_new') }}
       <div class="form-field">
         <div class="label-row">
           <label class="field-label" for="id_frequencies_new">Frequencies (MHz)</label>
           <button type="button" class="help-icon" data-help="sdr.frequencies" aria-label="Help: Frequencies">?</button>
         </div>
-        <textarea id="id_frequencies_new" name="frequencies" rows="3" required placeholder="851.0125&#10;851.5125"></textarea>
-        <div class="freq-help">Control channels for trunked systems. Alternates on extra lines.</div>
+        <textarea id="id_frequencies_new" name="frequencies" rows="3" required placeholder="854.4375&#10;854.0375"></textarea>
+        <div class="freq-help">Control channels for trunked systems. Alternates on extra lines. Example: Elizabethton 854.4375 / 854.0375</div>
       </div>
       {{ check('auto_start', 'Auto-start with decoder', checked=True) }}
       <div class="btn-row">
@@ -308,6 +319,43 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+(function () {
+  function fillSample(sample) {
+    var nameEl = document.getElementById('id_name_new');
+    var protoEl = document.getElementById('id_protocol_new');
+    var siteEl = document.getElementById('id_site_new');
+    var freqEl = document.getElementById('id_frequencies_new');
+    if (!nameEl || !protoEl || !siteEl || !freqEl) return;
+    nameEl.value = sample.name;
+    protoEl.value = sample.protocol;
+    siteEl.value = sample.site;
+    freqEl.value = sample.frequencies;
+  }
+  var eliz = document.getElementById('fill-elizabethton');
+  if (eliz) {
+    eliz.addEventListener('click', function () {
+      fillSample({
+        name: 'TACN Elizabethton',
+        protocol: 'P25',
+        site: '78',
+        frequencies: '854.4375\n854.0375'
+      });
+    });
+  }
+  var buf = document.getElementById('fill-buffalo-mtn');
+  if (buf) {
+    buf.addEventListener('click', function () {
+      fillSample({
+        name: 'TACN Buffalo Mtn',
+        protocol: 'P25_LSM',
+        site: '51',
+        frequencies: '856.2375\n857.2375'
+      });
+    });
+  }
+})();
+</script>
 {% if waterfall_enabled | default(true) %}
 <script src="/static/js/waterfall.js"></script>
 <script>

@@ -1,0 +1,78 @@
+{
+  "title": "East TN TACN sample",
+  "system_name": "Tennessee Advanced Communications Network (TACN)",
+  "system_id": "2A5",
+  "wacn": "BEE00",
+  "notes": [
+    "TN Interop names (TN CALL, TN IO 1–15) are talkgroups on TACN, not standalone frequencies.",
+    "Enter a nearby site control channel (CC) in MHz on the SDR page; decode events show the TGID.",
+    "One RTL-SDR typically listens to one trunked system at a time. Start with Elizabethton.",
+    "Frequencies change — re-check RadioReference if CC lock fails.",
+    "Only monitor systems you own, administer, or are explicitly authorized to monitor."
+  ],
+  "sources": [
+    "https://www.radioreference.com/db/sid/6355",
+    "https://www.radioreference.com/db/site/47650",
+    "https://www.radioreference.com/db/tgCat/16119",
+    "https://www.tn.gov/safety/tacn/talkgroups.html"
+  ],
+  "systems": [
+    {
+      "id": "elizabethton",
+      "name": "TACN Elizabethton",
+      "protocol": "P25",
+      "site": "78",
+      "rfss": 2,
+      "nac": "2A0",
+      "county": "Carter, TN",
+      "modulation_note": "Standalone 800 MHz — use P25 (C4FM). RR notes 854.4375 is primary.",
+      "frequencies_mhz": ["854.4375", "854.0375"],
+      "voice_not_cc_mhz": ["858.0375", "858.7125"]
+    },
+    {
+      "id": "buffalo_mtn",
+      "name": "TACN Buffalo Mtn",
+      "protocol": "P25_LSM",
+      "site": "51",
+      "rfss": 2,
+      "nac": "2A4",
+      "county": "Washington, TN",
+      "modulation_note": "Simulcast — use P25 LSM (CQPSK). Second dongle, or instead of Elizabethton.",
+      "frequencies_mhz": ["856.2375", "857.2375"]
+    },
+    {
+      "id": "fall_branch",
+      "name": "TACN Fall Branch",
+      "protocol": "P25",
+      "site": "45",
+      "rfss": 2,
+      "nac": "2A0",
+      "county": "Washington, TN",
+      "modulation_note": "700 MHz fallback if 800 MHz is weak.",
+      "frequencies_mhz": ["769.83125", "771.33125"],
+      "optional": true
+    }
+  ],
+  "talkgroups": [
+    {"id": "1471", "name": "TN CALL", "note": "24/7 hailing channel"},
+    {"id": "1473", "name": "TN IO 1", "note": "East Interop (districts 1, 2, 5, 6)"},
+    {"id": "1475", "name": "TN IO 2", "note": "East Interop"},
+    {"id": "1477", "name": "TN IO 3", "note": "East Interop"},
+    {"id": "1479", "name": "TN IO 4", "note": "East Interop"},
+    {"id": "1481", "name": "TN IO 5", "note": "East Interop"},
+    {"id": "1483", "name": "TN IO 6", "note": "East Interop"},
+    {"id": "1485", "name": "TN IO 7", "note": "East Interop"},
+    {"id": "4001", "name": "TN IO 8", "note": "West Interop (districts 3, 4, 7, 8 on zone map)"},
+    {"id": "4003", "name": "TN IO 9", "note": "West Interop"},
+    {"id": "4005", "name": "TN IO 10", "note": "West Interop"},
+    {"id": "4007", "name": "TN IO 11", "note": "West Interop"},
+    {"id": "4009", "name": "TN IO 12", "note": "West Interop"},
+    {"id": "4011", "name": "TN IO 13", "note": "West Interop"},
+    {"id": "4013", "name": "TN IO 14", "note": "West Interop"},
+    {"id": "4015", "name": "TN IO 15", "note": "West Interop"},
+    {"id": "4055", "name": "LAW MA 07", "note": "THP District 5 law mutual aid"},
+    {"id": "4057", "name": "LAW MA 08", "note": "THP District 5 law mutual aid"},
+    {"id": "4059", "name": "LAW MA 09", "note": "THP District 5 law mutual aid"},
+    {"id": "47101", "name": "PSAP-3", "note": "PSAP talkgroup for THP District 5 counties"}
+  ]
+}

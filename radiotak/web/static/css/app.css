@@ -353,6 +353,57 @@ body::before {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, .1);
 }
+
+.unit-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  align-items: flex-end;
+  margin-bottom: 20px;
+}
+.unit-search-field {
+  flex: 1 1 240px;
+  max-width: 320px;
+  margin-bottom: 0;
+}
+.unit-gps-field { flex: 0 0 auto; margin-bottom: 0; }
+.seg-filter {
+  display: inline-flex;
+  background: rgba(15, 23, 42, .6);
+  border: 1px solid rgba(59, 130, 246, .2);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+}
+[data-theme="light"] .seg-filter {
+  background: #f8fafc;
+  border-color: rgba(15, 23, 42, .15);
+}
+.seg-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  padding: 8px 12px;
+  min-height: 36px;
+  font-family: inherit;
+  font-size: 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.seg-btn:hover { color: var(--text-primary); }
+.seg-btn.active[data-gps-filter="all"] {
+  background: rgba(59, 130, 246, .16);
+  color: var(--cyan);
+}
+.seg-btn.active[data-gps-filter="yes"] {
+  background: rgba(16, 185, 129, .14);
+  color: var(--green);
+}
+.seg-btn.active[data-gps-filter="no"] {
+  background: rgba(148, 163, 184, .16);
+  color: var(--text-secondary);
+}
 .password-wrap { position: relative; }
 .password-wrap input { padding-right: 44px; }
 .password-toggle {
@@ -951,6 +1002,9 @@ body::before {
   flex-wrap: wrap;
   margin-top: 10px;
 }
+.unit-card[hidden],
+tr[hidden],
+.unit-filter-empty[hidden] { display: none !important; }
 
 /* Bottom navigation (phones) */
 .bottom-nav {
@@ -1034,6 +1088,7 @@ body::before {
   .form-panel { max-width: none; }
   .btn { min-height: 44px; padding: 12px 16px; }
   .btn-sm { min-height: 40px; }
+  .seg-btn { min-height: 40px; padding: 10px 14px; }
   .waterfall-wrap canvas { height: 120px; }
   #map { height: 280px; }
   #mini-map { height: 180px; }
