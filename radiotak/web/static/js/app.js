@@ -208,25 +208,74 @@
     });
   }
 
-  window.RadioTakFormatAlertTime = function (iso) {
+  window.RadioTakTimeZone = function () {
+    return window.RADIOTAK_TZ || 'UTC';
+  };
+
+  window.RadioTakFormatTime = function (iso, opts) {
     if (!iso) return '';
-    var d = new Date(iso);
-    if (isNaN(d.getTime())) return iso;
-    return d.toLocaleString(undefined, {
+    var d = iso instanceof Date ? iso : new Date(iso);
+    if (isNaN(d.getTime())) return typeof iso === 'string' ? iso : '';
+    var options = {
+      timeZone: window.RadioTakTimeZone(),
       year: 'numeric',
       month: 'short',
       day: 'numeric',
       hour: 'numeric',
       minute: '2-digit',
       second: '2-digit'
+    };
+    if (opts) Object.keys(opts).forEach(function (k) { options[k] = opts[k]; });
+    try {
+      return d.toLocaleString(undefined, options);
+    } catch (err) {
+      try {
+        options.timeZone = 'UTC';
+        return d.toLocaleString(undefined, options);
+      } catch (err2) {
+        return d.toISOString();
+      }
+    }
+  };
+
+  window.RadioTakFormatAlertTime = function (iso) {
+    return window.RadioTakFormatTime(iso);
+  };
+
+  window.RadioTakFormatStamp = function (ms) {
+    var d = new Date(ms);
+    if (isNaN(d.getTime())) return '';
+    var parts = {};
+    try {
+      new Intl.DateTimeFormat('en-CA', {
+        timeZone: window.RadioTakTimeZone(),
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23'
+      }).formatToParts(d).forEach(function (p) { parts[p.type] = p.value; });
+    } catch (err) {
+      parts.year = String(d.getUTCFullYear());
+      parts.month = String(d.getUTCMonth() + 1).padStart(2, '0');
+      parts.day = String(d.getUTCDate()).padStart(2, '0');
+      parts.hour = String(d.getUTCHours()).padStart(2, '0');
+      parts.minute = String(d.getUTCMinutes()).padStart(2, '0');
+    }
+    function pad(v) { return String(v || '00').padStart(2, '0'); }
+    return parts.year + '-' + pad(parts.month) + '-' + pad(parts.day) + ' ' + pad(parts.hour) + pad(parts.minute);
+  };
+
+  window.RadioTakLocalizeTimes = function (root) {
+    qsa('time[datetime][data-alert-ts], time[datetime][data-local-ts]', root || document).forEach(function (el) {
+      var formatted = window.RadioTakFormatTime(el.getAttribute('datetime'));
+      if (formatted) el.textContent = formatted;
     });
   };
 
   window.RadioTakLocalizeAlertTimes = function (root) {
-    qsa('time[data-alert-ts]', root || document).forEach(function (el) {
-      var formatted = window.RadioTakFormatAlertTime(el.getAttribute('datetime'));
-      if (formatted) el.textContent = formatted;
-    });
+    window.RadioTakLocalizeTimes(root);
   };
 
   window.RadioTakSetAlertBadge = function (count) {
@@ -312,7 +361,7 @@
     wireBusy();
     wireSidebar();
     wireTabs();
-    window.RadioTakLocalizeAlertTimes();
+    window.RadioTakLocalizeTimes();
     pollVersion();
     pollAlertsBadge();
     setInterval(pollVersion, 120000);

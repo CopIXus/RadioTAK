@@ -5,7 +5,7 @@
 <div class="header">
   <div>
     <div class="header-title">Radio units</div>
-    <div class="header-subtitle">Allowlist — unknown radios are not forwarded by default. Encrypted talkgroups are flagged even when no GPS arrives.</div>
+    <div class="header-subtitle">Allowlist — unknown radios are not forwarded by default. Encrypted talkgroups and analog ANI IDs are flagged even when no GPS arrives.</div>
   </div>
 </div>
 
@@ -109,7 +109,11 @@
         <tr data-search="{{ u.radio_id }} {{ u.system_id or '' }}" data-gps="{{ 'yes' if u.has_gps else 'no' }}">
           <td>{{ u.radio_id }}</td>
           <td>{{ u.observation_count }}</td>
-          <td>{{ u.last_observed_at or '—' }}</td>
+          <td>
+            {% if u.last_observed_at %}
+            <time datetime="{{ u.last_observed_at | iso_utc }}" data-local-ts>{{ u.last_observed_at | localtime }}</time>
+            {% else %}—{% endif %}
+          </td>
           <td>
             {% if u.last_encrypted %}
             <span class="badge badge-encrypted">{{ u.encryption_badge or 'Encrypted' }}{% if u.last_talkgroup_id %} TG {{ u.last_talkgroup_id }}{% endif %}</span>
@@ -132,7 +136,7 @@
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="6" class="dim">No unknown radios observed yet. Start the decoder or replay a fixture. Encrypted calls now appear here even without GPS.</td></tr>
+        <tr><td colspan="6" class="dim">No unknown radios observed yet. Start the decoder or replay a fixture. Encrypted calls and analog ANI IDs appear here even without GPS.</td></tr>
       {% endfor %}
         <tr class="unit-filter-empty" hidden><td colspan="6" class="dim">No observed units match this GPS filter.</td></tr>
       </tbody>
@@ -146,7 +150,7 @@
           <span class="dim">×{{ u.observation_count }}</span>
         </div>
         <div class="unit-card-meta">
-          <span>Last {{ u.last_observed_at or '—' }}</span>
+          <span>Last {% if u.last_observed_at %}<time datetime="{{ u.last_observed_at | iso_utc }}" data-local-ts>{{ u.last_observed_at | localtime }}</time>{% else %}—{% endif %}</span>
           <span>System {{ u.system_id or '—' }}</span>
           <span>
             {% if u.last_encrypted %}<span class="badge badge-encrypted">{{ u.encryption_badge or 'Encrypted' }}</span>{% endif %}

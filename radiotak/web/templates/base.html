@@ -143,6 +143,7 @@
   </main>
   <div id="toast-wrap" class="toast-wrap" aria-live="polite"></div>
   <script>
+    window.RADIOTAK_TZ = {{ display_timezone | default('UTC') | tojson }};
     window.RADIOTAK_HELP = {{ help_json | default('{}') | safe }};
   </script>
   <script src="/static/js/app.js"></script>

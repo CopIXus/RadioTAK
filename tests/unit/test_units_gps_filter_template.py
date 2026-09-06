@@ -34,6 +34,8 @@ def _unit(**kwargs):
 
 def test_units_template_exposes_gps_filter():
     env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)))
+    env.filters["localtime"] = lambda v, seconds=True: str(v) if v else ""
+    env.filters["iso_utc"] = lambda v: str(v) if v else ""
     html = env.get_template("units.html").render(
         approved=[],
         observed=[

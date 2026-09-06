@@ -25,6 +25,10 @@ _DECODE = {
     "NFM": ("decodeConfigNBFM", {}),
 }
 
+# SDRTrunk DecoderType names (Jackson playlist v4). Analog NFM has no RID
+# unless one of these in-band ANI/GPS burst decoders is attached.
+_NFM_AUX_DECODERS = ("FLEETSYNC2", "MDC1200", "TAIT_1200")
+
 
 def playlist_dir(settings=None) -> Path:
     if settings is None:
@@ -354,12 +358,27 @@ def frequencies_to_text(hz_list: Iterable[int]) -> str:
     return "\n".join(hz_to_mhz_str(int(h)) for h in hz_list)
 
 
+def _normalize_protocol(protocol: str) -> str:
+    key = (protocol or "P25").upper().replace("-", "_")
+    if key == "P25LSM":
+        return "P25_LSM"
+    return key
+
+
 def _decode_elem(protocol: str) -> ET.Element:
-    key = (protocol or "P25").upper()
-    if key == "P25-LSM":
-        key = "P25_LSM"
+    key = _normalize_protocol(protocol)
     type_name, attrs = _DECODE.get(key, _DECODE["P25"])
     return ET.Element("decode_configuration", {"type": type_name, **attrs})
+
+
+def _aux_decode_elem(protocol: str) -> ET.Element:
+    """Aux ANI/GPS burst decoders — only valid on analog NFM channels."""
+    el = ET.Element("aux_decode_configuration")
+    if _normalize_protocol(protocol) != "NFM":
+        return el
+    for decoder in _NFM_AUX_DECODERS:
+        ET.SubElement(el, "aux_decoder").text = decoder
+    return el
 
 
 def _source_elem(frequencies_hz: Sequence[int], preferred_tuner: str | None = None) -> ET.Element:
@@ -418,7 +437,7 @@ def write_playlist(
         channel.append(_source_elem(freqs, sys.get("preferred_tuner")))
         ET.SubElement(channel, "event_log_configuration")
         ET.SubElement(channel, "record_configuration")
-        ET.SubElement(channel, "aux_decode_configuration")
+        channel.append(_aux_decode_elem(protocol))
         al = ET.SubElement(channel, "alias_list_name")
         al.text = name
         order += 1

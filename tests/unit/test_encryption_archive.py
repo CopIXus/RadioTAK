@@ -118,7 +118,7 @@ def test_archive_stores_identifier_context_and_session(db_env):
 
 
 def test_archive_dedupes_same_call_window(db_env):
-    from sqlalchemy import select, func
+    from sqlalchemy import func, select
 
     from radiotak.db import EncryptedTrafficEvent
     from radiotak.gateway.pipeline import LocationPipeline

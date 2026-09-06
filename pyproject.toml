@@ -28,6 +28,7 @@ dependencies = [
   "cryptography>=44.0",
   "aiofiles>=24.1",
   "pytak>=7.0",
+  "tzdata>=2025.1",
 ]
 
 [project.scripts]

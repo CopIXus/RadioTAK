@@ -38,7 +38,7 @@
       <div class="card-desc">
         Subject: {{ server.certificate_subject }}<br/>
         {% if server.certificate_issuer %}Issuer: {{ server.certificate_issuer }}<br/>{% endif %}
-        {% if server.certificate_not_after %}Expires: {{ server.certificate_not_after }}{% endif %}
+        {% if server.certificate_not_after %}Expires: {{ server.certificate_not_after | localtime }}{% endif %}
       </div>
     </div>
     {% endif %}

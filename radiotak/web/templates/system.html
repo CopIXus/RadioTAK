@@ -18,7 +18,9 @@
       {{ info.pi_model or info.os }}<br/>
       {{ info.hostname }} · {{ info.arch }}<br/>
       IPs: {{ info.ips | join(', ') or '—' }}<br/>
-      NTP: {{ info.ntp or '—' }}
+      NTP: {{ info.ntp or '—' }}<br/>
+      Time zone: {{ tz.display | default(info.timezone or '—') }}
+      {% if tz.needs_selection %}<a href="/settings">set local zone</a>{% endif %}
     </div>
   </div>
   <div class="card card-static">
@@ -65,7 +67,11 @@
   <tbody>
   {% for row in audit_rows %}
     <tr>
-      <td>{{ row.created_at or '—' }}</td>
+      <td>
+        {% if row.created_at %}
+        <time datetime="{{ row.created_at | iso_utc }}" data-local-ts>{{ row.created_at | localtime }}</time>
+        {% else %}—{% endif %}
+      </td>
       <td>{{ row.action }}</td>
       <td>{{ row.actor or '—' }}</td>
       <td>{{ row.target or '—' }}</td>

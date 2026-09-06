@@ -33,6 +33,12 @@ class Platform(ABC):
     @abstractmethod
     def list_sdr_devices(self) -> list[dict[str, Any]]: ...
 
+    def os_timezone(self) -> str | None:
+        return os.environ.get("TZ") or None
+
+    def set_os_timezone(self, name: str) -> tuple[int, str]:
+        return 0, f"[dev] timezone {name} (display only)"
+
     def service_active(self, unit: str) -> bool:
         return False
 
@@ -61,8 +67,17 @@ class DevPlatform(Platform):
             "uptime": _fmt_uptime(psutil.boot_time()),
             "ips": _local_ips(),
             "ntp": "n/a",
+            "timezone": self.os_timezone() or "n/a",
             "pi_model": None,
         }
+
+    def os_timezone(self) -> str | None:
+        env = os.environ.get("TZ")
+        if env:
+            return env
+        if os.name == "nt":
+            return _windows_tzutil()
+        return _localtime_link() or super().os_timezone()
 
     def service_action(self, unit: str, action: str) -> tuple[int, str]:
         return 0, f"[dev] {action} {unit} (noop)"
@@ -128,8 +143,37 @@ class LinuxPlatform(Platform):
             "uptime": _fmt_uptime(psutil.boot_time()),
             "ips": _local_ips(),
             "ntp": _ntp_status(),
+            "timezone": self.os_timezone() or "unknown",
             "pi_model": model,
         }
+
+    def os_timezone(self) -> str | None:
+        env = os.environ.get("TZ")
+        if env:
+            return env
+        try:
+            proc = subprocess.run(
+                ["timedatectl", "show", "-p", "Timezone", "--value"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            val = (proc.stdout or "").strip()
+            if val:
+                return val
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            text = open("/etc/timezone", encoding="utf-8").read().strip()
+            if text:
+                return text.splitlines()[0].strip()
+        except Exception:  # noqa: BLE001
+            pass
+        return _localtime_link()
+
+    def set_os_timezone(self, name: str) -> tuple[int, str]:
+        return self.run_priv("set-timezone", name)
 
     def service_action(self, unit: str, action: str) -> tuple[int, str]:
         return self.run_priv("systemctl", action, unit)
@@ -279,6 +323,33 @@ def _fmt_uptime(boot_time: float) -> str:
     if hours:
         return f"{hours}h {mins}m"
     return f"{mins}m"
+
+
+def _localtime_link() -> str | None:
+    try:
+        link = os.readlink("/etc/localtime")
+    except Exception:  # noqa: BLE001
+        return None
+    path = link.replace("\\", "/")
+    marker = "/zoneinfo/"
+    if marker not in path:
+        return None
+    return path.split(marker, 1)[1] or None
+
+
+def _windows_tzutil() -> str | None:
+    try:
+        proc = subprocess.run(
+            ["tzutil", "/g"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        val = (proc.stdout or "").strip()
+        return val or None
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def _ntp_status() -> str:

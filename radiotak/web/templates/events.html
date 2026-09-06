@@ -68,9 +68,14 @@
   }
 
   function formatStamp(ms) {
-    var d = new Date(ms);
-    var clock = d.getFullYear() + '-' + pad2(d.getMonth() + 1) + pad2(d.getDate())
-      + ' ' + pad2(d.getHours()) + pad2(d.getMinutes());
+    var clock = (typeof window.RadioTakFormatStamp === 'function')
+      ? window.RadioTakFormatStamp(ms)
+      : '';
+    if (!clock) {
+      var d = new Date(ms);
+      clock = d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate())
+        + ' ' + pad2(d.getHours()) + pad2(d.getMinutes());
+    }
     return clock + ' (' + relativeAgo(Date.now() - ms) + ')';
   }
 
@@ -85,7 +90,9 @@
       return;
     }
     el.dateTime = new Date(ms).toISOString();
-    el.title = new Date(ms).toLocaleString();
+    el.title = (typeof window.RadioTakFormatTime === 'function')
+      ? window.RadioTakFormatTime(ms)
+      : new Date(ms).toLocaleString();
     el.textContent = formatStamp(ms);
   }
 

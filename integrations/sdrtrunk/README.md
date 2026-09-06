@@ -4,7 +4,7 @@ Implemented in `CopIXus/sdrtrunk`. Java sources in [patch/](patch/) are the cano
 
 ## GeoEventJsonExporter (`:29500`)
 
-Registered next to `MapService` as a `Listener<IDecodeEvent>`. On `PlottableDecodeEvent` with `isValidLocation()`, emits one NDJSON line matching [event-schema.json](event-schema.json). Live Events / Units / TAK only update when these GPS lines arrive — RF audio or waterfall energy is not enough.
+Registered next to `MapService` as a `Listener<IDecodeEvent>`. On `PlottableDecodeEvent` with `isValidLocation()`, emits one NDJSON line matching [event-schema.json](event-schema.json). Voice/data calls, encrypted traffic, analog ANI (`ID_ANI`), affiliation, and GPS/LRRP without a plottable fix emit [decode-event-schema.json](decode-event-schema.json) so Units still show the radio ID. RF audio or waterfall energy alone is not enough.
 
 ## DftFrameExporter (`:29501`)
 

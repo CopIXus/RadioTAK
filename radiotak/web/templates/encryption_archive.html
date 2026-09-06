@@ -58,7 +58,7 @@
 <table class="table">
   <thead>
     <tr>
-      <th>Time (UTC)</th>
+      <th>Time</th>
       <th>Radio</th>
       <th>TG</th>
       <th>Site</th>
@@ -73,7 +73,7 @@
   <tbody>
   {% for e in events %}
     <tr>
-      <td class="dim">{{ e.observed_at[:19].replace('T', ' ') if e.observed_at else '—' }}</td>
+      <td class="dim">{% if e.observed_at %}<time datetime="{{ e.observed_at | iso_utc }}" data-local-ts>{{ e.observed_at | localtime }}</time>{% else %}—{% endif %}</td>
       <td><a href="/encryption?radio_id={{ e.source_radio_id }}">{{ e.source_radio_id }}</a></td>
       <td>{% if e.talkgroup_id %}<a href="/encryption?talkgroup={{ e.talkgroup_id }}">{{ e.talkgroup_id }}</a>{% else %}—{% endif %}</td>
       <td>{{ e.site_id or '—' }}</td>

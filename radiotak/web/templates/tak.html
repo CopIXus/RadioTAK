@@ -24,7 +24,7 @@
       <span class="dot"></span>{{ s.status or 'disconnected' }}
     </div>
     {% if s.certificate_not_after %}
-    <div class="card-desc" style="margin-top:8px">Cert expires {{ s.certificate_not_after }}</div>
+    <div class="card-desc" style="margin-top:8px">Cert expires {{ s.certificate_not_after | localtime }}</div>
     {% endif %}
     {% if s.active_groups %}
     <div class="card-desc">Channels: {{ s.active_groups | join(', ') }}</div>

@@ -176,3 +176,23 @@ def test_decode_schema_accepts_identifier_context():
     assert ev.uplink_frequency_hz == 809562500
     assert ev.encryption_header_present is True
     assert ev.lra == "2"
+
+
+def test_decode_schema_accepts_analog_ani_without_talkgroup():
+    from radiotak.gateway import DecodeEventIn
+
+    ev = DecodeEventIn.model_validate(
+        {
+            "schema": "sdr2tak.decode.v1",
+            "radio_id": "1524",
+            "protocol": "MDC1200",
+            "encrypted": False,
+            "raw_event_type": "ID_ANI",
+            "frequency_hz": 154785000,
+            "observed_at": "2026-09-06T16:00:00Z",
+        }
+    )
+    assert ev.radio_id == "1524"
+    assert ev.talkgroup is None
+    assert ev.raw_event_type == "ID_ANI"
+    assert ev.protocol == "MDC1200"

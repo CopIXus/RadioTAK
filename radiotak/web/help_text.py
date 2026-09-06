@@ -157,13 +157,13 @@ HELP: dict[str, dict[str, str]] = {
     },
     "sdr.frequencies": {
         "label": "Frequencies (MHz)",
-        "what": "Control-channel frequencies for trunked P25/DMR, or conventional NFM channels.",
-        "where": "RadioReference / FCC license / agency programming — enter CC, not random voice channels. Sullivan Co Simulcast: 854.5625 / 856.7375 (P25 LSM).",
+        "what": "Control-channel frequencies for trunked P25/DMR, or conventional NFM voice channels. NFM playlists also enable MDC-1200 / FleetSync / Tait ANI burst decoders.",
+        "where": "RadioReference / FCC license / agency programming — enter CC for trunked systems, the actual voice frequency for NFM conventional. Sullivan Co Simulcast: 854.5625 / 856.7375 (P25 LSM).",
         "example": "854.5625",
     },
     "sdr.protocol": {
         "label": "Protocol",
-        "what": "Decoder mode written into the SDRTrunk playlist.",
+        "what": "Decoder mode written into the SDRTrunk playlist. NFM conventional captures analog voice plus in-band radio IDs (MDC-1200, FleetSync, Tait) when the radio sends them.",
         "where": "P25 C4FM, P25 LSM/CQPSK, DMR, or NFM conventional.",
         "example": "P25",
     },
@@ -232,6 +232,12 @@ HELP: dict[str, dict[str, str]] = {
         "what": "How far back last-known positions are shown on the map.",
         "where": "Settings → Forwarding / Map.",
         "example": "60",
+    },
+    "settings.timezone": {
+        "label": "Display time zone",
+        "what": "IANA time zone used for every console clock (events, alerts, units, map, audit). Stored times stay UTC. If the device OS has no local zone (common on Pi images left on UTC), set it here.",
+        "where": "Settings, or first-run setup. On Linux this also runs timedatectl when privileges allow.",
+        "example": "America/New_York",
     },
     "cust.banner_text": {
         "label": "Banner text",

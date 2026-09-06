@@ -1,0 +1,3 @@
+{"schema":"sdr2tak.decode.v1","decoder":"sdrtrunk","protocol":"MDC1200","radio_id":"1524","encrypted":false,"raw_event_type":"ID_ANI","frequency_hz":154785000,"observed_at":"2026-09-06T16:00:00.000Z"}
+{"schema":"sdr2tak.decode.v1","decoder":"sdrtrunk","protocol":"FLEETSYNC","radio_id":"1002003","encrypted":false,"raw_event_type":"ID_ANI","frequency_hz":154785000,"observed_at":"2026-09-06T16:00:02.000Z"}
+{"schema":"sdr2tak.decode.v1","decoder":"sdrtrunk","protocol":"P25","radio_id":"4062001","encrypted":false,"raw_event_type":"AFFILIATE","system_id":"2A5","observed_at":"2026-09-06T16:00:04.000Z"}

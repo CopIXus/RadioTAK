@@ -107,6 +107,12 @@ case "$cmd" in
     fi
     echo "==> Git update complete"
     ;;
+  set-timezone)
+    zone=${1:-}
+    [[ -n "$zone" ]] || die "timezone required"
+    [[ "$zone" =~ ^[A-Za-z0-9/_+-]+$ ]] || die "invalid timezone"
+    timedatectl set-timezone "$zone"
+    ;;
   *)
     die "unknown command: $cmd"
     ;;

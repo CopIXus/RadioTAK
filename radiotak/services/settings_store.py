@@ -23,6 +23,7 @@ DEFAULTS: dict[str, Any] = {
     "audit_retention_days": 30,
     "max_log_mb": 200,
     "privacy_mode": False,
+    "display_timezone": "",
     "forwarding": {
         "unknown_radios": "deny",
         "duplicate_suppression": True,

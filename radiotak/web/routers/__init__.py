@@ -76,6 +76,7 @@ from radiotak.services.branding import (
 )
 from radiotak.services.hearing import hearing_gauges
 from radiotak.services.settings_store import load_settings_file, update_settings
+from radiotak.services.timezone import apply_timezone, timezone_context
 from radiotak.web.deps import TEMPLATES, base_context, redirect, require_auth, verify_csrf
 
 pages = APIRouter()
@@ -361,7 +362,11 @@ async def setup_get(request: Request):
     return TEMPLATES.TemplateResponse(
         request,
         "setup.html",
-        base_context(request, hide_sidebar=True),
+        base_context(
+            request,
+            hide_sidebar=True,
+            tz=timezone_context(include_choices=True),
+        ),
     )
 
 
@@ -371,6 +376,7 @@ async def setup_post(
     username: str = Form(...),
     password: str = Form(...),
     password2: str = Form(...),
+    display_timezone: str = Form(""),
 ):
     if not needs_setup():
         return redirect("/login")
@@ -383,10 +389,17 @@ async def setup_post(
         return TEMPLATES.TemplateResponse(
             request,
             "setup.html",
-            base_context(request, hide_sidebar=True, error=error),
+            base_context(
+                request,
+                hide_sidebar=True,
+                error=error,
+                tz=timezone_context(include_choices=True),
+            ),
             status_code=400,
         )
     save_auth(username, password)
+    if (display_timezone or "").strip():
+        apply_timezone(display_timezone)
     token = create_session_token(username)
     resp = redirect("/")
     settings = get_settings()
@@ -1618,6 +1631,7 @@ async def settings_page(request: Request, _user=Depends(require_auth)):
             request,
             nav="settings",
             cfg=load_settings_file(),
+            tz=timezone_context(include_choices=True),
             message=request.query_params.get("msg"),
         ),
     )
@@ -1664,6 +1678,11 @@ async def settings_save(request: Request, _user=Depends(require_auth)):
     if theme:
         updates["theme"] = theme
     update_settings(updates)
+    zone = (form.get("display_timezone") or "").strip()
+    if zone:
+        ok, zone_msg = apply_timezone(zone)
+        if not ok:
+            return redirect("/settings?err=" + quote(zone_msg))
     new_password = form.get("new_password") or ""
     current = form.get("current_password") or ""
     if new_password:

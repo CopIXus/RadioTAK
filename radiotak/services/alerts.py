@@ -36,8 +36,10 @@ class Alert:
         d = asdict(self)
         if self.created_at is not None:
             dt = datetime.fromtimestamp(self.created_at, tz=UTC)
-            d["created_at_iso"] = dt.isoformat()
-            d["created_at_display"] = dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+            from radiotak.services.timezone import format_display, to_iso
+
+            d["created_at_iso"] = to_iso(dt)
+            d["created_at_display"] = format_display(dt)
         else:
             d["created_at_iso"] = None
             d["created_at_display"] = None

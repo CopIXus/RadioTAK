@@ -74,7 +74,7 @@ class LocationPipeline:
         ts = getattr(value, "timestamp", None)
         if callable(ts):
             return float(ts())
-        if isinstance(value, (int, float)):
+        if isinstance(value, int | float):
             return float(value)
         return time.time()
 
@@ -142,11 +142,18 @@ class LocationPipeline:
             key_loaded=key_loaded,
         )
         tg = event.talkgroup or identity.last_talkgroup_id
+        raw_type = (event.raw_event_type or "").upper()
         if event.encrypted:
             reason = encrypted_reason(
                 talkgroup=tg, algid=algid, key_id=kid, key_loaded=key_loaded
             )
             event_type = "encrypted"
+        elif raw_type in {"ID_ANI", "ID_UNIQUE", "STATION_ID"}:
+            reason = f"HEARD ID {event.radio_id} · no GPS"
+            event_type = "heard"
+        elif raw_type in {"REGISTER", "REGISTER_ESN", "AFFILIATE"}:
+            reason = "REGISTERED · no GPS"
+            event_type = "heard"
         else:
             reason = f"HEARD TG {tg} · no GPS" if tg else "HEARD · no GPS"
             event_type = "heard"
@@ -174,6 +181,7 @@ class LocationPipeline:
             "timeslot": event.timeslot,
             "p25_phase": event.p25_phase,
             "channel": event.channel,
+            "raw_event_type": event.raw_event_type,
             "encryption_badge": (
                 encrypted_badge(algid=algid, key_id=kid, key_loaded=key_loaded)
                 if event.encrypted

@@ -43,7 +43,7 @@
     <span class="dim">▼</span>
   </div>
   <div class="help-card-body">
-    <p>Radios heard by the decoder appear under <strong>Observed</strong> — including encrypted talkgroups that never send GPS. Only <strong>Approved</strong> units are forwarded to TAK unless Settings → Forwarding allows unknown radios.</p>
+    <p>Radios heard by the decoder appear under <strong>Observed</strong> — including encrypted talkgroups, analog ANI (MDC-1200 / FleetSync / Tait), and affiliation that never send GPS. Only <strong>Approved</strong> units are forwarded to TAK unless Settings → Forwarding allows unknown radios.</p>
     <p>Use the <strong>GPS</strong> filter (All / Has GPS / No GPS) to isolate radios that already have a location from those that only showed up as audio or encrypted traffic. That makes it faster to approve units you can actually place on TAK.</p>
     <p>Status distinguishes <strong>Encrypted — no GPS</strong> (the radio is on a protected TG; the decoder is working) from <strong>Heard — no GPS</strong> (clear traffic, radio not sending location) and from a live GPS fix.</p>
     <p>Approve a unit to add it to the allowlist, then edit callsign, CoT type, team, and role. Per-unit settings override TAK server defaults.</p>
@@ -59,7 +59,7 @@
   </div>
   <div class="help-card-body">
     <p>SDRTrunk runs under Xvfb on the Pi. Discover USB dongles, configure tuner gain/PPM/bias-tee, then add radio systems with control-channel frequencies.</p>
-    <p>For trunked P25/DMR enter the <strong>control channel (CC)</strong> in MHz — not random voice channels. Use RadioReference or agency programming as reference.</p>
+    <p>For trunked P25/DMR enter the <strong>control channel (CC)</strong> in MHz — not random voice channels. Use RadioReference or agency programming as reference. For analog conventional, choose <strong>NFM conventional</strong> and enter the voice frequency; RadioTAK enables MDC-1200, FleetSync, and Tait burst decoders so a radio ID still appears on Units even when the radio has no GPS.</p>
     <p>Use <strong>Listen / Stop</strong> on each radio system to include it in the decoder playlist. <strong>Green</strong> means that system has a dongle. <strong>Yellow</strong> means it is on but waiting for another SDR. One RTL-SDR typically runs one trunked system at a time.</p>
     <p><strong>Write playlist &amp; restart</strong> applies frequency changes. Start/Stop controls the decoder service directly.</p>
     <p><strong>Traffic keys</strong> store authorized TEKs (ALGID + Key ID + hex) from the agency keyfill. Encrypted calls are flagged on Live Events with the cipher name (ADP, AES-256, DES-OFB / DES-XL) and Key ID even without keys. Those labels are what you give the radio shop / KMF — they name the key slot; they are not the key. A matching stored key is labeled “key on file”; SDRTrunk still does not decrypt that audio or embedded GPS. The <strong>Encryption</strong> page keeps a historical archive of ALGID/KID/site metadata for authorized review. It does not recover unknown keys.</p>
@@ -101,7 +101,7 @@
   <div class="help-card-body">
     <p>The Console waterfall displays DFT frames exported from SDRTrunk over a local TCP feed (default <code class="block">127.0.0.1:29501</code>).</p>
     <p>Cyan vertical lines mark configured control-channel frequencies. The axis is the tuner window the stick is actually on — not a relabel of the playlist. SDRTrunk’s factory tuner center is 101.1 MHz; RadioTAK writes the listening control channel into <code class="block">tuner_configuration.json</code> and restarts the decoder so the waterfall follows that frequency.</p>
-    <p>GPS / Live Events use a different port (<code class="block">127.0.0.1:29500</code>). A moving waterfall does not mean units will appear — that requires a radio to send lat/lon <em>or</em> a call event (including encrypted) through the geo exporter.</p>
+    <p>GPS / Live Events use a different port (<code class="block">127.0.0.1:29500</code>). A moving waterfall does not mean units will appear — that requires a radio to send lat/lon, a digital call, or an analog ANI/ID burst through the geo exporter.</p>
     <p><strong>Listen</strong> on the waterfall plays decoded talkgroup audio in the browser (port <code class="block">127.0.0.1:29502</code>). That is vocoded P25/DMR voice from SDRTrunk, not the waterfall picture. Encrypted calls show as silence. Clear digital voice still needs JMBE in the decoder, the same library SDRTrunk uses for local speakers. Click Listen on the SDR page or Console; the Pi does not need headphones.</p>
     <p>The <strong>Decoder build</strong> card on the SDR page shows which SDRTrunk is installed. A stock DSheirer build has no exporters, so the canvas stays black, no GPS arrives, and Listen has nothing to play even while it decodes audio locally. Press <strong>Upgrade decoder</strong> there (or wait — RadioTAK re-runs the module installer automatically about 20 s after it starts when the build is behind, and after <strong>System → Update</strong>).</p>
     <p>Below the canvas, <strong>Spectrum feed</strong>, <strong>Events feed</strong>, and <strong>Audio feed</strong> report whether the exporters are connected. SDRTrunk takes about a minute to start on a Raspberry Pi; the spectrum exporter connects only after the tuner is shown in its spectral display.</p>

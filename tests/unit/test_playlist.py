@@ -62,6 +62,50 @@ def test_write_playlist_v2(tmp_path):
     assert "851012500" in xml
     assert "851512500" in xml
     assert "sourceConfigTunerMultipleFrequency" in xml
+    assert "<aux_decoder>" not in xml
+
+
+def test_nfm_playlist_enables_ani_aux_decoders(tmp_path):
+    path = tmp_path / "default.xml"
+    write_playlist(
+        path,
+        [
+            {
+                "name": "County VHF",
+                "protocol": "NFM",
+                "site": "1",
+                "frequencies_hz": [154785000],
+                "auto_start": True,
+            }
+        ],
+    )
+    xml = path.read_text(encoding="utf-8")
+    assert 'type="decodeConfigNBFM"' in xml
+    assert "<aux_decoder>FLEETSYNC2</aux_decoder>" in xml
+    assert "<aux_decoder>MDC1200</aux_decoder>" in xml
+    assert "<aux_decoder>TAIT_1200</aux_decoder>" in xml
+    assert "154785000" in xml
+
+
+def test_p25_playlist_does_not_enable_nfm_aux(tmp_path):
+    import xml.etree.ElementTree as ET
+
+    path = tmp_path / "default.xml"
+    write_playlist(
+        path,
+        [
+            {
+                "name": "County P25",
+                "protocol": "P25",
+                "site": "1",
+                "frequencies_hz": [851012500],
+                "auto_start": True,
+            }
+        ],
+    )
+    aux = ET.parse(path).getroot().find("channel/aux_decode_configuration")
+    assert aux is not None
+    assert list(aux) == []
 
 
 def test_write_p25_wrapper(tmp_path):

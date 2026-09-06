@@ -33,7 +33,15 @@ Until a patched build is installed, Live Events and Units stay empty even while 
 
 ## Encrypted calls
 
-The same `:29500` feed also accepts `sdr2tak.decode.v1` (no lat/lon). The CopIXus exporter emits those for voice/data calls, including `CALL_ENCRYPTED`, so Live Events / Units can show **Encrypted — no GPS** instead of looking idle.
+The same `:29500` feed also accepts `sdr2tak.decode.v1` (no lat/lon). The CopIXus exporter emits those for voice/data calls, including `CALL_ENCRYPTED`, plus identity events that are not calls: analog ANI (`ID_ANI` / `ID_UNIQUE`), affiliation/registration, station ID, and GPS/LRRP that did not include a plottable fix. Live Events / Units then show **Heard ID … — no GPS** or **Encrypted — no GPS** instead of looking idle.
+
+### Conventional NFM / ANI
+
+Analog conventional has no radio ID unless the radio sends an in-band burst (MDC-1200, FleetSync II, Tait 1200). When the SDR page protocol is **NFM conventional**, RadioTAK writes those three auxiliary decoders into the playlist. FleetSync/Tait GPS still takes the location path when lat/lon is valid; otherwise the radio ID is recorded as a decode event.
+
+The playlist change applies on the next **Write playlist & restart**. Forwarding ANI/affiliation into Live Events / Units also needs a CopIXus decoder jar built from this tree's `GeoEventJsonExporter` (`isIdentityEvent`). Until that jar is installed, SDRTrunk can show the ID in its own Now Playing view while Units stays empty.
+
+A moving waterfall or analog squelch-open without ANI still produces no unit — there is no identifier on the air.
 
 When IdentifierCollection has the values, the exporter also sends system ID, WACN, NAC, RFSS, site, timeslot, downlink/uplink frequency, talker alias, source/destination type, patch group, unit/user status, LRA, structured ALGID/KID, `encryption_header_present`, duration, and Message Indicator (only if already present in call details). RadioTAK archives that metadata. See [ENCRYPTION-ARCHIVE.md](ENCRYPTION-ARCHIVE.md).
 
@@ -63,7 +71,7 @@ Authorized traffic keys are entered on the SDR page and written to `/var/lib/rad
 
 ## Spectrum export
 
-`DftFrameExporter` downsamples FFT bins (~512) and streams NDJSON to RadioTAK on **127.0.0.1:29501**. Enable with `spectrum_export_enabled`. Installer tag: `v0.6.2-radiotak.5` from `CopIXus/sdrtrunk` releases. Stock 0.6.1 leaves the canvas black.
+`DftFrameExporter` downsamples FFT bins (~512) and streams NDJSON to RadioTAK on **127.0.0.1:29501**. Enable with `spectrum_export_enabled`. Installer tag: `v0.6.2-radiotak.6` from `CopIXus/sdrtrunk` releases. Stock 0.6.1 leaves the canvas black.
 
 The exporter is registered on `SpectralDisplayPanel`'s `ComplexDecibelConverter`, so it only produces frames once SDRTrunk has a tuner shown in its spectral display. Under Xvfb that happens automatically (`showFirstTuner()` after the main window opens) — roughly 50 s after `sdrtrunk.service` starts on a Pi 4. If `spectral.display.enabled=false` is ever set in `SDRTrunk.properties`, no frames are exported.
 
@@ -83,7 +91,7 @@ The decoder binary is **not** part of the RadioTAK git checkout; it is a zip unp
 
 - `feed.spectrum.clients` — exporter TCP connections on :29501 (1 when the fork build is running)
 - `feed.spectrum.frames_received` / `last_frame_age` — frames are ~8 fps when a tuner is streaming
-- `feed.geo.clients` / `lines_received` — GPS exporter connection and how many location lines have arrived (stays 0 until a radio actually transmits lat/lon)
+- `feed.geo.clients` / `lines_received` / `gps_received` / `decode_received` — GPS exporter connection and how many location vs call/ANI lines have arrived (`decode_received` ticks when a radio ID is heard without lat/lon)
 - `feed.audio.clients` / `pcm_frames` / `encrypted_frames` — talkgroup audio exporter on :29502
 - `build.has_exporters` — false means stock SDRTrunk
 - `build.has_audio_exporter` — false means the fork is old enough to paint the waterfall but not to play Listen audio

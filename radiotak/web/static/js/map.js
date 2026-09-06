@@ -182,7 +182,12 @@
         ];
         if (p.cot_type) lines.push('Type: ' + p.cot_type);
         if (p.icon) lines.push('Icon: ' + p.icon);
-        if (p.observed_at) lines.push('Heard: ' + p.observed_at);
+        if (p.observed_at) {
+          var heard = (typeof window.RadioTakFormatTime === 'function')
+            ? window.RadioTakFormatTime(p.observed_at)
+            : p.observed_at;
+          lines.push('Heard: ' + heard);
+        }
         m.bindPopup(lines.join('<br/>'));
         group.addLayer(m);
         bounds.push([p.lat, p.lon]);

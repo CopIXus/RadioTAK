@@ -17,7 +17,7 @@ psutil==7.0.0
 pyyaml==6.0.2
 cryptography==44.0.2
 aiofiles==24.1.0
-pytak==7.0.2
+tzdata==2025.2
 
 # Dev / test
 pytest==8.3.5

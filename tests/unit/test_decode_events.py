@@ -102,6 +102,61 @@ def test_clear_call_without_gps_is_heard(db_env):
     assert identity.last_encrypted is False
 
 
+def test_mdc_ani_without_gps_creates_unit(db_env):
+    from sqlalchemy import select
+
+    from radiotak.db import RadioIdentity
+    from radiotak.gateway.identities import hear_status
+    from radiotak.gateway.pipeline import LocationPipeline
+
+    pipe = LocationPipeline()
+    seen = []
+    pipe.add_listener(seen.append)
+    result = pipe.process_dict(
+        db_env,
+        {
+            "schema": "sdr2tak.decode.v1",
+            "radio_id": "1524",
+            "protocol": "MDC1200",
+            "encrypted": False,
+            "raw_event_type": "ID_ANI",
+            "observed_at": "2026-09-06T16:00:00Z",
+        },
+    )
+    assert result.heard is True
+    assert result.forwarded is False
+    assert result.observation is None
+    assert result.reason == "HEARD ID 1524 · no GPS"
+    identity = db_env.scalar(select(RadioIdentity).where(RadioIdentity.radio_id == "1524"))
+    assert identity is not None
+    assert identity.last_latitude is None
+    status = hear_status(identity)
+    assert status["hear_kind"] == "heard"
+    assert status["has_gps"] is False
+    assert seen and seen[0]["radio_id"] == "1524"
+    assert seen[0]["raw_event_type"] == "ID_ANI"
+    assert seen[0]["protocol"] == "MDC1200"
+
+
+def test_affiliate_without_gps_is_heard(db_env):
+    from radiotak.gateway.pipeline import LocationPipeline
+
+    pipe = LocationPipeline()
+    result = pipe.process_dict(
+        db_env,
+        {
+            "schema": "sdr2tak.decode.v1",
+            "radio_id": "4062001",
+            "protocol": "P25",
+            "encrypted": False,
+            "raw_event_type": "AFFILIATE",
+            "observed_at": "2026-09-06T16:00:01Z",
+        },
+    )
+    assert result.heard is True
+    assert result.reason == "REGISTERED · no GPS"
+
+
 def test_encrypted_then_gps_keeps_encrypted_badge(db_env):
     from datetime import datetime
 

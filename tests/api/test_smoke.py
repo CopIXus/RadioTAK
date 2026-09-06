@@ -399,3 +399,24 @@ def test_tak_enroll_page_has_password_reveal(client):
     assert b"data-password-toggle" in detail.content
     assert b"id_enroll_password" in detail.content
     assert f"/tak/{server_id}/enroll".encode() in detail.content
+
+
+def test_settings_timezone_and_local_clocks(client, monkeypatch):
+    from radiotak.services import timezone as tzmod
+    from radiotak.services.settings_store import update_settings
+
+    monkeypatch.setattr(tzmod, "read_os_timezone", lambda: "UTC")
+    update_settings({"display_timezone": "America/New_York"})
+    _login(client)
+    settings = client.get("/settings")
+    assert settings.status_code == 200
+    assert b'name="display_timezone"' in settings.content
+    assert b"America/New_York" in settings.content
+    assert b"RADIOTAK_TZ" in settings.content
+    events = client.get("/events")
+    assert events.status_code == 200
+    assert b"RadioTakFormatStamp" in events.content
+    system = client.get("/system")
+    assert system.status_code == 200
+    assert b"Time zone:" in system.content
+

@@ -17,11 +17,14 @@ from radiotak.services.settings_store import (
     banner_size_px,
     load_settings_file,
 )
+from radiotak.services.timezone import display_timezone, format_display, timezone_context, to_iso
 from radiotak.services.updater import current_version
 from radiotak.web.help_text import help_as_json
 
 _PKG_TEMPLATES = Path(__file__).resolve().parent / "templates"
 TEMPLATES = Jinja2Templates(directory=str(_PKG_TEMPLATES))
+TEMPLATES.env.filters["localtime"] = lambda v, seconds=True: format_display(v, seconds=seconds) or ""
+TEMPLATES.env.filters["iso_utc"] = lambda v: to_iso(v)
 
 
 def _custom_console_title(title: str) -> str:
@@ -74,6 +77,8 @@ def base_context(request: Request, nav: str = "", **extra):
         "sdr_installed": is_installed("sdr_location_gateway"),
         "hide_sidebar": False,
         "help_json": help_as_json(),
+        "display_timezone": display_timezone(),
+        "tz": timezone_context(),
         # Banner shows whenever branding text is configured; checkbox can still hide it.
         "banner_text": (cust.get("banner_text") or "")[:120],
         "banner_display": banner_display,

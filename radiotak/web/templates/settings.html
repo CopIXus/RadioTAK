@@ -21,6 +21,40 @@
   <div class="section-title">Updates</div>
   {{ select('github_branch', 'Git branch channel', [('main', 'main (stable)'), ('dev', 'dev')], value=cfg.github_branch | default('main')) }}
 
+  <div class="section-title">Time zone</div>
+  {% set tz = tz | default({}) %}
+  {% if tz.needs_selection %}
+  <div class="alert alert-error">This device has no local time zone ({{ tz.os or 'UTC' }}). Choose the zone for event and console clocks.</div>
+  {% endif %}
+  <div class="form-field">
+    <div class="label-row">
+      <label class="field-label" for="id_display_timezone">Display time zone</label>
+      <button type="button" class="help-icon" data-help="settings.timezone" aria-label="Help: Display time zone" title="Help">?</button>
+    </div>
+    <select id="id_display_timezone" name="display_timezone">
+      {% set preferred = tz.preferred | default([]) %}
+      {% if preferred %}
+      <optgroup label="Common">
+        {% for zone in preferred %}
+        <option value="{{ zone }}" {% if tz.display == zone %}selected{% endif %}>{{ zone.replace('_', ' ') }}</option>
+        {% endfor %}
+      </optgroup>
+      {% endif %}
+      <optgroup label="All zones">
+        {% for zone, label in tz.choices | default([]) %}
+        {% if zone not in preferred %}
+        <option value="{{ zone }}" {% if tz.display == zone %}selected{% endif %}>{{ label }}</option>
+        {% endif %}
+        {% endfor %}
+      </optgroup>
+    </select>
+  </div>
+  <p class="card-desc" style="margin-bottom:16px">
+    Clocks use this zone for events, alerts, units, map popups, and audit times.
+    {% if tz.os %}Device OS: {{ tz.os }}.{% endif %}
+    Now: {{ tz.now or '—' }}
+  </p>
+
   <div class="section-title">Retention</div>
   {{ field('log_retention_days', 'Log retention (days)', type='number', value=cfg.log_retention_days | default(14)) }}
   {{ field('observation_retention_days', 'Observation retention (days)', type='number', value=cfg.observation_retention_days | default(7)) }}

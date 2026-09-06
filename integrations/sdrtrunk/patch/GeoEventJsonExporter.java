@@ -44,11 +44,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Streams PlottableDecodeEvent GPS and encrypted/clear call metadata as NDJSON
+ * Streams PlottableDecodeEvent GPS and call / identity metadata as NDJSON
  * to RadioTAK (default 127.0.0.1:29500).
  *
  * Isolated from decoder/audio paths. Enable with geo_event_export_enabled in
- * SDRTrunk.properties. Call events are rate-limited per radio/talkgroup.
+ * SDRTrunk.properties. Call and ANI events are rate-limited per radio/talkgroup.
+ * Conventional analog IDs (MDC-1200, FleetSync, Tait) arrive as ID_ANI / GPS
+ * rather than CALL — those are exported whenever a source identifier is present.
  *
  * Extra P25 context (system/site/NAC/WACN/RFSS, timeslot, uplink, patch/status/LRA,
  * structured ALGID/KID, Message Indicator when the decoder already printed it)
@@ -105,7 +107,7 @@ public class GeoEventJsonExporter implements Listener<IDecodeEvent>
             return;
         }
         DecodeEventType type = decodeEvent.getEventType();
-        if(!isCallLike(type))
+        if(!isIdentityEvent(type))
         {
             return;
         }
@@ -124,7 +126,7 @@ public class GeoEventJsonExporter implements Listener<IDecodeEvent>
     {
         GeoPosition pos = plottable.getLocation();
         IdentifierCollection ids = plottable.getIdentifierCollection();
-        Identifier from = ids != null ? ids.getFromIdentifier() : null;
+        Identifier from = sourceIdentifier(ids);
         if(from == null || from.getValue() == null)
         {
             return;
@@ -179,7 +181,7 @@ public class GeoEventJsonExporter implements Listener<IDecodeEvent>
     private void emitDecode(IDecodeEvent event)
     {
         IdentifierCollection ids = event.getIdentifierCollection();
-        Identifier from = ids != null ? ids.getFromIdentifier() : null;
+        Identifier from = sourceIdentifier(ids);
         if(from == null || from.getValue() == null)
         {
             return;
@@ -400,14 +402,87 @@ public class GeoEventJsonExporter implements Listener<IDecodeEvent>
         return matcher.group(1).toUpperCase(Locale.ROOT);
     }
 
-    private static boolean isCallLike(DecodeEventType type)
+    /**
+     * Voice/data calls plus identity-bearing events that do not start with CALL
+     * (MDC/FleetSync/Tait ANI, LRRP/GPS without a plottable fix, affiliation).
+     */
+    private static boolean isIdentityEvent(DecodeEventType type)
     {
         if(type == null)
         {
             return false;
         }
         String name = type.name();
-        return name.startsWith("CALL") || name.startsWith("DATA_CALL");
+        if(name.startsWith("CALL") || name.startsWith("DATA_CALL"))
+        {
+            return true;
+        }
+        switch(type)
+        {
+            case ID_ANI:
+            case ID_UNIQUE:
+            case GPS:
+            case LRRP:
+            case REGISTER:
+            case REGISTER_ESN:
+            case DEREGISTER:
+            case AFFILIATE:
+            case STATION_ID:
+            case EMERGENCY:
+            case PAGE:
+            case STATUS:
+            case RESPONSE:
+            case RADIO_CHECK:
+            case AUTOMATIC_REGISTRATION_SERVICE:
+            case RADIO_REGISTRATION_SERVICE:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Prefer the FROM radio, then UNIQUE_ID / UNIT_IDENTIFIER. MDC-1200 stores
+     * ANI as a talkgroup-form identifier with Role.FROM — getFromIdentifier()
+     * already falls back to Role.FROM, so those IDs still export as radio_id.
+     */
+    private static Identifier sourceIdentifier(IdentifierCollection ids)
+    {
+        if(ids == null)
+        {
+            return null;
+        }
+        Identifier from = ids.getFromIdentifier();
+        if(from != null && from.getValue() != null)
+        {
+            return from;
+        }
+        Identifier radio = firstIdentifier(ids, Form.RADIO);
+        if(radio != null)
+        {
+            return radio;
+        }
+        Identifier unique = firstIdentifier(ids, Form.UNIQUE_ID);
+        if(unique != null)
+        {
+            return unique;
+        }
+        return firstIdentifier(ids, Form.UNIT_IDENTIFIER);
+    }
+
+    private static Identifier firstIdentifier(IdentifierCollection ids, Form form)
+    {
+        List<Identifier> list = ids.getIdentifiers(form);
+        if(list == null || list.isEmpty())
+        {
+            return null;
+        }
+        Identifier identifier = list.get(0);
+        if(identifier == null || identifier.getValue() == null)
+        {
+            return null;
+        }
+        return identifier;
     }
 
     private static boolean isEncrypted(DecodeEventType type, String details)

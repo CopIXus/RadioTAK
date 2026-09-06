@@ -20,6 +20,30 @@
         <label class="field-label" for="id_password2">Confirm password</label>
         <input id="id_password2" type="password" name="password2" required minlength="8"/>
       </div>
+      {% set tz = tz | default({}) %}
+      {% if tz.needs_selection %}
+      <div class="form-field">
+        <label class="field-label" for="id_display_timezone">Local time zone</label>
+        <select id="id_display_timezone" name="display_timezone">
+          {% set preferred = tz.preferred | default([]) %}
+          {% if preferred %}
+          <optgroup label="Common">
+            {% for zone in preferred %}
+            <option value="{{ zone }}" {% if tz.display == zone %}selected{% endif %}>{{ zone.replace('_', ' ') }}</option>
+            {% endfor %}
+          </optgroup>
+          {% endif %}
+          <optgroup label="All zones">
+            {% for zone, label in tz.choices | default([]) %}
+            {% if zone not in preferred %}
+            <option value="{{ zone }}" {% if tz.display == zone %}selected{% endif %}>{{ label }}</option>
+            {% endif %}
+            {% endfor %}
+          </optgroup>
+        </select>
+      </div>
+      <p class="card-desc" style="margin-bottom:12px">This device has no local time zone. Pick one so Live Events and alerts show local time.</p>
+      {% endif %}
       <button class="btn btn-primary" type="submit" style="width:100%">Create admin &amp; continue</button>
     </form>
   </div>
