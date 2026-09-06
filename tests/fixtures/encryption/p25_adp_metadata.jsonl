@@ -1,0 +1,1 @@
+{"schema":"sdr2tak.decode.v1","decoder":"sdrtrunk","protocol":"APCO25","radio_id":"4061799","talkgroup":"30008","encrypted":true,"algorithm_id":170,"algorithm_id_hex":"AA","key_id":12,"details":"CALL_ENCRYPTED ALG: 0xAA KEY ID: 12","key_loaded":false,"observed_at":"2026-09-05T23:14:00Z","raw_event_type":"CALL_ENCRYPTED"}

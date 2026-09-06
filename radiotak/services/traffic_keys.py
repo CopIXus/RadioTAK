@@ -63,6 +63,16 @@ _KID_ONLY = re.compile(
     r"(?:KEY(?:\s*ID)?|KID)\s*[:=]\s*(?:0x)?([0-9A-Fa-f]+)",
     re.IGNORECASE,
 )
+_MI_RE = re.compile(
+    r"(?:\bMI\b|MESSAGE\s*INDICATOR)\s*[:=]\s*(?:0x)?([0-9A-Fa-f]{6,})",
+    re.IGNORECASE,
+)
+
+CLEAR = "CLEAR"
+ENCRYPTED_METADATA_ONLY = "ENCRYPTED_METADATA_ONLY"
+ENCRYPTED_KEY_NOT_AVAILABLE = "ENCRYPTED_KEY_NOT_AVAILABLE"
+ENCRYPTED_AUTHORIZED_KEY_AVAILABLE = "ENCRYPTED_AUTHORIZED_KEY_AVAILABLE"
+UNSUPPORTED_ENCRYPTION_ALGORITHM = "UNSUPPORTED_ENCRYPTION_ALGORITHM"
 
 
 def algorithm_choices() -> list[tuple[str, str]]:
@@ -112,6 +122,44 @@ def coerce_kid(raw: str | int | None) -> int | None:
         return parse_int_id(raw, name="Key ID")
     except ValueError:
         return None
+
+
+def parse_message_indicator(
+    message_indicator: str | None = None,
+    message_indicator_hex: str | None = None,
+    details: str | None = None,
+) -> str | None:
+    """Return MI hex only when the decoder actually supplied it. Never invent."""
+    for raw in (message_indicator, message_indicator_hex):
+        text = str(raw or "").strip().upper().removeprefix("0X")
+        if len(text) >= 6 and all(c in "0123456789ABCDEF" for c in text):
+            return text
+    if not details:
+        return None
+    match = _MI_RE.search(details)
+    if not match:
+        return None
+    return match.group(1).upper()
+
+
+def decrypt_state(
+    *,
+    encrypted: bool,
+    algid: int | None,
+    key_id: int | None,
+    key_loaded: bool,
+) -> str:
+    """Explicit encryption state. Does not imply any unknown-key recovery."""
+    if not encrypted:
+        return CLEAR
+    if algid is None and key_id is None:
+        return ENCRYPTED_METADATA_ONLY
+    if algid is not None and algid not in _KNOWN_ALGIDS and algid != 0x80:
+        if not key_loaded:
+            return UNSUPPORTED_ENCRYPTION_ALGORITHM
+    if key_loaded:
+        return ENCRYPTED_AUTHORIZED_KEY_AVAILABLE
+    return ENCRYPTED_KEY_NOT_AVAILABLE
 
 
 def parse_ids_from_details(details: str | None) -> tuple[int | None, int | None]:

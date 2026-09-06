@@ -29,6 +29,12 @@
   {{ field('max_log_mb', 'Max log size (MB)', type='number', value=cfg.max_log_mb | default(200)) }}
   {{ check('privacy_mode', 'Privacy mode (hash radio IDs in logs)', checked=cfg.privacy_mode | default(false)) }}
 
+  <div class="section-title">Encryption archive</div>
+  {% set arch = cfg.encryption_archive | default({}) %}
+  {{ check('archive_enabled', 'Archive encrypted call metadata', checked=arch.enabled | default(true)) }}
+  {{ field('archive_metadata_retention_days', 'Archive metadata retention (days)', type='number', value=arch.metadata_retention_days | default(365)) }}
+  <p class="card-desc" style="margin-bottom:16px">Metadata only. Raw encrypted samples and IQ capture stay off. Exports never include traffic keys.</p>
+
   <div class="section-title">Forwarding</div>
   {{ select('unknown_radios', 'Unknown radios', [('deny', 'Deny (allowlist only)'), ('observe', 'Observe only'), ('forward', 'Forward all')], value=fwd.unknown_radios | default('deny'), help_key='settings.unknown_radios') }}
   {{ check('duplicate_suppression', 'Duplicate suppression', checked=fwd.duplicate_suppression | default(true)) }}

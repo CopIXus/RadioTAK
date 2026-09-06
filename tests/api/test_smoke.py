@@ -274,6 +274,12 @@ def test_units_and_events_show_encryption_status(client):
     events = client.get("/events")
     assert events.status_code == 200
     assert b"encrypted" in events.content.lower() or b"Encrypted" in events.content
+    archive = client.get("/encryption")
+    assert archive.status_code == 200
+    assert b"Encryption archive" in archive.content
+    stats = client.get("/api/v1/encryption/stats")
+    assert stats.status_code == 200
+    assert "encrypted_events" in stats.json()
 
 
 def test_units_page_marks_observed_gps_for_filter(client):

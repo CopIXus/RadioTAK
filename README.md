@@ -4,7 +4,7 @@
 
 # RadioTAK
 
-Raspberry Pi appliance console for authorized radio-system location telemetry → TAK Server.
+Appliance console for authorized radio-system location telemetry → TAK Server.
 
 One clone. One password. One URL. Manage everything from your browser.
 
@@ -12,17 +12,52 @@ One clone. One password. One URL. Manage everything from your browser.
 
 ## What Is This?
 
-RadioTAK is an infra-TAK-style management console for Raspberry Pi 5 that:
+RadioTAK is an infra-TAK-style management console (Raspberry Pi 5 or Debian/Proxmox) that:
 
-- Installs with a single command
-- Hosts a password-protected HTTPS web UI with customization (logo + banner)
-- Updates from GitHub with one click
-- Joins Tailscale for remote access
-- Installs marketplace modules (SDR Location Gateway first; Zello Audio Bridge later)
-- Forwards allowlisted radio GPS positions as Cursor-on-Target (CoT) to one or more TAK Servers
-- Console waterfall / hearing gauges when the SDR module is installed (Phase 6b)
+- Installs with a single command and serves a password-protected HTTPS UI (`:5001`)
+- Discovers USB SDRs, writes an SDRTrunk playlist, and decodes P25/DMR control channels
+- Shows a live spectrum waterfall, hearing gauges, and pipeline health on the Console
+- Observes every radio the decoder hears (GPS **and** encrypted/clear calls)
+- Forwards **allowlisted** radio GPS as Cursor-on-Target (CoT) to one or more TAK Servers
+- Archives encryption metadata (ALGID, KID, site, optional MI) without recovering unknown keys
+- Updates from GitHub, joins Tailscale, and customizes logo/banner from the UI
 
-> **Scope:** Only radio systems and subscriber units you own, administer, or are explicitly authorized to monitor. Unknown radios are observed but **not** forwarded by default.
+> **Scope:** Only radio systems and subscriber units you own, administer, or are explicitly authorized to monitor. Unknown radios are observed but **not** forwarded by default. Encrypted traffic is never turned into a fake map point.
+
+## How it works
+
+RadioTAK does not reimplement P25. SDRTrunk demodulates the control channel. The CopIXus exporter streams NDJSON to RadioTAK. RadioTAK decides what is allowed to become CoT.
+
+<p align="center">
+  <img src="docs/diagrams/radiotak-pipeline.svg" alt="SDR to SDRTrunk to RadioTAK to CoT to TAK Server"/>
+</p>
+
+**GPS path** — a radio reports lat/lon → identity + allowlist + dedupe → CoT XML → TLS to TAK.
+
+**Encrypted path** — a call is flagged encrypted → ALGID/KID (and MI if the decoder had it) are archived → Live Events / Units show a badge → TAK is unchanged unless that radio later sends GPS *and* is approved.
+
+<p align="center">
+  <img src="docs/diagrams/radiotak-encryption-flow.svg" alt="Clear GPS path versus encrypted archive path"/>
+</p>
+
+<p align="center">
+  <img src="docs/diagrams/radiotak-tak-push.svg" alt="Allowlisted GPS becomes CoT and is queued to TAK over TLS"/>
+</p>
+
+More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/ENCRYPTION-ARCHIVE.md](docs/ENCRYPTION-ARCHIVE.md) · [docs/SDRTRUNK.md](docs/SDRTRUNK.md)
+
+## Features
+
+| Area | What you get |
+|------|----------------|
+| Console | Pipeline strip (SDR → decoder → locations → TAK), CPU/RAM/disk, hearing gauges, waterfall, authorized map |
+| SDR | Tuner discovery, control-channel playlists, Listen/Stop, noVNC to the native decoder GUI |
+| Live Events | GPS queues, blocked reports, encrypted/clear calls with cipher + KID |
+| Units | Observed vs approved, GPS filter, TAK marker overrides |
+| TAK | Enrollment, PKCS#12 import, per-server marker style, Marti channels, test CoT |
+| Encryption archive | Filterable history, ALGID/KID stats, CSV/JSON/JSONL export (no key material) |
+| Traffic keys | Store authorized TEKs (AES-256, AES-128, DES-OFB, ADP). Match heard ALGID+KID. Hex never shown again |
+| Ops | Alerts, Tailscale, one-click GitHub update, diagnostics ZIP, retention |
 
 ## Quick Start (Raspberry Pi OS 64-bit)
 
@@ -40,6 +75,8 @@ The installer will:
 4. Start the HTTPS console on port **5001**
 
 Then open `https://<pi-ip>:5001` and log in. If the installer had no terminal, first visit creates the admin account.
+
+After login: Marketplace → **SDR Location Gateway** → SDR page → enter authorized **control-channel** MHz → Listen → approve units that have GPS before they appear on TAK.
 
 ## Updating
 
@@ -87,17 +124,14 @@ Open `https://127.0.0.1:5001` (self-signed cert).
 
 ```bash
 radiotak replay tests/fixtures/p25_motorola_gps.jsonl
+radiotak replay tests/fixtures/encryption/p25_des_metadata.jsonl
 ```
-
-## Architecture
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Marketplace modules
 
 | Module | Status |
 |--------|--------|
-| SDR Location Gateway | Phase 5 — P25/DMR GPS via SDRTrunk → TAK |
+| SDR Location Gateway | P25/DMR GPS + call metadata via SDRTrunk → TAK / archive |
 | Zello Audio Bridge | Coming soon — talkgroup audio → Zello Channel API |
 
 ## License

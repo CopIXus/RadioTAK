@@ -64,8 +64,13 @@ class LocationObservation(Base):
     system_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     system_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     site_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    wacn: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    nac: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    rfss: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    p25_phase: Mapped[str | None] = mapped_column(String(8), nullable=True)
     frequency_hz: Mapped[int | None] = mapped_column(Integer, nullable=True)
     channel: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    timeslot: Mapped[int | None] = mapped_column(Integer, nullable=True)
     talkgroup_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     radio_id: Mapped[str] = mapped_column(String(64), index=True)
     radio_alias: Mapped[str | None] = mapped_column(String(128), nullable=True)
@@ -224,6 +229,66 @@ class RadioSystem(Base):
     )
 
 
+class CaptureSession(Base):
+    """Decoder capture window so archived events keep software/environment context."""
+
+    __tablename__ = "capture_sessions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    name: Mapped[str] = mapped_column(String(128), default="live")
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    receiver: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    system: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    site: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    control_channel: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    software_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    decoder_version: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class EncryptedTrafficEvent(Base):
+    """Observed encrypted (and optional clear) call metadata. No secret key material."""
+
+    __tablename__ = "encrypted_traffic_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    capture_session_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("capture_sessions.id"), nullable=True, index=True
+    )
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    hear_count: Mapped[int] = mapped_column(Integer, default=1)
+    protocol: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    p25_phase: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    system_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    system_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    wacn: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    nac: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    rfss: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    site_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    frequency_hz: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    channel: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    timeslot: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    source_radio_id: Mapped[str] = mapped_column(String(64), index=True)
+    destination_radio_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    talkgroup_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    source_alias: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    encrypted: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    algorithm_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    key_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    message_indicator: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    key_loaded: Mapped[bool] = mapped_column(Boolean, default=False)
+    authorized_key_match: Mapped[bool] = mapped_column(Boolean, default=False)
+    decrypt_state: Mapped[str] = mapped_column(String(64), default="ENCRYPTED_METADATA_ONLY", index=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    raw_event_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    details: Mapped[str | None] = mapped_column(Text, nullable=True)
+    raw_event_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class TrafficKey(Base):
     """Metadata for an authorized P25/DMR traffic key. Material lives in SecretStore."""
 
@@ -326,6 +391,11 @@ def _sqlite_add_missing_columns(engine) -> None:
         "ALTER TABLE radio_identities ADD COLUMN last_encryption_algorithm VARCHAR(32)",
         "ALTER TABLE radio_identities ADD COLUMN last_encryption_key_id VARCHAR(32)",
         "ALTER TABLE radio_identities ADD COLUMN last_key_loaded BOOLEAN DEFAULT 0",
+        "ALTER TABLE location_observations ADD COLUMN wacn VARCHAR(32)",
+        "ALTER TABLE location_observations ADD COLUMN nac VARCHAR(32)",
+        "ALTER TABLE location_observations ADD COLUMN rfss VARCHAR(32)",
+        "ALTER TABLE location_observations ADD COLUMN p25_phase VARCHAR(8)",
+        "ALTER TABLE location_observations ADD COLUMN timeslot INTEGER",
     ]
     with engine.begin() as conn:
         for sql in statements:

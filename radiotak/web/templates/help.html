@@ -62,7 +62,7 @@
     <p>For trunked P25/DMR enter the <strong>control channel (CC)</strong> in MHz — not random voice channels. Use RadioReference or agency programming as reference.</p>
     <p>Use <strong>Listen / Stop</strong> on each radio system to include it in the decoder playlist. <strong>Green</strong> means that system has a dongle. <strong>Yellow</strong> means it is on but waiting for another SDR. One RTL-SDR typically runs one trunked system at a time.</p>
     <p><strong>Write playlist &amp; restart</strong> applies frequency changes. Start/Stop controls the decoder service directly.</p>
-    <p><strong>Traffic keys</strong> store authorized TEKs (ALGID + Key ID + hex) from the agency keyfill. Encrypted calls are flagged on Live Events with the cipher name (ADP, AES-256, DES-OFB / DES-XL) and Key ID even without keys. Those labels are what you give the radio shop / KMF — they name the key slot; they are not the key. A matching stored key is labeled “key on file”; SDRTrunk still does not decrypt that audio or embedded GPS.</p>
+    <p><strong>Traffic keys</strong> store authorized TEKs (ALGID + Key ID + hex) from the agency keyfill. Encrypted calls are flagged on Live Events with the cipher name (ADP, AES-256, DES-OFB / DES-XL) and Key ID even without keys. Those labels are what you give the radio shop / KMF — they name the key slot; they are not the key. A matching stored key is labeled “key on file”; SDRTrunk still does not decrypt that audio or embedded GPS. The <strong>Encryption</strong> page keeps a historical archive of ALGID/KID/site metadata for authorized review. It does not recover unknown keys.</p>
   </div>
 </div>
 
@@ -74,17 +74,20 @@
   <div class="help-card-body">
     <p><strong>TN Interop</strong> (TN CALL, TN IO 1–15) is not a frequency list — those names are <strong>talkgroups</strong> on the Tennessee Advanced Communications Network (TACN). On the SDR page enter a nearby site <strong>control channel (CC)</strong> in MHz. Decode events then show the talkgroup ID (for example <code class="block">1471</code> = TN CALL).</p>
     <p>Only monitor systems you own, administer, or are explicitly authorized to monitor. One RTL-SDR typically listens to one trunked system at a time.</p>
-    <p><strong>Primary — Elizabethton (Carter Co.)</strong> standalone 800 MHz, protocol <strong>P25 (C4FM)</strong>, site <code class="block">78</code>:</p>
-    <p><code class="block">854.4375</code> (primary) and <code class="block">854.0375</code> (alternate). Do not enter voice channels such as 858.0375.</p>
-    <p><strong>Optional — Buffalo Mtn simulcast (Washington Co.)</strong> protocol <strong>P25 LSM (CQPSK)</strong>, site <code class="block">51</code>: <code class="block">856.2375</code> / <code class="block">857.2375</code>. Use a second dongle or instead of Elizabethton.</p>
-    <p>If 800 MHz is weak: Fall Branch 700 MHz CCs <code class="block">769.83125</code> / <code class="block">771.33125</code>, protocol P25, site <code class="block">45</code>.</p>
-    <p>On the SDR page, <strong>Fill Elizabethton (P25)</strong> / <strong>Fill Buffalo Mtn (LSM)</strong> populate the Add form; you still Save and Listen.</p>
+    <p><strong>Sullivan County radios — Sullivan Co Simulcast</strong> 800 MHz, protocol <strong>P25 LSM (CQPSK)</strong>, site <code class="block">50</code>, NAC <code class="block">2AC</code>:</p>
+    <p><code class="block">854.5625</code> and <code class="block">856.7375</code>. Do not enter voice channels (854.0875, 856.2625, …). Do not use Elizabethton C4FM for this site.</p>
+    <p><strong>Carter Co. — Elizabethton</strong> standalone 800 MHz, protocol <strong>P25 (C4FM)</strong>, site <code class="block">78</code>: <code class="block">854.4375</code> / <code class="block">854.0375</code>.</p>
+    <p><strong>Washington Co. — Buffalo Mtn simulcast</strong> protocol <strong>P25 LSM (CQPSK)</strong>, site <code class="block">51</code>: <code class="block">856.2375</code> / <code class="block">857.2375</code>.</p>
+    <p>If 800 MHz is weak: Fall Branch 700 MHz CCs <code class="block">769.83125</code> / <code class="block">771.33125</code>, protocol P25, site <code class="block">45</code>. Skip Bays Mountain (site 231).</p>
+    <p>On the SDR page, <strong>Fill Sullivan Co (LSM)</strong> / <strong>Fill Elizabethton (P25)</strong> / <strong>Fill Buffalo Mtn (LSM)</strong> populate the Add form; you still Save and Listen.</p>
     <p><strong>Interop TGIDs</strong> (clear digital on RadioReference — match on Live Events / Units):</p>
     <p><code class="block">1471</code> TN CALL · <code class="block">1473</code>–<code class="block">1485</code> (odd) TN IO 1–7 · <code class="block">4001</code>–<code class="block">4015</code> (odd) TN IO 8–15</p>
     <p>District 5 mutual aid: LAW MA 07–09 = <code class="block">4055</code> / <code class="block">4057</code> / <code class="block">4059</code>. PSAP-3 = <code class="block">47101</code>.</p>
-    <p>County dispatch around Johnson City is often encrypted; Interop/MA traffic is the realistic “is the decoder alive?” check. GPS appears only if a radio sends unit location on that site. Control channels change — re-check RadioReference if CC lock fails.</p>
+    <p>Sullivan clear checks: Air Med <code class="block">30020</code>, 911 Ops <code class="block">30049</code>, SULLNET <code class="block">30102</code>, SC MAC <code class="block">30071</code>/<code class="block">30072</code>/<code class="block">30086</code>, Kingsport Fire East 1 <code class="block">30161</code>. Sheriff/EMS/PD dispatch TGs are mostly encrypted.</p>
+    <p>County dispatch is often encrypted; Interop/MA/fire traffic is the realistic “is the decoder alive?” check. GPS appears only if a radio sends unit location on that site. Control channels change — re-check RadioReference if CC lock fails.</p>
     <p>
       <a href="https://www.radioreference.com/db/sid/6355" target="_blank" rel="noopener">RadioReference TACN (SID 6355)</a><br/>
+      <a href="https://www.radioreference.com/db/site/26156" target="_blank" rel="noopener">Sullivan Co Simulcast (site 50)</a><br/>
       <a href="https://www.tn.gov/safety/tacn/talkgroups.html" target="_blank" rel="noopener">TN.gov TACN talkgroups</a>
     </p>
   </div>

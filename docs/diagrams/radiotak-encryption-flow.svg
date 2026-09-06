@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
+  <title id="title">RadioTAK clear vs encrypted handling</title>
+  <desc id="desc">Clear GPS follows the TAK path. Encrypted traffic is archived with ALGID, KID, and system metadata. Matching authorized keys only labels the event; unknown keys are not recovered.</desc>
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#061018"/>
+      <stop offset="100%" stop-color="#0a1220"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#bg2)"/>
+  <text x="64" y="52" fill="#f8fafc" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="28" font-weight="700">Clear GPS vs encrypted traffic</text>
+  <text x="64" y="82" fill="#67e8f9" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="15">Same decoder feed. Two destinations. No unknown-key recovery.</text>
+
+  <rect x="48" y="118" width="1184" height="72" rx="12" fill="#122033" stroke="#3b82f6"/>
+  <text x="640" y="148" text-anchor="middle" fill="#94a3b8" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" letter-spacing="1.4">SDRTRUNK EXPORTER · 127.0.0.1:29500</text>
+  <text x="640" y="174" text-anchor="middle" fill="#f8fafc" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="18" font-weight="700">sdr2tak.location.v1  ·  sdr2tak.decode.v1</text>
+
+  <!-- split -->
+  <path d="M640 190 V230" stroke="#38bdf8" stroke-width="3"/>
+  <path d="M320 230 H960" stroke="#38bdf8" stroke-width="3"/>
+  <path d="M320 230 V270" stroke="#10b981" stroke-width="3"/>
+  <path d="M960 230 V270" stroke="#f59e0b" stroke-width="3"/>
+
+  <!-- left: GPS -->
+  <rect x="80" y="270" width="480" height="390" rx="16" fill="#0d1b16" stroke="#10b981"/>
+  <text x="320" y="312" text-anchor="middle" fill="#6ee7b7" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" letter-spacing="1.5">CLEAR / GPS PATH</text>
+  <text x="320" y="350" text-anchor="middle" fill="#f8fafc" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="22" font-weight="700">Location event</text>
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif" fill="#cbd5e1" font-size="15">
+    <text x="120" y="400">1. Validate lat/lon (reject 0,0)</text>
+    <text x="120" y="432">2. Upsert radio identity</text>
+    <text x="120" y="464">3. Allowlist check</text>
+    <text x="120" y="496">4. Dedupe / rate-limit / stale</text>
+    <text x="120" y="528">5. Build CoT XML</text>
+    <text x="120" y="560">6. TLS queue ’ TAK Server</text>
+  </g>
+  <text x="320" y="620" text-anchor="middle" fill="#6ee7b7" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="14">Map marker appears only for approved units</text>
+
+  <!-- right: encrypted -->
+  <rect x="720" y="270" width="480" height="390" rx="16" fill="#1a1408" stroke="#f59e0b"/>
+  <text x="960" y="312" text-anchor="middle" fill="#fbbf24" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" letter-spacing="1.5">ENCRYPTED PATH</text>
+  <text x="960" y="350" text-anchor="middle" fill="#f8fafc" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="22" font-weight="700">Decode event</text>
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif" fill="#cbd5e1" font-size="15">
+    <text x="760" y="400">1. Capture ALGID · KID · MI*</text>
+    <text x="760" y="432">2. System / site / NAC / WACN</text>
+    <text x="760" y="464">3. Match authorized TEK on file</text>
+    <text x="760" y="496">4. Set decrypt_state</text>
+    <text x="760" y="528">5. Archive metadata (SQL)</text>
+    <text x="760" y="560">6. Live Events · Units badge</text>
+  </g>
+  <text x="960" y="620" text-anchor="middle" fill="#fbbf24" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="14">* MI stored only if the decoder exposed it</text>
+</svg>

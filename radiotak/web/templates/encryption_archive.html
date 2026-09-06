@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Encryption Archive — {{ title or 'RadioTAK' }}{% endblock %}
+{% block content %}
+{% set stats = stats | default({}) %}
+<div class="header">
+  <div>
+    <div class="header-title">Encryption archive</div>
+    <div class="header-subtitle">Observed P25/DMR encryption metadata · authorized key matching only</div>
+  </div>
+  <div class="header-actions">
+    <a class="btn btn-sm" href="/encryption/export?format=csv">CSV</a>
+    <a class="btn btn-sm" href="/encryption/export?format=json">JSON</a>
+    <a class="btn btn-sm" href="/encryption/export?format=jsonl">JSONL</a>
+    <a class="btn btn-sm" href="/modules/sdr#traffic-keys">Traffic keys</a>
+  </div>
+</div>
+
+<p class="card-desc" style="margin-bottom:16px">This archive records what the decoder heard (ALGID, KID, radio, talkgroup, site). It does <strong>not</strong> recover unknown keys, decrypt audio, or forward encrypted artifacts to TAK. Authorized TEKs stay in secrets storage, never in these rows or exports.</p>
+
+<div class="cards-grid cards-grid-stats">
+  <div class="card card-static">
+    <div class="card-title">Encrypted events</div>
+    <div class="metric-value">{{ stats.encrypted_events | default(0) }}</div>
+    <div class="card-desc">{{ stats.encrypted_24h | default(0) }} last 24h · {{ stats.encrypted_7d | default(0) }} last 7d</div>
+  </div>
+  <div class="card card-static">
+    <div class="card-title">Radios / TGs</div>
+    <div class="metric-value">{{ stats.unique_encrypted_radios | default(0) }}</div>
+    <div class="card-desc">{{ stats.unique_encrypted_talkgroups | default(0) }} encrypted talkgroups</div>
+  </div>
+  <div class="card card-static">
+    <div class="card-title">ALGIDs</div>
+    <div class="metric-value">{% if stats.algids %}{% for a in stats.algids %}0x{{ a.hex }}{% if not loop.last %} {% endif %}{% endfor %}{% else %}—{% endif %}</div>
+    <div class="card-desc">KIDs: {% if stats.kids %}{{ stats.kids | join(', ') }}{% else %}none yet{% endif %}</div>
+  </div>
+  <div class="card card-static">
+    <div class="card-title">Authorized matches</div>
+    <div class="metric-value">{{ stats.authorized_matches | default(0) }}</div>
+    <div class="card-desc">{{ stats.unknown_kids | default(0) }} without a matching key on file</div>
+  </div>
+</div>
+
+<form class="archive-filters" method="get" action="/encryption">
+  <input type="search" name="q" value="{{ q or '' }}" placeholder="Search radio, TG, site, KID, state"/>
+  <input name="radio_id" value="{{ radio_id or '' }}" placeholder="Radio ID"/>
+  <input name="talkgroup" value="{{ talkgroup or '' }}" placeholder="Talkgroup"/>
+  <input name="kid" value="{{ kid or '' }}" placeholder="KID"/>
+  <select name="state">
+    <option value="">All states</option>
+    {% for s in states %}
+    <option value="{{ s }}" {% if state==s %}selected{% endif %}>{{ s }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn btn-sm btn-primary" type="submit">Filter</button>
+</form>
+
+<div class="table-wrap">
+<table class="table">
+  <thead>
+    <tr>
+      <th>Time (UTC)</th>
+      <th>Radio</th>
+      <th>TG</th>
+      <th>Site</th>
+      <th>Freq</th>
+      <th>ALGID</th>
+      <th>KID</th>
+      <th>MI</th>
+      <th>State</th>
+      <th>Hears</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for e in events %}
+    <tr>
+      <td class="dim">{{ e.observed_at[:19].replace('T', ' ') if e.observed_at else '—' }}</td>
+      <td><a href="/encryption?radio_id={{ e.source_radio_id }}">{{ e.source_radio_id }}</a></td>
+      <td>{% if e.talkgroup_id %}<a href="/encryption?talkgroup={{ e.talkgroup_id }}">{{ e.talkgroup_id }}</a>{% else %}—{% endif %}</td>
+      <td>{{ e.site_id or '—' }}</td>
+      <td>{% if e.frequency_mhz %}{{ '%.4f'|format(e.frequency_mhz) }}{% else %}—{% endif %}</td>
+      <td>{% if e.algorithm_id_hex %}0x{{ e.algorithm_id_hex }} <span class="dim">{{ e.algorithm_name }}</span>{% else %}—{% endif %}</td>
+      <td>{% if e.key_id is not none %}<a href="/encryption?kid={{ e.key_id }}">{{ e.key_id }}</a>{% else %}—{% endif %}</td>
+      <td class="dim">{{ e.message_indicator or '—' }}</td>
+      <td><span class="badge {% if e.authorized_key_match %}badge-ok{% else %}badge-encrypted{% endif %}">{{ e.decrypt_state }}</span></td>
+      <td>{{ e.hear_count }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="10"><div class="empty-state">No archived encryption events yet. Start the decoder on a control channel you are authorized to monitor.</div></td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

@@ -457,7 +457,18 @@ body::before {
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
 }
-.table th { color: var(--text-dim); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+.archive-filters {
+  display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 20px;
+}
+.archive-filters input, .archive-filters select {
+  background: var(--bg-card); color: var(--text-primary);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 10px; font: inherit; font-size: 12px; min-width: 140px;
+}
+.badge-ok {
+  background: rgba(16,185,129,.15); color: #6ee7b7;
+  border: 1px solid rgba(16,185,129,.3);
+}
 
 .alert {
   padding: 12px 16px;

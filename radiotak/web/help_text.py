@@ -158,8 +158,8 @@ HELP: dict[str, dict[str, str]] = {
     "sdr.frequencies": {
         "label": "Frequencies (MHz)",
         "what": "Control-channel frequencies for trunked P25/DMR, or conventional NFM channels.",
-        "where": "RadioReference / FCC license / agency programming — enter CC, not random voice channels. East TN TACN Elizabethton example below.",
-        "example": "854.4375",
+        "where": "RadioReference / FCC license / agency programming — enter CC, not random voice channels. Sullivan Co Simulcast: 854.5625 / 856.7375 (P25 LSM).",
+        "example": "854.5625",
     },
     "sdr.protocol": {
         "label": "Protocol",
@@ -195,6 +195,12 @@ HELP: dict[str, dict[str, str]] = {
         "label": "Key (hex)",
         "what": "Traffic encryption key as hexadecimal. AES-256 is 32 bytes (64 hex digits), AES-128 is 16 bytes, DES-OFB is 8 bytes, ADP is 5 bytes.",
         "where": "Paste from an authorized keyfill. Stored under secrets/ and written to SDRTrunk/traffic_keys.json (mode 0600).",
+        "example": "",
+    },
+    "sdr.archive": {
+        "label": "Encryption archive",
+        "what": "Stores observed ALGID, KID, radio, talkgroup, site, and optional Message Indicator. Does not decrypt and does not search for unknown keys.",
+        "where": "Console encryption card, Encryption page, Settings → Encryption archive.",
         "example": "",
     },
     "tailscale.auth_key": {

@@ -126,3 +126,29 @@ def test_decode_schema_does_not_need_gps():
     assert ev.encrypted is True
     assert ev.talkgroup == "11025"
     assert ev.algorithm_id == "132"
+
+
+def test_decode_schema_accepts_p25_context_and_mi():
+    from radiotak.gateway import DecodeEventIn
+
+    ev = DecodeEventIn.model_validate(
+        {
+            "schema": "sdr2tak.decode.v1",
+            "radio_id": "5550001",
+            "encrypted": True,
+            "talkgroup": "11025",
+            "system_id": "2A5",
+            "wacn": "BEE00",
+            "nac": "2AC",
+            "site_id": "50",
+            "rfss": "2",
+            "timeslot": 1,
+            "p25_phase": "2",
+            "message_indicator": "0A1B2C3D4E5F607182",
+            "observed_at": "2026-09-05T23:12:14Z",
+        }
+    )
+    assert ev.wacn == "BEE00"
+    assert ev.site_id == "50"
+    assert ev.timeslot == 1
+    assert ev.message_indicator == "0A1B2C3D4E5F607182"

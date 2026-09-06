@@ -48,6 +48,12 @@ DEFAULTS: dict[str, Any] = {
         "port": 29501,
         "enabled": True,
     },
+    "encryption_archive": {
+        "enabled": True,
+        "metadata_retention_days": 365,
+        "raw_samples": False,
+        "iq_enabled": False,
+    },
     "novnc": {
         "enabled": False,
         "url": "/novnc/",

@@ -35,14 +35,25 @@ class DecodeEventIn(BaseModel):
     protocol: str | None = None
     system_name: str | None = None
     system_id: str | None = None
+    site_id: str | None = None
+    nac: str | None = None
+    wacn: str | None = None
+    rfss: str | None = None
     frequency_hz: int | None = None
+    channel: str | None = None
+    timeslot: int | None = None
+    p25_phase: str | None = None
     talkgroup: str | None = None
     radio_id: str
     source_alias: str | None = None
+    destination_radio_id: str | None = None
     encrypted: bool = False
     algorithm_id: str | None = None
     algorithm_id_hex: str | None = None
     key_id: str | None = None
+    message_indicator: str | None = None
+    message_indicator_hex: str | None = None
+    duration_ms: int | None = None
     key_loaded: bool = False
     emergency: bool = False
     observed_at: datetime
@@ -59,7 +70,23 @@ class DecodeEventIn(BaseModel):
             raise ValueError("radio_id is required")
         return text
 
-    @field_validator("talkgroup", "algorithm_id", "algorithm_id_hex", "key_id", mode="before")
+    @field_validator(
+        "talkgroup",
+        "algorithm_id",
+        "algorithm_id_hex",
+        "key_id",
+        "message_indicator",
+        "message_indicator_hex",
+        "system_id",
+        "site_id",
+        "nac",
+        "wacn",
+        "rfss",
+        "channel",
+        "p25_phase",
+        "destination_radio_id",
+        mode="before",
+    )
     @classmethod
     def _stringify(cls, v: Any) -> str | None:
         if v is None or v == "":
@@ -83,7 +110,12 @@ class LocationEventIn(BaseModel):
     system_id: str | None = None
     site_id: str | None = None
     nac: str | None = None
+    wacn: str | None = None
+    rfss: str | None = None
     frequency_hz: int | None = None
+    channel: str | None = None
+    timeslot: int | None = None
+    p25_phase: str | None = None
     talkgroup: str | None = None
     radio_id: str
     source_alias: str | None = None

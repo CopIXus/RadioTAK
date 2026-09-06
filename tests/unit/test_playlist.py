@@ -219,9 +219,21 @@ def test_east_tn_tacn_sample_json():
         857237500,
     ]
 
+    sullivan = by_id["sullivan_co"]
+    assert sullivan["name"] == "TACN Sullivan Co Simulcast"
+    assert sullivan["protocol"] == "P25_LSM"
+    assert sullivan["site"] == "50"
+    assert sullivan["nac"] == "2AC"
+    assert parse_frequencies("\n".join(sullivan["frequencies_mhz"])) == [
+        854562500,
+        856737500,
+    ]
+    assert "856.2625" in sullivan["voice_not_cc_mhz"]
+
     tg_ids = {t["id"] for t in data["talkgroups"]}
     assert "1471" in tg_ids
     assert "4055" in tg_ids
+    assert "30102" in tg_ids
     assert hz_to_mhz_str(854437500) == "854.4375"
 
 

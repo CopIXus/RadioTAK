@@ -169,6 +169,33 @@ def test_adp_from_details_when_json_ids_missing(db_env):
     assert "ADP 0xAA" in seen[0]["encryption_badge"]
 
 
+def test_encrypted_call_archives_and_does_not_forward(db_env):
+    from sqlalchemy import select
+
+    from radiotak.db import EncryptedTrafficEvent
+    from radiotak.gateway.pipeline import LocationPipeline
+
+    pipe = LocationPipeline()
+    result = pipe.process_dict(
+        db_env,
+        {
+            "schema": "sdr2tak.decode.v1",
+            "radio_id": "5550999",
+            "talkgroup": "11025",
+            "encrypted": True,
+            "algorithm_id": 129,
+            "key_id": 14,
+            "site_id": "50",
+            "observed_at": "2026-09-05T23:12:14Z",
+        },
+    )
+    assert result.forwarded is False
+    row = db_env.scalar(select(EncryptedTrafficEvent).where(EncryptedTrafficEvent.source_radio_id == "5550999"))
+    assert row is not None
+    assert row.site_id == "50"
+    assert row.key_id == 14
+
+
 def test_encrypted_without_cipher_ids(db_env):
     from radiotak.gateway.pipeline import LocationPipeline
 

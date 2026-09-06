@@ -220,6 +220,7 @@
     <div class="btn-row" style="margin-top:8px;flex-wrap:wrap;gap:8px">
       <button type="button" class="btn btn-sm" id="fill-elizabethton" title="Fill Elizabethton TACN control channels (P25 C4FM)">Fill Elizabethton (P25)</button>
       <button type="button" class="btn btn-sm" id="fill-buffalo-mtn" title="Fill Buffalo Mountain simulcast CCs (P25 LSM)">Fill Buffalo Mtn (LSM)</button>
+      <button type="button" class="btn btn-sm" id="fill-sullivan-co" title="Fill Sullivan County TACN simulcast CCs (P25 LSM, site 50, NAC 2AC)">Fill Sullivan Co (LSM)</button>
     </div>
     <p class="card-desc" style="margin:8px 0 0;font-size:12px">Fill buttons only populate the form — Save when ready. One RTL-SDR typically listens to one trunked system.</p>
     <form id="add-radio-system" method="post" action="/modules/sdr/systems" style="margin-top:12px" data-busy="Saving…">
@@ -256,7 +257,7 @@
 </div>
 
 <div class="section-title" id="traffic-keys">Traffic keys</div>
-<p class="card-desc" style="margin-bottom:12px">If the agency gives you a keyfill, store the traffic encryption keys here. RadioTAK matches heard ALGID / Key ID on encrypted calls so Live Events can show <strong>encrypted, key on file</strong> vs <strong>encrypted, no matching key</strong>. The ALGID and Key ID on those events are the labels you give the radio shop / KMF — they name the key slot; they are not the key. SDRTrunk still cannot decrypt audio or GPS from those keys — only the system owner’s radios can. Load only keys you are authorized to hold.</p>
+<p class="card-desc" style="margin-bottom:12px">If the agency gives you a keyfill, store the traffic encryption keys here. RadioTAK matches heard ALGID / Key ID on encrypted calls so Live Events can show <strong>encrypted, key on file</strong> vs <strong>encrypted, no matching key</strong>. Historical rows live on the <a href="/encryption">Encryption archive</a> page. The ALGID and Key ID on those events are the labels you give the radio shop / KMF — they name the key slot; they are not the key. SDRTrunk still cannot decrypt audio or GPS from those keys — only the system owner’s radios can. Load only keys you are authorized to hold.</p>
 {% if heard_keysets | default([]) %}
 <p class="card-desc" style="margin-bottom:8px"><strong>Heard keysets</strong> — distinct cipher / key-slot / talkgroup combinations from encrypted calls. Prefill the form, then paste the authorized hex from keyfill.</p>
 <table class="table" style="margin-bottom:20px">
@@ -351,6 +352,17 @@
         protocol: 'P25_LSM',
         site: '51',
         frequencies: '856.2375\n857.2375'
+      });
+    });
+  }
+  var sull = document.getElementById('fill-sullivan-co');
+  if (sull) {
+    sull.addEventListener('click', function () {
+      fillSample({
+        name: 'TACN Sullivan Co Simulcast',
+        protocol: 'P25_LSM',
+        site: '50',
+        frequencies: '854.5625\n856.7375'
       });
     });
   }

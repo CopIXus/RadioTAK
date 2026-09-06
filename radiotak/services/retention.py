@@ -6,7 +6,13 @@ from datetime import timedelta
 
 from sqlalchemy import delete
 
-from radiotak.db import AuditLog, ForwardingEvent, LocationObservation, get_session_factory, utcnow
+from radiotak.db import (
+    AuditLog,
+    ForwardingEvent,
+    LocationObservation,
+    get_session_factory,
+    utcnow,
+)
 from radiotak.services.logging_setup import log_event
 from radiotak.services.settings_store import load_settings_file
 
@@ -38,6 +44,13 @@ def purge_old_records() -> dict[str, int]:
             delete(AuditLog).where(AuditLog.created_at < now - timedelta(days=audit_days))
         )
         counts["audit"] = r.rowcount or 0
+        try:
+            from radiotak.services.encryption_archive import purge_expired
+
+            counts["encrypted_archive"] = purge_expired(db)
+        except Exception as exc:  # noqa: BLE001
+            log_event("retention", "archive_purge_failed", detail=str(exc))
+            counts["encrypted_archive"] = 0
         db.commit()
         log_event("retention", "purge_complete", detail=str(counts))
     finally:

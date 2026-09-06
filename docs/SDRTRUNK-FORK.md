@@ -4,7 +4,7 @@ Upstream: https://github.com/DSheirer/sdrtrunk
 
 The CopIXus fork lives at https://github.com/CopIXus/sdrtrunk and adds two isolated exporters:
 
-- `GeoEventJsonExporter` — `PlottableDecodeEvent` GPS as `sdr2tak.location.v1` and encrypted/clear call metadata as `sdr2tak.decode.v1` NDJSON to `127.0.0.1:29500`
+- `GeoEventJsonExporter` — `PlottableDecodeEvent` GPS as `sdr2tak.location.v1` and encrypted/clear call metadata as `sdr2tak.decode.v1` NDJSON to `127.0.0.1:29500` (system/site/NAC/WACN/RFSS, timeslot, structured ALGID/KID, optional MI)
 - `DftFrameExporter` — downsampled DFT bins as NDJSON to `127.0.0.1:29501`
 - `TrafficKeyStore` — reads RadioTAK `traffic_keys.json` so encrypted-call exports can set `key_loaded` when ALGID+KID match (does not decrypt audio)
 

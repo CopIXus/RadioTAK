@@ -73,11 +73,16 @@ decoder event → schema validation → normalize → radio identity
   → deny unknown → dedupe / rate-limit → CoT → per-server queue → TLS send
 ```
 
+Encrypted `sdr2tak.decode.v1` events skip CoT. They update Units / Live Events and the [encryption archive](ENCRYPTION-ARCHIVE.md).
+
+Drawings: [pipeline](diagrams/radiotak-pipeline.svg), [clear vs encrypted](diagrams/radiotak-encryption-flow.svg), [TAK push](diagrams/radiotak-tak-push.svg).
+
 ## Related docs
 
 - [INSTALL-RPI.md](INSTALL-RPI.md)
 - [INSTALL-DEBIAN-PROXMOX.md](INSTALL-DEBIAN-PROXMOX.md)
 - [TAK-ENROLLMENT.md](TAK-ENROLLMENT.md)
+- [ENCRYPTION-ARCHIVE.md](ENCRYPTION-ARCHIVE.md)
 - [SDRTRUNK.md](SDRTRUNK.md)
 - [SECURITY.md](SECURITY.md)
 - [HARDWARE.md](HARDWARE.md)

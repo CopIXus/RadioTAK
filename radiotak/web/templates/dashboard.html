@@ -142,6 +142,11 @@
         <div class="metric-value" id="stat-heard-1h">{{ stats.heard_1h | default(0) }}</div>
         <div class="card-desc">Unique radios in the last hour</div>
       </div>
+      <a class="card card-static" href="/encryption" style="text-decoration:none;color:inherit">
+        <div class="card-title">Encryption</div>
+        <div class="metric-value" id="stat-encrypted-events">{{ stats.encrypted_events | default(0) }}</div>
+        <div class="card-desc">{{ stats.encrypted_24h | default(0) }} last 24h · {{ stats.authorized_key_matches | default(0) }} key matches · archive</div>
+      </a>
     </div>
 
     <div class="section-title">Recent activity</div>
@@ -352,7 +357,8 @@
         total_hears: 'stat-total-hears',
         forwarded: 'stat-forwarded',
         blocked: 'stat-blocked',
-        heard_1h: 'stat-heard-1h'
+        heard_1h: 'stat-heard-1h',
+        encrypted_events: 'stat-encrypted-events'
       };
       Object.keys(ids).forEach(function (k) {
         var el = document.getElementById(ids[k]);

@@ -6,13 +6,17 @@
   "notes": [
     "TN Interop names (TN CALL, TN IO 1–15) are talkgroups on TACN, not standalone frequencies.",
     "Enter a nearby site control channel (CC) in MHz on the SDR page; decode events show the TGID.",
-    "One RTL-SDR typically listens to one trunked system at a time. Start with Elizabethton.",
-    "Frequencies change — re-check RadioReference if CC lock fails.",
+    "One RTL-SDR typically listens to one trunked system at a time. For Sullivan County radios use Sullivan Co Simulcast (site 50, LSM).",
+    "GPS is not a talkgroup — it appears only if a radio sends Motorola unit location on the locked site.",
+    "Frequencies change — re-check RadioReference SID 6355 if CC lock fails. NAC for site 50 is 2AC (corrected Dec 2025).",
+    "Skip Bays Mountain (site 231) — RadioReference wiki treats those frequencies as stale.",
     "Only monitor systems you own, administer, or are explicitly authorized to monitor."
   ],
   "sources": [
     "https://www.radioreference.com/db/sid/6355",
+    "https://www.radioreference.com/db/site/26156",
     "https://www.radioreference.com/db/site/47650",
+    "https://www.radioreference.com/db/tgCat/22461",
     "https://www.radioreference.com/db/tgCat/16119",
     "https://www.tn.gov/safety/tacn/talkgroups.html"
   ],
@@ -51,6 +55,18 @@
       "modulation_note": "700 MHz fallback if 800 MHz is weak.",
       "frequencies_mhz": ["769.83125", "771.33125"],
       "optional": true
+    },
+    {
+      "id": "sullivan_co",
+      "name": "TACN Sullivan Co Simulcast",
+      "protocol": "P25_LSM",
+      "site": "50",
+      "rfss": 2,
+      "nac": "2AC",
+      "county": "Sullivan, TN",
+      "modulation_note": "800 MHz 4-site county simulcast — use P25 LSM (CQPSK), not C4FM. NAC 2AC. GPS from Sullivan/Bristol/Kingsport radios is heard here, not on Elizabethton.",
+      "frequencies_mhz": ["854.5625", "856.7375"],
+      "voice_not_cc_mhz": ["854.0875", "855.9875", "856.2625", "857.2625", "857.7375", "858.2625", "858.7375", "859.2625", "859.7375"]
     }
   ],
   "talkgroups": [
@@ -73,6 +89,15 @@
     {"id": "4055", "name": "LAW MA 07", "note": "THP District 5 law mutual aid"},
     {"id": "4057", "name": "LAW MA 08", "note": "THP District 5 law mutual aid"},
     {"id": "4059", "name": "LAW MA 09", "note": "THP District 5 law mutual aid"},
-    {"id": "47101", "name": "PSAP-3", "note": "PSAP talkgroup for THP District 5 counties"}
+    {"id": "47101", "name": "PSAP-3", "note": "PSAP talkgroup for THP District 5 counties"},
+    {"id": "30020", "name": "SLVN AIRMED", "note": "Sullivan EMS Air Med — listed clear"},
+    {"id": "30049", "name": "SLVN 911OPS", "note": "Sullivan 911 Operations — listed clear"},
+    {"id": "30102", "name": "SLVN SULLNET", "note": "Sullivan countywide interop — listed clear"},
+    {"id": "30071", "name": "SC MAC 1", "note": "Sullivan mutual aid 1 — listed clear"},
+    {"id": "30072", "name": "SC MAC 2", "note": "Sullivan mutual aid 2 — listed clear"},
+    {"id": "30086", "name": "SC MAC ALL", "note": "Sullivan mutual aid all — listed clear"},
+    {"id": "30101", "name": "SLVN CW", "note": "Sullivan countywide dispatch — listed clear"},
+    {"id": "30161", "name": "KNGPT FD EAST1", "note": "Kingsport Fire East 1 — listed clear"},
+    {"id": "30172", "name": "KNGPT LSC 1", "note": "Kingsport Life Saving Crew — listed clear"}
   ]
 }

@@ -1,0 +1,1 @@
+{"schema":"sdr2tak.decode.v1","decoder":"sdrtrunk","protocol":"APCO25","p25_phase":"1","radio_id":"5550001","talkgroup":"1471","encrypted":false,"system_id":"2A5","wacn":"BEE00","nac":"2A0","site_id":"78","frequency_hz":854437500,"observed_at":"2026-09-05T23:00:00Z","raw_event_type":"CALL"}

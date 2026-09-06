@@ -99,11 +99,14 @@ class LocationPipeline:
         return self.process_event(db, event, raw)
 
     def process_decode(self, db: Session, event: DecodeEventIn) -> PipelineResult:
+        from radiotak.services.encryption_archive import record_decode
         from radiotak.services.traffic_keys import (
+            decrypt_state,
             describe_cipher,
             encrypted_badge,
             encrypted_reason,
             matching_key,
+            parse_message_indicator,
             resolve_encryption_ids,
         )
 
@@ -120,6 +123,12 @@ class LocationPipeline:
                 key_loaded = matching_key(db, algid, kid) is not None
             except Exception:  # noqa: BLE001
                 key_loaded = bool(event.key_loaded)
+        mi = parse_message_indicator(
+            event.message_indicator, event.message_indicator_hex, event.details
+        )
+        state = decrypt_state(
+            encrypted=event.encrypted, algid=algid, key_id=kid, key_loaded=key_loaded
+        )
 
         identity = observe_call(
             db,
@@ -155,6 +164,16 @@ class LocationPipeline:
             "algorithm_name": cipher["name"],
             "cipher_label": cipher["label"],
             "key_id": str(kid) if kid is not None else None,
+            "message_indicator": mi,
+            "decrypt_state": state,
+            "site_id": event.site_id,
+            "wacn": event.wacn,
+            "nac": event.nac,
+            "rfss": event.rfss,
+            "frequency_hz": event.frequency_hz,
+            "timeslot": event.timeslot,
+            "p25_phase": event.p25_phase,
+            "channel": event.channel,
             "encryption_badge": (
                 encrypted_badge(algid=algid, key_id=kid, key_loaded=key_loaded)
                 if event.encrypted
@@ -163,6 +182,10 @@ class LocationPipeline:
             "reason": reason,
             "ts": self._unix_ts(event.observed_at),
         }
+        try:
+            record_decode(db, event, algid=algid, kid=kid, key_loaded=key_loaded)
+        except Exception as exc:  # noqa: BLE001
+            log_event("encryption", "archive_error", detail=str(exc))
         self._emit(payload)
         return PipelineResult(None, False, reason, heard=True)
 
@@ -192,7 +215,13 @@ class LocationPipeline:
             system_id=event.system_id,
             system_name=event.system_name,
             site_id=event.site_id,
+            wacn=getattr(event, "wacn", None),
+            nac=event.nac,
+            rfss=getattr(event, "rfss", None),
+            p25_phase=getattr(event, "p25_phase", None),
             frequency_hz=event.frequency_hz,
+            channel=getattr(event, "channel", None),
+            timeslot=getattr(event, "timeslot", None),
             talkgroup_id=event.talkgroup,
             radio_id=event.radio_id,
             radio_alias=identity.callsign or event.source_alias,

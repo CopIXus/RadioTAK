@@ -35,6 +35,8 @@ Until a patched build is installed, Live Events and Units stay empty even while 
 
 The same `:29500` feed also accepts `sdr2tak.decode.v1` (no lat/lon). The CopIXus exporter emits those for voice/data calls, including `CALL_ENCRYPTED`, so Live Events / Units can show **Encrypted — no GPS** instead of looking idle.
 
+When IdentifierCollection has the values, the exporter also sends system ID, WACN, NAC, RFSS, site, timeslot, channel, talker alias, structured ALGID/KID, duration, and Message Indicator (only if already present in call details). RadioTAK archives that metadata. See [ENCRYPTION-ARCHIVE.md](ENCRYPTION-ARCHIVE.md).
+
 ```json
 {
   "schema": "sdr2tak.decode.v1",
@@ -45,6 +47,10 @@ The same `:29500` feed also accepts `sdr2tak.decode.v1` (no lat/lon). The CopIXu
   "encrypted": true,
   "algorithm_id": 132,
   "key_id": 1,
+  "system_id": "2A5",
+  "wacn": "BEE00",
+  "nac": "2AC",
+  "site_id": "50",
   "key_loaded": false,
   "observed_at": "2026-09-04T15:00:00Z"
 }
@@ -99,13 +105,14 @@ Gauges turn green when the decoder is running and traffic is recent; amber when 
 
 TN Interop names (**TN CALL**, **TN IO 1–15**) are **talkgroups** on TACN, not frequencies you paste into the playlist. Lock a nearby site control channel; Live Events / Units then show the TGID (for example `1471` = TN CALL).
 
-Preset data: [`modules/sdr_location_gateway/samples/east_tn_tacn.json`](../modules/sdr_location_gateway/samples/east_tn_tacn.json). The SDR page **Fill Elizabethton (P25)** / **Fill Buffalo Mtn (LSM)** buttons copy those CCs into the Add form; they do not auto-seed the database. Save and Listen only for systems you are authorized to monitor. One RTL-SDR typically runs one trunked system.
+Preset data: [`modules/sdr_location_gateway/samples/east_tn_tacn.json`](../modules/sdr_location_gateway/samples/east_tn_tacn.json). The SDR page **Fill Sullivan Co (LSM)** / **Fill Elizabethton (P25)** / **Fill Buffalo Mtn (LSM)** buttons copy those CCs into the Add form; they do not auto-seed the database. Save and Listen only for systems you are authorized to monitor. One RTL-SDR typically runs one trunked system.
 
-| Sample | Protocol | Site | Control channels (MHz) |
-|--------|----------|------|------------------------|
-| Elizabethton (Carter) | P25 C4FM | 78 | 854.4375 (primary), 854.0375 |
-| Buffalo Mtn simulcast (Washington) | P25 LSM CQPSK | 51 | 856.2375, 857.2375 |
-| Fall Branch (optional 700 MHz) | P25 | 45 | 769.83125, 771.33125 |
+| Sample | Protocol | Site | NAC | Control channels (MHz) |
+|--------|----------|------|-----|------------------------|
+| Sullivan Co Simulcast | P25 LSM CQPSK | 50 | 2AC | 854.5625, 856.7375 |
+| Elizabethton (Carter) | P25 C4FM | 78 | 2A0 | 854.4375 (primary), 854.0375 |
+| Buffalo Mtn simulcast (Washington) | P25 LSM CQPSK | 51 | 2A4 | 856.2375, 857.2375 |
+| Fall Branch (optional 700 MHz) | P25 | 45 | 2A0 | 769.83125, 771.33125 |
 
 Do **not** enter Elizabethton voice channels (`858.0375`, `858.7125`) as CCs. Simulcast sites need LSM; standalone sites use C4FM.
 
@@ -119,7 +126,7 @@ Do **not** enter Elizabethton voice channels (`858.0375`, `858.7125`) as CCs. Si
 | 4055 / 4057 / 4059 | LAW MA 07–09 | THP District 5 |
 | 47101 | PSAP-3 | District 5 PSAP |
 
-County dispatch near Johnson City is often encrypted; Interop/MA are the practical decoder-alive check. GPS still requires a radio transmitting Motorola unit GPS. Re-check [RadioReference SID 6355](https://www.radioreference.com/db/sid/6355) if control-channel lock fails. Official zone layout: [TN.gov TACN talkgroups](https://www.tn.gov/safety/tacn/talkgroups.html).
+Sullivan County sheriff/EMS/PD dispatch is mostly encrypted; Interop/MA and Kingsport Fire / SULLNET are the practical decoder-alive check. GPS still requires a radio transmitting Motorola unit GPS on the locked site (Sullivan radios affiliate on site 50, not Elizabethton). Re-check [RadioReference SID 6355](https://www.radioreference.com/db/sid/6355) / [site 50](https://www.radioreference.com/db/site/26156) if control-channel lock fails. Official zone layout: [TN.gov TACN talkgroups](https://www.tn.gov/safety/tacn/talkgroups.html).
 
 ## Fallback
 

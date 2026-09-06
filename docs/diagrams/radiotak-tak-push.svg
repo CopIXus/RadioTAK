@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 520" role="img" aria-labelledby="title desc">
+  <title id="title">How RadioTAK pushes Cursor-on-Target to TAK</title>
+  <desc id="desc">Allowlisted GPS becomes a CoT event with a stable UID, then is queued per TAK server over TLS.</desc>
+  <rect width="1280" height="520" fill="#070f1a"/>
+  <text x="64" y="50" fill="#f8fafc" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="28" font-weight="700">TAK push</text>
+  <text x="64" y="80" fill="#38bdf8" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="15">Stable UID · per-server marker style · TLS CoT port</text>
+
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif">
+    <rect x="48" y="120" width="220" height="120" rx="12" fill="#111827" stroke="#3b82f6"/>
+    <text x="158" y="168" text-anchor="middle" fill="#94a3b8" font-size="11">IDENTITY</text>
+    <text x="158" y="198" text-anchor="middle" fill="#f8fafc" font-size="16" font-weight="700">Radio RID</text>
+    <text x="158" y="220" text-anchor="middle" fill="#67e8f9" font-size="12">forward_to_tak?</text>
+
+    <rect x="312" y="120" width="240" height="120" rx="12" fill="#111827" stroke="#06b6d4"/>
+    <text x="432" y="168" text-anchor="middle" fill="#94a3b8" font-size="11">NORMALIZE</text>
+    <text x="432" y="198" text-anchor="middle" fill="#f8fafc" font-size="16" font-weight="700">lat / lon / time</text>
+    <text x="432" y="220" text-anchor="middle" fill="#67e8f9" font-size="12">accuracy · heading · speed</text>
+
+    <rect x="596" y="120" width="250" height="120" rx="12" fill="#111827" stroke="#f59e0b"/>
+    <text x="721" y="168" text-anchor="middle" fill="#94a3b8" font-size="11">COT</text>
+    <text x="721" y="198" text-anchor="middle" fill="#f8fafc" font-size="16" font-weight="700">RADIOTAK-{sys}-{rid}</text>
+    <text x="721" y="220" text-anchor="middle" fill="#fbbf24" font-size="12">type · stale · CE · color</text>
+
+    <rect x="890" y="120" width="342" height="120" rx="12" fill="#111827" stroke="#10b981"/>
+    <text x="1061" y="168" text-anchor="middle" fill="#94a3b8" font-size="11">TAK SERVER</text>
+    <text x="1061" y="198" text-anchor="middle" fill="#f8fafc" font-size="16" font-weight="700">PyTAK TLS client</text>
+    <text x="1061" y="220" text-anchor="middle" fill="#6ee7b7" font-size="12">enrolled cert · CoT 8089</text>
+  </g>
+  <g fill="none" stroke="#22d3ee" stroke-width="3">
+    <path d="M268 180 H312"/>
+    <path d="M552 180 H596"/>
+    <path d="M846 180 H890"/>
+  </g>
+
+  <rect x="48" y="280" width="1184" height="188" rx="14" fill="#0c1624" stroke="#1e3a5f"/>
+  <text x="72" y="320" fill="#94a3b8" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" letter-spacing="1.5">OPERATOR CONTROLS</text>
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif" fill="#e2e8f0" font-size="16">
+    <text x="72" y="360">Units  approve a radio before it is placed on TAK</text>
+    <text x="72" y="392">Settings  deny unknown radios (default), min interval, movement, heartbeat</text>
+    <text x="72" y="424">TAK Servers  enrollment, marker appearance, Marti channels</text>
+  </g>
+</svg>

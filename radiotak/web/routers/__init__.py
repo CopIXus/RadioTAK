@@ -257,7 +257,7 @@ def _dashboard_stats(db) -> dict[str, int]:
         )
         or 0
     )
-    return {
+    data = {
         "observed": observed,
         "approved": approved,
         "total_hears": int(total_hears),
@@ -265,7 +265,23 @@ def _dashboard_stats(db) -> dict[str, int]:
         "blocked": blocked,
         "dropped": dropped,
         "heard_1h": heard_1h,
+        "encrypted_events": 0,
+        "encrypted_24h": 0,
+        "authorized_key_matches": 0,
+        "unknown_kids": 0,
     }
+    try:
+        from radiotak.services.encryption_archive import stats as archive_stats
+
+        enc = archive_stats(db)
+        data["encrypted_events"] = enc.get("encrypted_events") or 0
+        data["encrypted_24h"] = enc.get("encrypted_24h") or 0
+        data["authorized_key_matches"] = enc.get("authorized_matches") or 0
+        data["unknown_kids"] = enc.get("unknown_kids") or 0
+        data["encryption"] = enc
+    except Exception:  # noqa: BLE001
+        pass
+    return data
 
 
 def _location_points(
@@ -1409,6 +1425,115 @@ async def events_page(request: Request, _user=Depends(require_auth)):
     )
 
 
+def _optional_int(raw: str | None) -> int | None:
+    text = (raw or "").strip()
+    if not text:
+        return None
+    try:
+        return int(text, 16) if text.lower().startswith("0x") else int(text, 10)
+    except ValueError:
+        return None
+
+
+@pages.get("/encryption", response_class=HTMLResponse)
+async def encryption_archive_page(request: Request, _user=Depends(require_auth)):
+    from radiotak.services import encryption_archive as archive_svc
+
+    q = (request.query_params.get("q") or "").strip()
+    radio_id = (request.query_params.get("radio_id") or "").strip()
+    talkgroup = (request.query_params.get("talkgroup") or "").strip()
+    kid = _optional_int(request.query_params.get("kid"))
+    state = (request.query_params.get("state") or "").strip()
+    Session = get_session_factory()
+    db = Session()
+    try:
+        filters = {
+            "q": q or None,
+            "radio_id": radio_id or None,
+            "talkgroup": talkgroup or None,
+            "kid": kid,
+            "decrypt_state_value": state or None,
+        }
+        rows = archive_svc.list_events(db, limit=250, **filters)
+        events = [archive_svc.event_to_dict(r) for r in rows]
+        stats = archive_svc.stats(db)
+    finally:
+        db.close()
+    return TEMPLATES.TemplateResponse(
+        request,
+        "encryption_archive.html",
+        base_context(
+            request,
+            nav="encryption",
+            events=events,
+            stats=stats,
+            q=q,
+            radio_id=radio_id,
+            talkgroup=talkgroup,
+            kid=request.query_params.get("kid") or "",
+            state=state,
+            states=[
+                "ENCRYPTED_METADATA_ONLY",
+                "ENCRYPTED_KEY_NOT_AVAILABLE",
+                "ENCRYPTED_AUTHORIZED_KEY_AVAILABLE",
+                "UNSUPPORTED_ENCRYPTION_ALGORITHM",
+                "CLEAR",
+            ],
+        ),
+    )
+
+
+@pages.get("/encryption/export")
+async def encryption_export(request: Request, _user=Depends(require_auth)):
+    from radiotak.services import encryption_archive as archive_svc
+
+    fmt = (request.query_params.get("format") or "jsonl").strip().lower()
+    Session = get_session_factory()
+    db = Session()
+    try:
+        filename, media, payload = archive_svc.export_events(db, fmt=fmt)
+    finally:
+        db.close()
+    write_audit("encryption_export", actor=_actor(request), detail={"format": fmt})
+    return Response(
+        payload,
+        media_type=media,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@api.get("/encryption/stats")
+async def api_encryption_stats(_user=Depends(require_auth)):
+    from radiotak.services import encryption_archive as archive_svc
+
+    Session = get_session_factory()
+    db = Session()
+    try:
+        return archive_svc.stats(db)
+    finally:
+        db.close()
+
+
+@api.get("/encryption/events")
+async def api_encryption_events(request: Request, _user=Depends(require_auth)):
+    from radiotak.services import encryption_archive as archive_svc
+
+    Session = get_session_factory()
+    db = Session()
+    try:
+        rows = archive_svc.list_events(
+            db,
+            limit=int(request.query_params.get("limit") or 200),
+            radio_id=request.query_params.get("radio_id") or None,
+            talkgroup=request.query_params.get("talkgroup") or None,
+            kid=_optional_int(request.query_params.get("kid")),
+            q=request.query_params.get("q") or None,
+        )
+        return {"events": [archive_svc.event_to_dict(r) for r in rows]}
+    finally:
+        db.close()
+
+
 @pages.get("/map", response_class=HTMLResponse)
 async def map_page(request: Request, _user=Depends(require_auth)):
     Session = get_session_factory()
@@ -1510,6 +1635,12 @@ async def settings_save(request: Request, _user=Depends(require_auth)):
         "audit_retention_days": int(form.get("audit_retention_days") or 30),
         "max_log_mb": int(form.get("max_log_mb") or 200),
         "privacy_mode": bool(form.get("privacy_mode")),
+        "encryption_archive": {
+            "enabled": bool(form.get("archive_enabled")),
+            "metadata_retention_days": int(form.get("archive_metadata_retention_days") or 365),
+            "raw_samples": False,
+            "iq_enabled": False,
+        },
         "map_history_minutes": int(form.get("map_history_minutes") or 60),
         "forwarding": {
             "unknown_radios": form.get("unknown_radios") or "deny",
