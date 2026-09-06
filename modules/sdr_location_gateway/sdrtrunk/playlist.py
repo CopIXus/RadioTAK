@@ -54,6 +54,9 @@ EXPORT_PROPERTY_DEFAULTS = {
     "geo_event_export_enabled": "true",
     "geo_event_export_host": "127.0.0.1",
     "geo_event_export_port": "29500",
+    "audio_export_enabled": "true",
+    "audio_export_host": "127.0.0.1",
+    "audio_export_port": "29502",
 }
 
 
@@ -98,6 +101,7 @@ def ensure_export_properties(settings=None) -> Path:
     text = path.read_text(encoding="utf-8", errors="replace") if path.exists() else ""
     path.write_text(_upsert_properties(text, export_property_defaults(settings)), encoding="utf-8")
     ensure_hide_calibration_dialog(settings)
+    ensure_jmbe_library_pref(settings)
     return path
 
 
@@ -158,6 +162,63 @@ def ensure_hide_calibration_dialog(settings=None) -> Path:
         _HIDE_CALIBRATION_KEY: "true",
         _VECTOR_ENABLED_KEY: "false",
     }
+    if not text.strip():
+        entries = "\n".join(f'  <entry key="{k}" value="{v}"/>' for k, v in wanted.items())
+        text = _JAVA_PREFS_TEMPLATE.format(entries=entries)
+    else:
+        for key, value in wanted.items():
+            text = _upsert_java_pref_entry(text, key, value)
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+_JMBE_PATH_KEY = "path.jmbe.library.1.0.0"
+_JMBE_ALERT_KEY = "alert.jmbe.required"
+_JMBE_JAR_NAME = "jmbe-1.0.9.jar"
+
+
+def decoder_prefs_path(settings=None) -> Path:
+    """Java ``Preferences.userNodeForPackage(JmbeLibraryPreference)`` file."""
+    if settings is None:
+        from radiotak.config import get_settings
+
+        settings = get_settings()
+    return (
+        Path(settings.data_dir)
+        / ".java"
+        / ".userPrefs"
+        / "io"
+        / "github"
+        / "dsheirer"
+        / "preference"
+        / "decoder"
+        / "prefs.xml"
+    )
+
+
+def jmbe_library_path(settings=None) -> Path:
+    if settings is None:
+        from radiotak.config import get_settings
+
+        settings = get_settings()
+    return Path(settings.data_dir) / "SDRTrunk" / "jmbe" / _JMBE_JAR_NAME
+
+
+def ensure_jmbe_library_pref(settings=None) -> Path:
+    """Point SDRTrunk at the on-device JMBE jar and skip the missing-library modal.
+
+    Under Xvfb nobody can click the JMBE alert. Encrypted calls stay silent either
+    way; clear P25/DMR voice needs the vocoder jar that ``install.sh`` compiles
+    with JMBE Creator. The path key is only written when that jar exists so
+    SDRTrunk does not cache a missing file.
+    """
+    path = decoder_prefs_path(settings)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = path.read_text(encoding="utf-8", errors="replace") if path.is_file() else ""
+    wanted = {_JMBE_ALERT_KEY: "false"}
+    jar = jmbe_library_path(settings)
+    if jar.is_file():
+        wanted[_JMBE_PATH_KEY] = str(jar).replace("\\", "/")
     if not text.strip():
         entries = "\n".join(f'  <entry key="{k}" value="{v}"/>' for k, v in wanted.items())
         text = _JAVA_PREFS_TEMPLATE.format(entries=entries)

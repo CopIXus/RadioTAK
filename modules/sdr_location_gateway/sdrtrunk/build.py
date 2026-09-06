@@ -1,9 +1,10 @@
 """Report which SDRTrunk build is installed and whether it carries the CopIXus exporters.
 
-The waterfall (:29501) and GPS/Live Events (:29500) feeds only exist in the
-``CopIXus/sdrtrunk`` fork. A stock DSheirer build decodes audio fine but never
-connects to RadioTAK, so the canvas stays black and no units appear. This module
-lets the UI, the updater, and the startup self-heal all agree on the same facts.
+The waterfall (:29501), GPS/Live Events (:29500), and talkgroup audio (:29502) feeds
+only exist in the ``CopIXus/sdrtrunk`` fork. A stock DSheirer build decodes audio
+fine but never connects to RadioTAK, so the canvas stays black, no units appear,
+and the Listen button has nothing to play. This module lets the UI, the updater,
+and the startup self-heal all agree on the same facts.
 """
 
 from __future__ import annotations
@@ -41,7 +42,16 @@ def sdrtrunk_app_dir(settings=None) -> Path:
 def _jar_has_exporters(jar: Path) -> bool:
     try:
         with zipfile.ZipFile(jar) as z:
-            return "io/github/dsheirer/export/DftFrameExporter.class" in z.namelist()
+            names = z.namelist()
+            return "io/github/dsheirer/export/DftFrameExporter.class" in names
+    except (OSError, zipfile.BadZipFile):
+        return False
+
+
+def _jar_has_audio_exporter(jar: Path) -> bool:
+    try:
+        with zipfile.ZipFile(jar) as z:
+            return "io/github/dsheirer/export/AudioFrameExporter.class" in z.namelist()
     except (OSError, zipfile.BadZipFile):
         return False
 
@@ -49,9 +59,10 @@ def _jar_has_exporters(jar: Path) -> bool:
 def sdrtrunk_build_info(settings=None) -> dict[str, Any]:
     """Describe the installed decoder.
 
-    Keys: installed, version, fork_tag, has_exporters, expected_tag, upgrade_available, app_dir.
-    ``has_exporters`` is decided from the jar contents, not the marker file, so a
-    hand-installed fork build is still recognised.
+    Keys: installed, version, fork_tag, has_exporters, has_audio_exporter,
+    expected_tag, upgrade_available, app_dir.
+    ``has_exporters`` / ``has_audio_exporter`` are decided from the jar contents,
+    not the marker file, so a hand-installed fork build is still recognised.
     """
     app = sdrtrunk_app_dir(settings)
     expected = expected_fork_tag()
@@ -60,6 +71,7 @@ def sdrtrunk_build_info(settings=None) -> dict[str, Any]:
         "version": None,
         "fork_tag": None,
         "has_exporters": False,
+        "has_audio_exporter": False,
         "expected_tag": expected,
         "upgrade_available": False,
         "app_dir": str(app),
@@ -80,9 +92,15 @@ def sdrtrunk_build_info(settings=None) -> dict[str, Any]:
             info["version"] = m.group(1)
         if _jar_has_exporters(jar):
             info["has_exporters"] = True
+        if _jar_has_audio_exporter(jar):
+            info["has_audio_exporter"] = True
     if expected:
-        info["upgrade_available"] = info["fork_tag"] != expected or not info["has_exporters"]
-    elif not info["has_exporters"]:
+        info["upgrade_available"] = (
+            info["fork_tag"] != expected
+            or not info["has_exporters"]
+            or not info["has_audio_exporter"]
+        )
+    elif not info["has_exporters"] or not info["has_audio_exporter"]:
         info["upgrade_available"] = True
     return info
 
@@ -91,6 +109,8 @@ def build_label(info: dict[str, Any]) -> str:
     if not info.get("installed"):
         return "SDRTrunk not installed"
     ver = info.get("version") or "unknown"
-    if info.get("has_exporters"):
+    if info.get("has_exporters") and info.get("has_audio_exporter"):
         return f"SDRTrunk {ver} (CopIXus exporters)"
-    return f"SDRTrunk {ver} stock — no waterfall / GPS export"
+    if info.get("has_exporters"):
+        return f"SDRTrunk {ver} (spectrum/GPS only — upgrade for Listen audio)"
+    return f"SDRTrunk {ver} stock — no waterfall / GPS / audio export"

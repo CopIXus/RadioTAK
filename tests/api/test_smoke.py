@@ -117,6 +117,8 @@ def test_login_and_dashboard(client):
     assert b"Console" in r.content
     assert b"/static/img/logo.png" in r.content
     assert b'id="update-pill"' in r.content
+    assert b"data-listen-toggle" in r.content
+    assert b"/static/js/listen.js" in r.content
 
 
 def test_product_logo_static(client):
@@ -140,7 +142,10 @@ def test_login_shows_product_branding(client):
 
 def test_help_and_customization_pages(client):
     _login(client)
-    assert client.get("/help").status_code == 200
+    help_page = client.get("/help")
+    assert help_page.status_code == 200
+    assert b"Listen" in help_page.content
+    assert b"29502" in help_page.content
     assert client.get("/customization").status_code == 200
 
 
@@ -257,8 +262,12 @@ def test_sdr_page_reports_decoder_build_and_feed_status(client):
     assert body["feed"]["spectrum"]["frames_received"] >= 0
     assert body["feed"]["geo"]["lines_received"] >= 0
     assert body["feed"]["geo"]["encrypted_received"] >= 0
+    assert body["feed"]["audio"]["frames_received"] >= 0
     assert b"Traffic keys" in page.content
     assert b'action="/modules/sdr/keys"' in page.content
+    assert b"data-listen-toggle" in page.content
+    assert b"/static/js/listen.js" in page.content
+    assert b"sdr-feed-audio" in page.content
     assert body["upgrade"]["running"] is False
 
 

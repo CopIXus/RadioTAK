@@ -62,9 +62,9 @@ fi
 udevadm control --reload-rules 2>/dev/null || true
 udevadm trigger --subsystem-match=usb 2>/dev/null || true
 
-# Prefer CopIXus patched release (DftFrameExporter + GeoEventJsonExporter).
+# Prefer CopIXus patched release (spectrum, GPS, talkgroup audio exporters).
 # Fall back to upstream DSheirer 0.6.1 if the fork asset is not published yet.
-TAG="v0.6.2-radiotak.4"
+TAG="v0.6.2-radiotak.5"
 UPSTREAM_TAG="v0.6.1"
 ASSET="sdr-trunk-linux-aarch64-${TAG}.zip"
 UP_ASSET="sdr-trunk-linux-aarch64-${UPSTREAM_TAG}.zip"
@@ -116,7 +116,7 @@ if [[ "$NEED_DOWNLOAD" == "1" ]]; then
     [[ -x "$DEST/bin/sdr-trunk" || -f "$DEST/bin/sdr-trunk" ]] || die "SDRTrunk binary missing after extract"
     if [[ "$GOT_FORK" == "1" ]]; then
       echo "$TAG" > "$DEST/.radiotak-fork"
-      echo "Installed SDRTrunk $TAG (DftFrameExporter :29501, GeoEventJsonExporter :29500)"
+      echo "Installed SDRTrunk $TAG (DftFrameExporter :29501, GeoEventJsonExporter :29500, AudioFrameExporter :29502)"
     else
       rm -f "$DEST/.radiotak-fork"
       echo "Installed stock SDRTrunk $UPSTREAM_TAG — waterfall and GPS export unavailable until the fork release is published"
@@ -144,6 +144,75 @@ if [[ ! -f "$PREFS_DIR/prefs.xml" ]] || ! grep -q 'hide.calibration.dialog' "$PR
 PREFS
 fi
 chown -R radiotak:radiotak "$DATA_DIR/.java" 2>/dev/null || true
+
+# Compile JMBE on-device (do not vendor a prebuilt vocoder jar). Needed for
+# clear P25/DMR Listen audio. Encrypted calls stay silent either way.
+JMBE_DIR="$DATA_DIR/SDRTrunk/jmbe"
+JMBE_JAR="$JMBE_DIR/jmbe-1.0.9.jar"
+JMBE_TAG="v1.0.9"
+if [[ ! -f "$JMBE_JAR" ]]; then
+  echo "Compiling JMBE $JMBE_TAG for digital voice…"
+  JMBE_ASSET="jmbe-creator-linux-aarch64-${JMBE_TAG}.zip"
+  if [[ "$ARCH" == "x86_64" ]]; then
+    JMBE_ASSET="jmbe-creator-linux-x86_64-${JMBE_TAG}.zip"
+  fi
+  JMBE_TMP="$SDR_DIR/${JMBE_ASSET}"
+  JMBE_SRC="$SDR_DIR/jmbe-creator"
+  mkdir -p "$JMBE_DIR"
+  if wget -q -O "$JMBE_TMP" "https://github.com/DSheirer/jmbe/releases/download/${JMBE_TAG}/${JMBE_ASSET}"; then
+    rm -rf "$JMBE_SRC"
+    mkdir -p "$JMBE_SRC"
+    unzip -q -o "$JMBE_TMP" -d "$JMBE_SRC"
+    CREATOR=$(find "$JMBE_SRC" -type f -path '*/bin/creator' | head -1 || true)
+    if [[ -n "$CREATOR" ]]; then
+      chmod +x "$CREATOR" || true
+      set +e
+      ( cd "$JMBE_DIR" && HOME="$DATA_DIR" xvfb-run -a -s "-screen 0 640x480x24" "$CREATOR" )
+      CREATOR_RC=$?
+      set -e
+      if [[ "$CREATOR_RC" -eq 0 ]]; then
+        FOUND=$(find "$JMBE_DIR" "$JMBE_SRC" "$DATA_DIR" -maxdepth 4 -name 'jmbe-1*.jar' 2>/dev/null | head -1 || true)
+        if [[ -n "$FOUND" && "$FOUND" != "$JMBE_JAR" ]]; then
+          cp -f "$FOUND" "$JMBE_JAR"
+        fi
+      else
+        echo "JMBE creator exited $CREATOR_RC" >&2
+      fi
+    fi
+    rm -f "$JMBE_TMP"
+    rm -rf "$JMBE_SRC"
+  else
+    echo "Could not download JMBE Creator $JMBE_ASSET" >&2
+    rm -f "$JMBE_TMP"
+  fi
+  if [[ -f "$JMBE_JAR" ]]; then
+    echo "JMBE library ready: $JMBE_JAR"
+  else
+    echo "JMBE compile skipped or failed — clear P25/DMR Listen audio stays silent until $JMBE_JAR exists" >&2
+  fi
+fi
+
+DECODER_PREFS_DIR="$DATA_DIR/.java/.userPrefs/io/github/dsheirer/preference/decoder"
+mkdir -p "$DECODER_PREFS_DIR"
+if [[ -f "$JMBE_JAR" ]]; then
+  cat > "$DECODER_PREFS_DIR/prefs.xml" <<PREFS
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE map SYSTEM "http://java.sun.com/dtd/preferences.dtd">
+<map MAP_XML_VERSION="1.0">
+  <entry key="alert.jmbe.required" value="false"/>
+  <entry key="path.jmbe.library.1.0.0" value="$JMBE_JAR"/>
+</map>
+PREFS
+elif [[ ! -f "$DECODER_PREFS_DIR/prefs.xml" ]] || ! grep -q 'alert.jmbe.required' "$DECODER_PREFS_DIR/prefs.xml" 2>/dev/null; then
+  cat > "$DECODER_PREFS_DIR/prefs.xml" <<'PREFS'
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE map SYSTEM "http://java.sun.com/dtd/preferences.dtd">
+<map MAP_XML_VERSION="1.0">
+  <entry key="alert.jmbe.required" value="false"/>
+</map>
+PREFS
+fi
+chown -R radiotak:radiotak "$DATA_DIR/.java" "$JMBE_DIR" 2>/dev/null || true
 
 # systemd units
 cat > /etc/systemd/system/sdrtrunk.service <<EOF

@@ -35,6 +35,10 @@ mDftFrameExporter = new DftFrameExporter(mOverlayPanel, mChannelModel, this::get
 
 and call `mDftFrameExporter.bindTuner(mTuner)` from `showTuner` / `clearTuner` so frequency-change events update labels even if OverlayPanel misses them. The two-argument constructor remains for older hook lines.
 
+## AudioFrameExporter (`:29502`)
+
+Registered next to `AudioPlaybackManager` as a `Listener<AudioSegment>`. Batches ~100 ms of 8 kHz PCM as `sdr2tak.audio.v1`. Encrypted segments emit silence markers only. See [AUDIO_FRAME_EXPORTER.md](AUDIO_FRAME_EXPORTER.md).
+
 ## Preferences (`SDRTrunk.properties`)
 
 - `geo_event_export_enabled` (default true)
@@ -43,7 +47,10 @@ and call `mDftFrameExporter.bindTuner(mTuner)` from `showTuner` / `clearTuner` s
 - `spectrum_export_enabled` (bool, default true)
 - `spectrum_export_host` (default 127.0.0.1)
 - `spectrum_export_port` (default **29501**)
+- `audio_export_enabled` (bool, default true)
+- `audio_export_host` (default 127.0.0.1)
+- `audio_export_port` (default **29502**)
 
-RadioTAK writes those keys when it rebuilds the playlist. Spectrum listen bind is also in `settings.json` under `spectrum`.
+RadioTAK writes those keys when it rebuilds the playlist. Spectrum listen bind is also in `settings.json` under `spectrum`; audio under `audio`.
 
-Do not change decoder or audio behavior. Keep the patch isolated for easy rebase.
+Do not change vocoder / mixer / playback. `AudioFrameExporter` is a consumer of `AudioSegment`, same as recording. Keep patches isolated for easy rebase.

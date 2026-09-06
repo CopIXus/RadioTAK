@@ -173,6 +173,10 @@
           <span id="wf-fmax">— MHz</span>
         </div>
         <div class="waterfall-note" id="wf-note" hidden></div>
+        <div class="waterfall-listen" id="dash-listen" data-listen-root>
+          <button type="button" class="btn btn-sm btn-primary" data-listen-toggle aria-pressed="false">Listen in browser</button>
+          <span class="waterfall-listen-status" data-listen-status>Click Listen to hear decoded talkgroups in this browser.</span>
+        </div>
       </div>
     </details>
 
@@ -212,6 +216,7 @@
 <script src="/static/vendor/leaflet/leaflet.js"></script>
 <script src="/static/js/map.js"></script>
 <script src="/static/js/waterfall.js"></script>
+<script src="/static/js/listen.js"></script>
 <script>
 (function () {
   'use strict';
@@ -228,15 +233,21 @@
   }
 
   var wfCanvas = document.getElementById('waterfall-canvas');
-  var wf = wfCanvas ? new RadioTakWaterfall(wfCanvas, { ccMarkersHz: ccMarkers }) : null;
+  var wf = (wfCanvas && typeof RadioTakWaterfall !== 'undefined')
+    ? new RadioTakWaterfall(wfCanvas, { ccMarkersHz: ccMarkers }) : null;
+  var proto = location.protocol === 'https:' ? 'wss' : 'ws';
   if (wf) {
     wf.setAxisElements({
       fmin: document.getElementById('wf-fmin'),
       fmax: document.getElementById('wf-fmax'),
       note: document.getElementById('wf-note')
     });
-    var proto = location.protocol === 'https:' ? 'wss' : 'ws';
     wf.connect(proto + '://' + location.host + '/api/v1/ws/spectrum');
+  }
+  if (typeof RadioTakListen !== 'undefined') {
+    RadioTakListen.mount(document.getElementById('dash-listen'), {
+      url: proto + '://' + location.host + '/api/v1/ws/audio'
+    });
   }
 
   function setGaugeClass(el, cls) {

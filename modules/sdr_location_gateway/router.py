@@ -68,8 +68,9 @@ def _decoder_build() -> dict:
 
 
 def _feed_status() -> dict:
-    """Live counters for the :29501 spectrum and :29500 GPS feeds."""
+    """Live counters for the :29501 spectrum, :29500 GPS, and :29502 audio feeds."""
     from .sdrtrunk.adapter import geo_stats
+    from .sdrtrunk.audio import audio_hub
     from .sdrtrunk.spectrum import spectrum_hub
 
     now = time.time()
@@ -85,6 +86,7 @@ def _feed_status() -> dict:
             "live": spec_age is not None and spec_age < 5.0,
         },
         "geo": geo,
+        "audio": audio_hub.snapshot(),
     }
 
 

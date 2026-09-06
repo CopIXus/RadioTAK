@@ -1928,3 +1928,26 @@ async def ws_spectrum(websocket: WebSocket):
         pass
     finally:
         spectrum_hub.unsubscribe(q)
+
+
+@api.websocket("/ws/audio")
+async def ws_audio(websocket: WebSocket):
+    from modules.sdr_location_gateway.sdrtrunk.audio import audio_hub
+
+    settings = get_settings()
+    token = websocket.cookies.get(settings.session_cookie)
+    if not decode_session_token(token):
+        await websocket.close(code=4401)
+        return
+    await websocket.accept()
+    q = audio_hub.subscribe()
+    if audio_hub.latest_meta:
+        await websocket.send_json(audio_hub.latest_meta)
+    try:
+        while True:
+            frame = await q.get()
+            await websocket.send_json(frame)
+    except WebSocketDisconnect:
+        pass
+    finally:
+        audio_hub.unsubscribe(q)

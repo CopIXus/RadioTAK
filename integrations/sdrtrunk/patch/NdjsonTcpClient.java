@@ -51,7 +51,7 @@ public class NdjsonTcpClient
     private final String mHost;
     private final int mPort;
     private final String mName;
-    private final ArrayBlockingQueue<String> mQueue = new ArrayBlockingQueue<>(QUEUE_SIZE);
+    private final ArrayBlockingQueue<String> mQueue;
     private final AtomicBoolean mRunning = new AtomicBoolean();
     private final AtomicBoolean mPeerClosed = new AtomicBoolean();
     private Thread mThread;
@@ -61,9 +61,15 @@ public class NdjsonTcpClient
 
     public NdjsonTcpClient(String name, String host, int port)
     {
+        this(name, host, port, QUEUE_SIZE);
+    }
+
+    public NdjsonTcpClient(String name, String host, int port, int queueSize)
+    {
         mName = name;
         mHost = host;
         mPort = port;
+        mQueue = new ArrayBlockingQueue<>(Math.max(8, queueSize));
     }
 
     public synchronized void start()

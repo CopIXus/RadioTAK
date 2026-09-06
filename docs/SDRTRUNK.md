@@ -96,7 +96,7 @@ The Console dashboard and **SDR** module render frames in a canvas waterfall (`w
 
 A **Listen** button on the same waterfall plays decoded talkgroup audio in the browser (`waterfall.js` + `listen.js` over `/api/v1/ws/audio`). That is vocoded P25/DMR voice from SDRTrunk, not the FFT picture.
 
-`AudioFrameExporter` streams `sdr2tak.audio.v1` NDJSON to RadioTAK on **127.0.0.1:29502**. Encrypted calls arrive as silence markers (`encrypted: true`, no PCM). RadioTAK strips any PCM on encrypted frames before the WebSocket. Clear digital voice still needs **JMBE** in the decoder, the same as local SDRTrunk playback. Enable with `audio_export_enabled`.
+`AudioFrameExporter` streams `sdr2tak.audio.v1` NDJSON to RadioTAK on **127.0.0.1:29502**. Encrypted calls arrive as silence markers (`encrypted: true`, no PCM). RadioTAK strips any PCM on encrypted frames before the WebSocket. Clear digital voice still needs **JMBE** in the decoder, the same as local SDRTrunk playback. `install.sh` compiles that jar on-device with JMBE Creator `v1.0.9` into `/var/lib/radiotak/SDRTrunk/jmbe/` and writes the Java preference (and turns off the missing-library modal so Xvfb is not blocked). Enable with `audio_export_enabled`.
 
 The Pi does not need headphones — click Listen on the website.
 

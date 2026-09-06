@@ -2,10 +2,11 @@
 
 Upstream: https://github.com/DSheirer/sdrtrunk
 
-The CopIXus fork lives at https://github.com/CopIXus/sdrtrunk and adds two isolated exporters:
+The CopIXus fork lives at https://github.com/CopIXus/sdrtrunk and adds isolated exporters:
 
 - `GeoEventJsonExporter` — `PlottableDecodeEvent` GPS as `sdr2tak.location.v1` and encrypted/clear call metadata as `sdr2tak.decode.v1` NDJSON to `127.0.0.1:29500` (system/site/NAC/WACN/RFSS, timeslot, structured ALGID/KID, optional MI)
 - `DftFrameExporter` — downsampled DFT bins as NDJSON to `127.0.0.1:29501`
+- `AudioFrameExporter` — decoded talkgroup PCM (and encrypted silence markers) as `sdr2tak.audio.v1` NDJSON to `127.0.0.1:29502`. Encrypted segments never include PCM.
 - `TrafficKeyStore` — reads RadioTAK `traffic_keys.json` so encrypted-call exports can set `key_loaded` when ALGID+KID match (does not decrypt audio)
 
 Source for those classes (GPLv3) is kept in [integrations/sdrtrunk/patch/](../integrations/sdrtrunk/patch/) and applied on the `radiotak-exporters` branch of the fork.
@@ -15,7 +16,7 @@ Source for those classes (GPLv3) is kept in [integrations/sdrtrunk/patch/](../in
 GitHub Actions on the fork (`.github/workflows/radiotak-release.yml`) builds `sdr-trunk-linux-aarch64-*.zip` on tag push. RadioTAK's SDR installer prefers:
 
 ```
-https://github.com/CopIXus/sdrtrunk/releases/download/v0.6.2-radiotak.4/sdr-trunk-linux-aarch64-v0.6.2-radiotak.4.zip
+https://github.com/CopIXus/sdrtrunk/releases/download/v0.6.2-radiotak.5/sdr-trunk-linux-aarch64-v0.6.2-radiotak.5.zip
 ```
 
 and falls back to upstream `v0.6.1` if that asset is not published yet.
@@ -27,7 +28,7 @@ To publish a new patched build:
 ```bash
 git clone https://github.com/CopIXus/sdrtrunk.git
 git checkout radiotak-exporters
-git tag v0.6.2-radiotak.4
+git tag v0.6.2-radiotak.5
 git push origin radiotak-exporters
-git push origin v0.6.2-radiotak.4
+git push origin v0.6.2-radiotak.5
 ```

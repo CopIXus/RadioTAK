@@ -48,6 +48,17 @@ async def _spectrum_listen() -> None:
         log.warning("spectrum listen failed: %s", exc)
 
 
+async def _audio_listen() -> None:
+    try:
+        from modules.sdr_location_gateway.sdrtrunk.audio import listen_audio_tcp
+
+        await listen_audio_tcp()
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        log.warning("audio listen failed: %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
@@ -81,6 +92,7 @@ async def lifespan(app: FastAPI):
     task = asyncio.create_task(retention_loop())
     ndjson_task = asyncio.create_task(_ndjson_listen())
     spectrum_task = asyncio.create_task(_spectrum_listen())
+    audio_task = asyncio.create_task(_audio_listen())
 
     # Keep the SDRTrunk fork build in step with this RadioTAK checkout.
     try:
@@ -104,7 +116,7 @@ async def lifespan(app: FastAPI):
     except Exception as exc:  # noqa: BLE001
         log.warning("TAK shutdown failed: %s", exc)
 
-    for t in (ndjson_task, spectrum_task, task):
+    for t in (ndjson_task, spectrum_task, audio_task, task):
         t.cancel()
         try:
             await t

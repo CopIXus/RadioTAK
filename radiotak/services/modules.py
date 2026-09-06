@@ -117,6 +117,7 @@ def decoder_build_info() -> dict[str, Any]:
         return {
             "installed": False,
             "has_exporters": False,
+            "has_audio_exporter": False,
             "upgrade_available": False,
             "error": str(exc),
         }

@@ -78,7 +78,7 @@
     {% elif decoder_build.has_exporters %}
     <div class="status-pill status-warn"><span class="dot"></span>Newer fork build {{ decoder_build.expected_tag }} available</div>
     {% else %}
-    <div class="status-pill status-warn"><span class="dot"></span>Stock build — waterfall and GPS feeds will stay empty</div>
+    <div class="status-pill status-warn"><span class="dot"></span>Stock build — waterfall, GPS, and Listen audio feeds will stay empty</div>
     {% endif %}
     {% if decoder_build.installed and decoder_build.upgrade_available and not decoder_build.upgrading %}
     <form method="post" action="/modules/sdr/upgrade" style="margin-top:10px" data-busy="Starting upgrade…">
@@ -92,7 +92,7 @@
 
 {% if waterfall_enabled | default(true) %}
 <div class="section-title">Spectrum waterfall</div>
-<p class="card-desc" style="margin-bottom:10px">Canvas frames come from the CopIXus SDRTrunk exporter on port 29501. GPS and encrypted-call events use port 29500. Stock SDRTrunk still decodes without either feed.</p>
+<p class="card-desc" style="margin-bottom:10px">Canvas frames come from the CopIXus SDRTrunk exporter on port 29501. GPS and encrypted-call events use port 29500. Decoded talkgroup audio uses port 29502. Stock SDRTrunk still decodes without those feeds.</p>
 <div class="waterfall-wrap">
   <canvas id="sdr-waterfall" aria-label="RF spectrum waterfall"></canvas>
   <div class="waterfall-axis">
@@ -100,9 +100,13 @@
     <span id="sdr-wf-fmax">— MHz</span>
   </div>
   <div class="waterfall-note" id="sdr-wf-note" hidden></div>
+  <div class="waterfall-listen" id="sdr-listen" data-listen-root>
+    <button type="button" class="btn btn-sm btn-primary" data-listen-toggle aria-pressed="false">Listen in browser</button>
+    <span class="waterfall-listen-status" data-listen-status>Click Listen to hear decoded talkgroups in this browser.</span>
+  </div>
 </div>
 <div class="card-desc" id="sdr-feed-status" style="margin-top:8px">
-  Spectrum feed: <span id="sdr-feed-spec">checking…</span> · Events feed: <span id="sdr-feed-geo">checking…</span>
+  Spectrum feed: <span id="sdr-feed-spec">checking…</span> · Events feed: <span id="sdr-feed-geo">checking…</span> · Audio feed: <span id="sdr-feed-audio">checking…</span>
 </div>
 {% endif %}
 
@@ -370,28 +374,37 @@
 </script>
 {% if waterfall_enabled | default(true) %}
 <script src="/static/js/waterfall.js"></script>
+<script src="/static/js/listen.js"></script>
 <script>
 (function () {
+  var proto = location.protocol === 'https:' ? 'wss' : 'ws';
   var canvas = document.getElementById('sdr-waterfall');
-  if (!canvas || typeof RadioTakWaterfall === 'undefined') return;
   var ccMarkers = {{ cc_markers_hz | default('[]') | safe }};
   var buildOk = {{ 'true' if decoder_build.has_exporters else 'false' }};
+  var hasAudio = {{ 'true' if decoder_build.has_audio_exporter else 'false' }};
   var decoderRunning = {{ 'true' if decoder_running else 'false' }};
-  var emptyText = !buildOk
-    ? 'No spectrum frames — installed SDRTrunk is a stock build without the CopIXus exporter. Use “Upgrade decoder”.'
-    : (!decoderRunning ? 'Decoder stopped — press Start to begin streaming spectrum frames.' : 'Waiting for spectrum frames from SDRTrunk (:29501)…');
-  var wf = new RadioTakWaterfall(canvas, { ccMarkersHz: ccMarkers, emptyText: emptyText });
-  wf.setAxisElements({
-    fmin: document.getElementById('sdr-wf-fmin'),
-    fmax: document.getElementById('sdr-wf-fmax'),
-    note: document.getElementById('sdr-wf-note')
-  });
-  var proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  wf.connect(proto + '://' + location.host + '/api/v1/ws/spectrum');
+  if (canvas && typeof RadioTakWaterfall !== 'undefined') {
+    var emptyText = !buildOk
+      ? 'No spectrum frames — installed SDRTrunk is a stock build without the CopIXus exporter. Use “Upgrade decoder”.'
+      : (!decoderRunning ? 'Decoder stopped — press Start to begin streaming spectrum frames.' : 'Waiting for spectrum frames from SDRTrunk (:29501)…');
+    var wf = new RadioTakWaterfall(canvas, { ccMarkersHz: ccMarkers, emptyText: emptyText });
+    wf.setAxisElements({
+      fmin: document.getElementById('sdr-wf-fmin'),
+      fmax: document.getElementById('sdr-wf-fmax'),
+      note: document.getElementById('sdr-wf-note')
+    });
+    wf.connect(proto + '://' + location.host + '/api/v1/ws/spectrum');
+  }
+  if (typeof RadioTakListen !== 'undefined') {
+    RadioTakListen.mount(document.getElementById('sdr-listen'), {
+      url: proto + '://' + location.host + '/api/v1/ws/audio'
+    });
+  }
 
   // Poll feed counters so the operator can tell whether the SDR is actually producing data.
   var specEl = document.getElementById('sdr-feed-spec');
   var geoEl = document.getElementById('sdr-feed-geo');
+  var audioEl = document.getElementById('sdr-feed-audio');
   var wasUpgrading = {{ 'true' if decoder_build.upgrading else 'false' }};
   function poll() {
     fetch('/modules/sdr/status.json', { credentials: 'same-origin' })
@@ -400,6 +413,7 @@
         if (!s) return;
         var sp = s.feed && s.feed.spectrum || {};
         var geo = s.feed && s.feed.geo || {};
+        var au = s.feed && s.feed.audio || {};
         if (specEl) {
           if (sp.live) specEl.textContent = 'live (' + sp.frames_received + ' frames, ' + sp.clients + ' exporter connected)';
           else if (sp.clients > 0) specEl.textContent = 'exporter connected, no frames yet — is a tuner selected and the decoder listening?';
@@ -418,10 +432,19 @@
           } else if (s.build && !s.build.has_exporters) geoEl.textContent = 'no exporter — stock SDRTrunk build';
           else geoEl.textContent = 'exporter not connected';
         }
+        if (audioEl) {
+          if (au.encrypted && au.live) audioEl.textContent = 'encrypted silence' + (au.talkgroup ? ' (TG ' + au.talkgroup + ')' : '');
+          else if (au.live && au.pcm_frames > 0) audioEl.textContent = 'voice (' + au.pcm_frames + ' chunks' + (au.talkgroup ? ', TG ' + au.talkgroup : '') + ')';
+          else if (au.clients > 0) audioEl.textContent = 'exporter connected, waiting for a call';
+          else if (s.build && !s.build.has_audio_exporter) audioEl.textContent = 'no audio exporter — upgrade decoder';
+          else if (!s.decoder_running) audioEl.textContent = 'decoder stopped';
+          else audioEl.textContent = 'exporter not connected yet';
+        }
         var upgrading = s.upgrade && s.upgrade.running;
         if (wasUpgrading && !upgrading) { location.reload(); return; }
         wasUpgrading = !!upgrading;
         if (s.build && s.build.has_exporters !== buildOk) { location.reload(); return; }
+        if (s.build && !!s.build.has_audio_exporter !== hasAudio) { location.reload(); return; }
       })
       .catch(function () { /* ignore */ });
   }

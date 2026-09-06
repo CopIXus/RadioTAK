@@ -12,6 +12,7 @@ import pytest
 from modules.sdr_location_gateway.sdrtrunk.playlist import (
     ensure_export_properties,
     ensure_hide_calibration_dialog,
+    ensure_jmbe_library_pref,
     hz_to_mhz_str,
     parse_frequencies,
     write_p25_playlist,
@@ -136,6 +137,8 @@ def test_ensure_export_properties_appends_missing_keys(tmp_path):
     assert "spectrum_export_enabled=true" in text
     assert "spectrum_export_port=29501" in text
     assert "geo_event_export_port=29500" in text
+    assert "audio_export_enabled=true" in text
+    assert "audio_export_port=29502" in text
     assert "traffic_keys_path=" in text
     assert str(tmp_path).replace("\\", "/") in text.replace("\\", "/")
     ensure_export_properties(settings)
@@ -156,6 +159,21 @@ def test_ensure_export_properties_appends_missing_keys(tmp_path):
     assert 'key="hide.calibration.dialog"' in prefs_text
     assert 'key="vector.enabled"' in prefs_text
     assert 'value="false"' in prefs_text
+    decoder_prefs = (
+        tmp_path
+        / ".java"
+        / ".userPrefs"
+        / "io"
+        / "github"
+        / "dsheirer"
+        / "preference"
+        / "decoder"
+        / "prefs.xml"
+    )
+    assert decoder_prefs.is_file()
+    decoder_text = decoder_prefs.read_text(encoding="utf-8")
+    assert 'key="alert.jmbe.required" value="false"' in decoder_text
+    assert "path.jmbe.library" not in decoder_text
 
 
 def test_ensure_hide_calibration_dialog_upserts(tmp_path):
@@ -186,6 +204,29 @@ def test_ensure_hide_calibration_dialog_upserts(tmp_path):
     ensure_hide_calibration_dialog(settings)
     assert 'key="hide.calibration.dialog" value="true"' in path.read_text(encoding="utf-8")
     assert 'key="vector.enabled" value="false"' in path.read_text(encoding="utf-8")
+
+
+def test_ensure_jmbe_library_pref_writes_path_when_jar_exists(tmp_path):
+    from types import SimpleNamespace
+
+    from modules.sdr_location_gateway.sdrtrunk.playlist import (
+        decoder_prefs_path,
+        jmbe_library_path,
+    )
+
+    settings = SimpleNamespace(data_dir=tmp_path)
+    ensure_jmbe_library_pref(settings)
+    path = decoder_prefs_path(settings)
+    assert 'key="alert.jmbe.required" value="false"' in path.read_text(encoding="utf-8")
+    assert "path.jmbe.library" not in path.read_text(encoding="utf-8")
+    jar = jmbe_library_path(settings)
+    jar.parent.mkdir(parents=True)
+    jar.write_bytes(b"stub")
+    ensure_jmbe_library_pref(settings)
+    text = path.read_text(encoding="utf-8")
+    assert 'key="path.jmbe.library.1.0.0"' in text
+    assert "jmbe-1.0.9.jar" in text
+    assert 'key="alert.jmbe.required" value="false"' in text
 
 
 def test_east_tn_tacn_sample_json():

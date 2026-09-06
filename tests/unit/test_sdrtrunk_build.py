@@ -16,6 +16,7 @@ def _fake_app(tmp_path, jar_name: str, *, exporters: bool, marker: str | None = 
         z.writestr("io/github/dsheirer/gui/SDRTrunk.class", b"")
         if exporters:
             z.writestr("io/github/dsheirer/export/DftFrameExporter.class", b"")
+            z.writestr("io/github/dsheirer/export/AudioFrameExporter.class", b"")
     if marker:
         (app / ".radiotak-fork").write_text(marker + "\n", encoding="utf-8")
     return SimpleNamespace(data_dir=tmp_path)
@@ -49,6 +50,7 @@ def test_fork_build_current(tmp_path):
     settings = _fake_app(tmp_path, f"sdr-trunk-{tag[1:]}.jar", exporters=True, marker=tag)
     info = build.sdrtrunk_build_info(settings)
     assert info["has_exporters"] is True
+    assert info["has_audio_exporter"] is True
     assert info["fork_tag"] == tag
     assert info["upgrade_available"] is False
     assert "CopIXus exporters" in build.build_label(info)
@@ -58,6 +60,7 @@ def test_hand_installed_fork_without_marker_still_detected(tmp_path):
     settings = _fake_app(tmp_path, "sdr-trunk-0.6.2-radiotak.1.jar", exporters=True)
     info = build.sdrtrunk_build_info(settings)
     assert info["has_exporters"] is True
+    assert info["has_audio_exporter"] is True
     # no marker → tag unknown → installer will re-stamp it, so an upgrade is offered
     assert info["upgrade_available"] is True
 
@@ -69,6 +72,22 @@ def test_older_fork_tag_offers_upgrade(tmp_path):
     info = build.sdrtrunk_build_info(settings)
     assert info["has_exporters"] is True
     assert info["upgrade_available"] is True
+
+
+def test_spectrum_only_fork_needs_audio_upgrade(tmp_path):
+    tag = build.expected_fork_tag()
+    app = tmp_path / "sdrtrunk" / "app"
+    lib = app / "lib"
+    lib.mkdir(parents=True)
+    with zipfile.ZipFile(lib / f"sdr-trunk-{tag[1:]}.jar", "w") as z:
+        z.writestr("io/github/dsheirer/gui/SDRTrunk.class", b"")
+        z.writestr("io/github/dsheirer/export/DftFrameExporter.class", b"")
+    (app / ".radiotak-fork").write_text(tag + "\n", encoding="utf-8")
+    info = build.sdrtrunk_build_info(SimpleNamespace(data_dir=tmp_path))
+    assert info["has_exporters"] is True
+    assert info["has_audio_exporter"] is False
+    assert info["upgrade_available"] is True
+    assert "Listen audio" in build.build_label(info)
 
 
 def test_geo_stats_counters_shape():
