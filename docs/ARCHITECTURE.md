@@ -75,7 +75,7 @@ decoder event → schema validation → normalize → radio identity
 
 Encrypted `sdr2tak.decode.v1` events skip CoT. They update Units / Live Events and the [encryption archive](ENCRYPTION-ARCHIVE.md).
 
-Drawings: [pipeline](diagrams/radiotak-pipeline.svg), [clear vs encrypted](diagrams/radiotak-encryption-flow.svg), [TAK push](diagrams/radiotak-tak-push.svg).
+Drawings: [pipeline](diagrams/radiotak-pipeline.png), [clear vs encrypted](diagrams/radiotak-encryption-flow.png), [TAK push](diagrams/radiotak-tak-push.png) (SVG sources alongside).
 
 ## Related docs
 

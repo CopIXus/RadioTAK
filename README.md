@@ -29,7 +29,7 @@ RadioTAK is an infra-TAK-style management console (Raspberry Pi 5 or Debian/Prox
 RadioTAK does not reimplement P25. SDRTrunk demodulates the control channel. The CopIXus exporter streams NDJSON to RadioTAK. RadioTAK decides what is allowed to become CoT.
 
 <p align="center">
-  <img src="docs/diagrams/radiotak-pipeline.svg" alt="SDR to SDRTrunk to RadioTAK to CoT to TAK Server"/>
+  <img src="docs/diagrams/radiotak-pipeline.png" alt="SDR to SDRTrunk to RadioTAK to CoT to TAK Server" width="1280"/>
 </p>
 
 **GPS path** — a radio reports lat/lon → identity + allowlist + dedupe → CoT XML → TLS to TAK.
@@ -37,11 +37,11 @@ RadioTAK does not reimplement P25. SDRTrunk demodulates the control channel. The
 **Encrypted path** — a call is flagged encrypted → ALGID/KID (and MI if the decoder had it) are archived → Live Events / Units show a badge → TAK is unchanged unless that radio later sends GPS *and* is approved.
 
 <p align="center">
-  <img src="docs/diagrams/radiotak-encryption-flow.svg" alt="Clear GPS path versus encrypted archive path"/>
+  <img src="docs/diagrams/radiotak-encryption-flow.png" alt="Clear GPS path versus encrypted archive path" width="1280"/>
 </p>
 
 <p align="center">
-  <img src="docs/diagrams/radiotak-tak-push.svg" alt="Allowlisted GPS becomes CoT and is queued to TAK over TLS"/>
+  <img src="docs/diagrams/radiotak-tak-push.png" alt="Allowlisted GPS becomes CoT and is queued to TAK over TLS" width="1280"/>
 </p>
 
 More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/ENCRYPTION-ARCHIVE.md](docs/ENCRYPTION-ARCHIVE.md) · [docs/SDRTRUNK.md](docs/SDRTRUNK.md)

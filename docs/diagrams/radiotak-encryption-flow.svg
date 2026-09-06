@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 740" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="740" viewBox="0 0 1280 740" role="img" aria-labelledby="title desc">
   <title id="title">RadioTAK clear vs encrypted handling</title>
   <desc id="desc">Clear GPS follows the TAK path. Encrypted traffic is archived with ALGID, KID, system metadata, and optional MI. Matching authorized keys only labels the event; unknown keys are not recovered.</desc>
   <rect width="1280" height="740" fill="#061018"/>

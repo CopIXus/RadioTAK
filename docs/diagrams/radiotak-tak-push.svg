@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-labelledby="title desc">
   <title id="title">How RadioTAK pushes Cursor-on-Target to TAK</title>
   <desc id="desc">Allowlisted GPS becomes a CoT event with a stable UID, then is queued per TAK server over TLS. Encrypted metadata never enters this queue.</desc>
   <rect width="1280" height="640" fill="#070f1a"/>

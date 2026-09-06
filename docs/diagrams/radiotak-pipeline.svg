@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 620" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="620" viewBox="0 0 1280 620" role="img" aria-labelledby="title desc">
   <title id="title">RadioTAK pipeline: RF decode to TAK CoT</title>
   <desc id="desc">SDR hardware feeds SDRTrunk. RadioTAK normalizes events, allowlists radios, archives encryption metadata, and forwards approved GPS as Cursor-on-Target to TAK Server.</desc>
   <defs>
