@@ -19,7 +19,7 @@ RadioTAK is an infra-TAK-style management console (Raspberry Pi 5 or Debian/Prox
 - Shows a live spectrum waterfall, hearing gauges, and pipeline health on the Console
 - Observes every radio the decoder hears (GPS **and** encrypted/clear calls)
 - Forwards **allowlisted** radio GPS as Cursor-on-Target (CoT) to one or more TAK Servers
-- Archives encryption metadata (ALGID, KID, site, optional MI) without recovering unknown keys
+- Archives encryption metadata (ALGID, KID, site, NAC/WACN, optional MI, identifier context) without recovering unknown keys
 - Updates from GitHub, joins Tailscale, and customizes logo/banner from the UI
 
 > **Scope:** Only radio systems and subscriber units you own, administer, or are explicitly authorized to monitor. Unknown radios are observed but **not** forwarded by default. Encrypted traffic is never turned into a fake map point.
@@ -50,13 +50,14 @@ More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/ENCRYPTION-AR
 
 | Area | What you get |
 |------|----------------|
-| Console | Pipeline strip (SDR → decoder → locations → TAK), CPU/RAM/disk, hearing gauges, waterfall, authorized map |
-| SDR | Tuner discovery, control-channel playlists, Listen/Stop, noVNC to the native decoder GUI |
+| Console | Pipeline strip (SDR → decoder → locations → TAK), CPU/RAM/disk, hearing gauges, waterfall + Listen, authorized map |
+| SDR | Tuner discovery, control-channel playlists, Listen/Stop, browser talkgroup audio, noVNC to the native decoder GUI |
 | Live Events | GPS queues, blocked reports, encrypted/clear calls with cipher + KID |
 | Units | Observed vs approved, GPS filter, TAK marker overrides |
 | TAK | Enrollment, PKCS#12 import, per-server marker style, Marti channels, test CoT |
-| Encryption archive | Filterable history, ALGID/KID stats, CSV/JSON/JSONL export (no key material) |
+| Encryption archive | Filterable history, ALGID/KID/site stats, capture sessions, CSV/JSON/JSONL export (no key material) |
 | Traffic keys | Store authorized TEKs (AES-256, AES-128, DES-OFB, ADP). Match heard ALGID+KID. Hex never shown again |
+| Policy | Observe every radio; forward only allowlisted GPS; encrypted calls never become map points |
 | Ops | Alerts, Tailscale, one-click GitHub update, diagnostics ZIP, retention |
 
 ## Quick Start (Raspberry Pi OS 64-bit)

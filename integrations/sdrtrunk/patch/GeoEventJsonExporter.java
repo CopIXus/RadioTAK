@@ -50,9 +50,9 @@ import org.slf4j.LoggerFactory;
  * Isolated from decoder/audio paths. Enable with geo_event_export_enabled in
  * SDRTrunk.properties. Call events are rate-limited per radio/talkgroup.
  *
- * Extra P25 context (system/site/NAC/WACN/RFSS, timeslot, structured ALGID/KID,
- * Message Indicator when the decoder already printed it) is copied from
- * IdentifierCollection. This exporter does not decrypt payloads.
+ * Extra P25 context (system/site/NAC/WACN/RFSS, timeslot, uplink, patch/status/LRA,
+ * structured ALGID/KID, Message Indicator when the decoder already printed it)
+ * is copied from IdentifierCollection. This exporter does not decrypt payloads.
  */
 public class GeoEventJsonExporter implements Listener<IDecodeEvent>
 {
@@ -192,8 +192,10 @@ public class GeoEventJsonExporter implements Listener<IDecodeEvent>
         Identifier to = ids != null ? ids.getToIdentifier() : null;
         String talkgroup = "";
         String destinationRadio = null;
+        String destinationType = null;
         if(to != null && to.getValue() != null)
         {
+            destinationType = to.getForm() != null ? to.getForm().name() : null;
             if(to.getForm() == Form.RADIO)
             {
                 destinationRadio = String.valueOf(to.getValue());
@@ -204,8 +206,13 @@ public class GeoEventJsonExporter implements Listener<IDecodeEvent>
             }
         }
         DecodeEventType type = event.getEventType();
+        boolean encryptionHeaderPresent = false;
         Integer[] cipher = encryptionFromIdentifiers(ids);
-        if(cipher == null)
+        if(cipher != null)
+        {
+            encryptionHeaderPresent = true;
+        }
+        else
         {
             cipher = encryptionFromDetails(event.getDetails());
         }
@@ -234,16 +241,20 @@ public class GeoEventJsonExporter implements Listener<IDecodeEvent>
         field(sb, "system_name", aliasListName(ids));
         appendSystemContext(sb, ids, event.getChannelDescriptor());
         field(sb, "radio_id", radioId);
+        field(sb, "source_type", from.getForm() != null ? from.getForm().name() : null);
         field(sb, "source_alias", identifierValue(ids, Form.TALKER_ALIAS));
         if(!talkgroup.isBlank())
         {
             field(sb, "talkgroup", talkgroup);
         }
+        field(sb, "destination_type", destinationType);
         if(destinationRadio != null)
         {
             field(sb, "destination_radio_id", destinationRadio);
         }
+        appendEntityContext(sb, ids);
         sb.append(",\"encrypted\":").append(encrypted);
+        sb.append(",\"encryption_header_present\":").append(encryptionHeaderPresent);
         sb.append(",\"key_loaded\":").append(keyLoaded);
         if(algId != null)
         {
@@ -298,12 +309,40 @@ public class GeoEventJsonExporter implements Listener<IDecodeEvent>
             {
                 sb.append(",\"frequency_hz\":").append(channel.getDownlinkFrequency());
             }
+            if(channel.getUplinkFrequency() > 0)
+            {
+                sb.append(",\"uplink_frequency_hz\":").append(channel.getUplinkFrequency());
+            }
             String channelName = channel.toString();
             if(channelName != null && !channelName.isBlank())
             {
                 field(sb, "channel", channelName);
             }
         }
+        else
+        {
+            field(sb, "channel", identifierValue(ids, Form.CHANNEL_NAME));
+            String channelFreq = identifierValue(ids, Form.CHANNEL_FREQUENCY);
+            if(channelFreq != null)
+            {
+                try
+                {
+                    sb.append(",\"frequency_hz\":").append(Long.parseLong(channelFreq));
+                }
+                catch(NumberFormatException ignored)
+                {
+                    field(sb, "channel", channelFreq);
+                }
+            }
+        }
+    }
+
+    private static void appendEntityContext(StringBuilder sb, IdentifierCollection ids)
+    {
+        field(sb, "patch_group", identifierValue(ids, Form.PATCH_GROUP));
+        field(sb, "unit_status", identifierValue(ids, Form.UNIT_STATUS));
+        field(sb, "user_status", identifierValue(ids, Form.USER_STATUS));
+        field(sb, "lra", identifierValue(ids, Form.LOCATION_REGISTRATION_AREA));
     }
 
     private static Integer[] encryptionFromIdentifiers(IdentifierCollection ids)

@@ -76,6 +76,47 @@ def test_archive_stores_system_and_cipher_metadata(db_env):
     assert "key_hex" not in (row.raw_event_json or {})
 
 
+def test_archive_stores_identifier_context_and_session(db_env):
+    from sqlalchemy import select
+
+    from radiotak.db import CaptureSession, EncryptedTrafficEvent, RadioSystem
+    from radiotak.gateway.pipeline import LocationPipeline
+
+    db_env.add(
+        RadioSystem(
+            name="Demo Simulcast",
+            protocol="P25_LSM",
+            config={"site": "50", "frequencies_hz": [854562500], "auto_start": True},
+        )
+    )
+    db_env.commit()
+    pipe = LocationPipeline()
+    pipe.process_dict(
+        db_env,
+        _event(
+            source_type="RADIO",
+            destination_type="TALKGROUP",
+            uplink_frequency_hz=809562500,
+            encryption_header_present=True,
+            emergency=True,
+            unit_status="0",
+            lra="1",
+        ),
+    )
+    row = db_env.scalar(select(EncryptedTrafficEvent))
+    assert row.source_type == "RADIO"
+    assert row.destination_type == "TALKGROUP"
+    assert row.uplink_frequency_hz == 809562500
+    assert row.encryption_header_present is True
+    assert row.emergency is True
+    assert row.lra == "1"
+    session = db_env.scalar(select(CaptureSession))
+    assert session is not None
+    assert session.system == "Demo Simulcast"
+    assert session.site == "50"
+    assert session.control_channel == "854562500"
+
+
 def test_archive_dedupes_same_call_window(db_env):
     from sqlalchemy import select, func
 

@@ -35,7 +35,7 @@ Until a patched build is installed, Live Events and Units stay empty even while 
 
 The same `:29500` feed also accepts `sdr2tak.decode.v1` (no lat/lon). The CopIXus exporter emits those for voice/data calls, including `CALL_ENCRYPTED`, so Live Events / Units can show **Encrypted — no GPS** instead of looking idle.
 
-When IdentifierCollection has the values, the exporter also sends system ID, WACN, NAC, RFSS, site, timeslot, channel, talker alias, structured ALGID/KID, duration, and Message Indicator (only if already present in call details). RadioTAK archives that metadata. See [ENCRYPTION-ARCHIVE.md](ENCRYPTION-ARCHIVE.md).
+When IdentifierCollection has the values, the exporter also sends system ID, WACN, NAC, RFSS, site, timeslot, downlink/uplink frequency, talker alias, source/destination type, patch group, unit/user status, LRA, structured ALGID/KID, `encryption_header_present`, duration, and Message Indicator (only if already present in call details). RadioTAK archives that metadata. See [ENCRYPTION-ARCHIVE.md](ENCRYPTION-ARCHIVE.md).
 
 ```json
 {
@@ -51,6 +51,9 @@ When IdentifierCollection has the values, the exporter also sends system ID, WAC
   "wacn": "BEE00",
   "nac": "2AC",
   "site_id": "50",
+  "source_type": "RADIO",
+  "destination_type": "TALKGROUP",
+  "encryption_header_present": true,
   "key_loaded": false,
   "observed_at": "2026-09-04T15:00:00Z"
 }
@@ -60,7 +63,7 @@ Authorized traffic keys are entered on the SDR page and written to `/var/lib/rad
 
 ## Spectrum export
 
-`DftFrameExporter` downsamples FFT bins (~512) and streams NDJSON to RadioTAK on **127.0.0.1:29501**. Enable with `spectrum_export_enabled`. Installer tag: `v0.6.2-radiotak.4` from `CopIXus/sdrtrunk` releases. Stock 0.6.1 leaves the canvas black.
+`DftFrameExporter` downsamples FFT bins (~512) and streams NDJSON to RadioTAK on **127.0.0.1:29501**. Enable with `spectrum_export_enabled`. Installer tag: `v0.6.2-radiotak.5` from `CopIXus/sdrtrunk` releases. Stock 0.6.1 leaves the canvas black.
 
 The exporter is registered on `SpectralDisplayPanel`'s `ComplexDecibelConverter`, so it only produces frames once SDRTrunk has a tuner shown in its spectral display. Under Xvfb that happens automatically (`showFirstTuner()` after the main window opens) — roughly 50 s after `sdrtrunk.service` starts on a Pi 4. If `spectral.display.enabled=false` is ever set in `SDRTrunk.properties`, no frames are exported.
 
@@ -81,11 +84,21 @@ The decoder binary is **not** part of the RadioTAK git checkout; it is a zip unp
 - `feed.spectrum.clients` — exporter TCP connections on :29501 (1 when the fork build is running)
 - `feed.spectrum.frames_received` / `last_frame_age` — frames are ~8 fps when a tuner is streaming
 - `feed.geo.clients` / `lines_received` — GPS exporter connection and how many location lines have arrived (stays 0 until a radio actually transmits lat/lon)
+- `feed.audio.clients` / `pcm_frames` / `encrypted_frames` — talkgroup audio exporter on :29502
 - `build.has_exporters` — false means stock SDRTrunk
+- `build.has_audio_exporter` — false means the fork is old enough to paint the waterfall but not to play Listen audio
 
 ### Canvas waterfall
 
 The Console dashboard and **SDR** module render frames in a canvas waterfall (`waterfall.js` over WebSocket). Each frame carries `bins`, `f_min`, `f_max`, and optional `cc_hz` control-channel markers. Those edges are the tuner LO actually feeding the DFT. SDRTrunk’s idle default is 101.1 MHz; RadioTAK stamps the listening control channel into `SDRTrunk/configuration/tuner_configuration.json` on playlist write and again after the decoder stops, so the next start shows the site you are listening to.
+
+### Listen (browser audio)
+
+A **Listen** button on the same waterfall plays decoded talkgroup audio in the browser (`waterfall.js` + `listen.js` over `/api/v1/ws/audio`). That is vocoded P25/DMR voice from SDRTrunk, not the FFT picture.
+
+`AudioFrameExporter` streams `sdr2tak.audio.v1` NDJSON to RadioTAK on **127.0.0.1:29502**. Encrypted calls arrive as silence markers (`encrypted: true`, no PCM). RadioTAK strips any PCM on encrypted frames before the WebSocket. Clear digital voice still needs **JMBE** in the decoder, the same as local SDRTrunk playback. Enable with `audio_export_enabled`.
+
+The Pi does not need headphones — click Listen on the website.
 
 ### noVNC fallback
 

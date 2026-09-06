@@ -45,9 +45,17 @@ class DecodeEventIn(BaseModel):
     p25_phase: str | None = None
     talkgroup: str | None = None
     radio_id: str
+    source_type: str | None = None
     source_alias: str | None = None
+    destination_type: str | None = None
     destination_radio_id: str | None = None
+    patch_group: str | None = None
+    unit_status: str | None = None
+    user_status: str | None = None
+    lra: str | None = None
+    uplink_frequency_hz: int | None = None
     encrypted: bool = False
+    encryption_header_present: bool = False
     algorithm_id: str | None = None
     algorithm_id_hex: str | None = None
     key_id: str | None = None
@@ -85,6 +93,12 @@ class DecodeEventIn(BaseModel):
         "channel",
         "p25_phase",
         "destination_radio_id",
+        "source_type",
+        "destination_type",
+        "patch_group",
+        "unit_status",
+        "user_status",
+        "lra",
         mode="before",
     )
     @classmethod

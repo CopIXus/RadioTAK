@@ -245,6 +245,7 @@ class CaptureSession(Base):
     control_channel: Mapped[str | None] = mapped_column(String(64), nullable=True)
     software_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
     decoder_version: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    git_commit: Mapped[str | None] = mapped_column(String(64), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
@@ -269,13 +270,22 @@ class EncryptedTrafficEvent(Base):
     rfss: Mapped[str | None] = mapped_column(String(32), nullable=True)
     site_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     frequency_hz: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    uplink_frequency_hz: Mapped[int | None] = mapped_column(Integer, nullable=True)
     channel: Mapped[str | None] = mapped_column(String(64), nullable=True)
     timeslot: Mapped[int | None] = mapped_column(Integer, nullable=True)
     source_radio_id: Mapped[str] = mapped_column(String(64), index=True)
+    source_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
     destination_radio_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    destination_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
     talkgroup_id: Mapped[str | None] = mapped_column(String(64), index=True)
     source_alias: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    patch_group: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    unit_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    user_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    lra: Mapped[str | None] = mapped_column(String(64), nullable=True)
     encrypted: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    encryption_header_present: Mapped[bool] = mapped_column(Boolean, default=False)
+    emergency: Mapped[bool] = mapped_column(Boolean, default=False)
     algorithm_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     key_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     message_indicator: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -396,6 +406,16 @@ def _sqlite_add_missing_columns(engine) -> None:
         "ALTER TABLE location_observations ADD COLUMN rfss VARCHAR(32)",
         "ALTER TABLE location_observations ADD COLUMN p25_phase VARCHAR(8)",
         "ALTER TABLE location_observations ADD COLUMN timeslot INTEGER",
+        "ALTER TABLE capture_sessions ADD COLUMN git_commit VARCHAR(64)",
+        "ALTER TABLE encrypted_traffic_events ADD COLUMN uplink_frequency_hz INTEGER",
+        "ALTER TABLE encrypted_traffic_events ADD COLUMN source_type VARCHAR(32)",
+        "ALTER TABLE encrypted_traffic_events ADD COLUMN destination_type VARCHAR(32)",
+        "ALTER TABLE encrypted_traffic_events ADD COLUMN patch_group VARCHAR(64)",
+        "ALTER TABLE encrypted_traffic_events ADD COLUMN unit_status VARCHAR(64)",
+        "ALTER TABLE encrypted_traffic_events ADD COLUMN user_status VARCHAR(64)",
+        "ALTER TABLE encrypted_traffic_events ADD COLUMN lra VARCHAR(64)",
+        "ALTER TABLE encrypted_traffic_events ADD COLUMN encryption_header_present BOOLEAN DEFAULT 0",
+        "ALTER TABLE encrypted_traffic_events ADD COLUMN emergency BOOLEAN DEFAULT 0",
     ]
     with engine.begin() as conn:
         for sql in statements:

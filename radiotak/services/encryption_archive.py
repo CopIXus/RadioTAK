@@ -16,7 +16,7 @@ from typing import Any
 from sqlalchemy import Select, delete, desc, func, or_, select
 from sqlalchemy.orm import Session
 
-from radiotak.db import CaptureSession, EncryptedTrafficEvent, utcnow
+from radiotak.db import CaptureSession, EncryptedTrafficEvent, RadioSystem, utcnow
 from radiotak.gateway import DecodeEventIn
 from radiotak.services.logging_setup import log_event
 from radiotak.services.settings_store import load_settings_file
@@ -40,6 +40,14 @@ def archive_settings() -> dict[str, Any]:
     }
 
 
+def _listening_system(db: Session) -> RadioSystem | None:
+    for row in db.scalars(select(RadioSystem)).all():
+        cfg = row.config or {}
+        if cfg.get("auto_start"):
+            return row
+    return None
+
+
 def current_session(db: Session, *, decoder_version: str | None = None) -> CaptureSession:
     row = db.scalar(
         select(CaptureSession)
@@ -48,19 +56,45 @@ def current_session(db: Session, *, decoder_version: str | None = None) -> Captu
         .limit(1)
     )
     if row:
+        _refresh_session_context(db, row)
         return row
     from radiotak.services import updater as updater_svc
 
+    listening = _listening_system(db)
+    cfg = (listening.config if listening else None) or {}
+    freqs = cfg.get("frequencies_hz") or []
     row = CaptureSession(
         name="live",
         description="RadioTAK decoder capture session",
         software_version=updater_svc.current_version(),
         decoder_version=decoder_version,
+        git_commit=updater_svc.local_commit_sha(),
         receiver="sdrtrunk",
+        system=listening.name if listening else None,
+        site=str(cfg.get("site") or "") or None,
+        control_channel=str(freqs[0]) if freqs else None,
     )
     db.add(row)
     db.flush()
     return row
+
+
+def _refresh_session_context(db: Session, session: CaptureSession) -> None:
+    listening = _listening_system(db)
+    if not listening:
+        return
+    cfg = listening.config or {}
+    freqs = cfg.get("frequencies_hz") or []
+    if not session.system:
+        session.system = listening.name
+    if not session.site and cfg.get("site") is not None:
+        session.site = str(cfg.get("site"))
+    if not session.control_channel and freqs:
+        session.control_channel = str(freqs[0])
+    if not session.git_commit:
+        from radiotak.services import updater as updater_svc
+
+        session.git_commit = updater_svc.local_commit_sha()
 
 
 def _raw_event_json(event: DecodeEventIn) -> dict[str, Any]:
@@ -117,6 +151,12 @@ def record_decode(
             existing.site_id = event.site_id
         if event.frequency_hz and not existing.frequency_hz:
             existing.frequency_hz = event.frequency_hz
+        if getattr(event, "uplink_frequency_hz", None) and not existing.uplink_frequency_hz:
+            existing.uplink_frequency_hz = event.uplink_frequency_hz
+        if getattr(event, "encryption_header_present", False):
+            existing.encryption_header_present = True
+        if event.emergency:
+            existing.emergency = True
         db.commit()
         return existing
 
@@ -135,13 +175,22 @@ def record_decode(
         rfss=event.rfss,
         site_id=event.site_id,
         frequency_hz=event.frequency_hz,
+        uplink_frequency_hz=event.uplink_frequency_hz,
         channel=event.channel,
         timeslot=event.timeslot,
         source_radio_id=event.radio_id,
+        source_type=event.source_type,
         destination_radio_id=event.destination_radio_id,
+        destination_type=event.destination_type,
         talkgroup_id=event.talkgroup,
         source_alias=event.source_alias,
+        patch_group=event.patch_group,
+        unit_status=event.unit_status,
+        user_status=event.user_status,
+        lra=event.lra,
         encrypted=event.encrypted,
+        encryption_header_present=bool(event.encryption_header_present),
+        emergency=bool(event.emergency),
         algorithm_id=algid,
         key_id=kid,
         message_indicator=mi,
@@ -245,13 +294,22 @@ def event_to_dict(row: EncryptedTrafficEvent) -> dict[str, Any]:
         "site_id": row.site_id,
         "frequency_hz": row.frequency_hz,
         "frequency_mhz": round(row.frequency_hz / 1_000_000, 5) if row.frequency_hz else None,
+        "uplink_frequency_hz": row.uplink_frequency_hz,
         "channel": row.channel,
         "timeslot": row.timeslot,
         "source_radio_id": row.source_radio_id,
+        "source_type": row.source_type,
         "destination_radio_id": row.destination_radio_id,
+        "destination_type": row.destination_type,
         "talkgroup_id": row.talkgroup_id,
         "source_alias": row.source_alias,
+        "patch_group": row.patch_group,
+        "unit_status": row.unit_status,
+        "user_status": row.user_status,
+        "lra": row.lra,
         "encrypted": row.encrypted,
+        "encryption_header_present": row.encryption_header_present,
+        "emergency": row.emergency,
         "algorithm_id": row.algorithm_id,
         "algorithm_id_hex": cipher["algid_hex"],
         "algorithm_name": cipher["name"],
@@ -417,7 +475,14 @@ def export_events(
             "wacn",
             "nac",
             "frequency_mhz",
+            "uplink_frequency_hz",
             "timeslot",
+            "source_type",
+            "destination_type",
+            "patch_group",
+            "lra",
+            "encryption_header_present",
+            "emergency",
             "algorithm_id_hex",
             "algorithm_name",
             "key_id",

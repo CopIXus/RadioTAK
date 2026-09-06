@@ -152,3 +152,27 @@ def test_decode_schema_accepts_p25_context_and_mi():
     assert ev.site_id == "50"
     assert ev.timeslot == 1
     assert ev.message_indicator == "0A1B2C3D4E5F607182"
+
+
+def test_decode_schema_accepts_identifier_context():
+    from radiotak.gateway import DecodeEventIn
+
+    ev = DecodeEventIn.model_validate(
+        {
+            "schema": "sdr2tak.decode.v1",
+            "radio_id": "5550001",
+            "encrypted": True,
+            "source_type": "RADIO",
+            "destination_type": "PATCH_GROUP",
+            "patch_group": "11000",
+            "uplink_frequency_hz": 809562500,
+            "encryption_header_present": True,
+            "lra": "2",
+            "observed_at": "2026-09-05T23:12:14Z",
+        }
+    )
+    assert ev.source_type == "RADIO"
+    assert ev.destination_type == "PATCH_GROUP"
+    assert ev.uplink_frequency_hz == 809562500
+    assert ev.encryption_header_present is True
+    assert ev.lra == "2"
