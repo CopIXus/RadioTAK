@@ -74,6 +74,7 @@ from radiotak.services.branding import (
     remove_logo,
     save_logo,
 )
+from radiotak.services.heard_history import clear_heard_history
 from radiotak.services.hearing import hearing_gauges
 from radiotak.services.settings_store import load_settings_file, update_settings
 from radiotak.services.timezone import apply_timezone, timezone_context
@@ -1328,6 +1329,26 @@ async def units_add(
     return redirect("/units?msg=Unit+saved")
 
 
+@pages.post("/units/clear-history")
+async def units_clear_history(
+    request: Request, csrf_token: str = Form(""), _user=Depends(require_auth)
+):
+    verify_csrf(request, csrf_token)
+    Session = get_session_factory()
+    db = Session()
+    try:
+        counts = clear_heard_history(db, observed=True, encryption=True, live_events=True)
+    finally:
+        db.close()
+    write_audit("heard_history_clear", actor=_actor(request), detail=counts)
+    return redirect(
+        "/units?msg="
+        + quote(
+            f"Cleared {counts['observed']} observed radios and {counts['encryption']} encryption rows"
+        )
+    )
+
+
 @pages.get("/units/{unit_id}", response_class=HTMLResponse)
 async def unit_edit_get(unit_id: str, request: Request, _user=Depends(require_auth)):
     Session = get_session_factory()
@@ -1434,8 +1455,22 @@ async def events_page(request: Request, _user=Depends(require_auth)):
     return TEMPLATES.TemplateResponse(
         request,
         "events.html",
-        base_context(request, nav="events", history=list(event_bus.history)[-100:][::-1]),
+        base_context(
+            request,
+            nav="events",
+            history=list(event_bus.history)[-100:][::-1],
+            message=request.query_params.get("msg"),
+        ),
     )
+
+
+@pages.post("/events/clear")
+async def events_clear(request: Request, csrf_token: str = Form(""), _user=Depends(require_auth)):
+    verify_csrf(request, csrf_token)
+    n = len(event_bus.history)
+    event_bus.clear()
+    write_audit("live_events_clear", actor=_actor(request), detail={"live_events": n})
+    return redirect("/events?msg=" + quote(f"Cleared {n} live events"))
 
 
 def _optional_int(raw: str | None) -> int | None:
@@ -1485,6 +1520,7 @@ async def encryption_archive_page(request: Request, _user=Depends(require_auth))
             talkgroup=talkgroup,
             kid=request.query_params.get("kid") or "",
             state=state,
+            message=request.query_params.get("msg"),
             states=[
                 "ENCRYPTED_METADATA_ONLY",
                 "ENCRYPTED_KEY_NOT_AVAILABLE",
@@ -1512,6 +1548,26 @@ async def encryption_export(request: Request, _user=Depends(require_auth)):
         payload,
         media_type=media,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@pages.post("/encryption/clear")
+async def encryption_clear(
+    request: Request, csrf_token: str = Form(""), _user=Depends(require_auth)
+):
+    verify_csrf(request, csrf_token)
+    Session = get_session_factory()
+    db = Session()
+    try:
+        counts = clear_heard_history(db, observed=True, encryption=True, live_events=True)
+    finally:
+        db.close()
+    write_audit("heard_history_clear", actor=_actor(request), detail=counts)
+    return redirect(
+        "/encryption?msg="
+        + quote(
+            f"Cleared {counts['encryption']} encryption rows and {counts['observed']} observed radios"
+        )
     )
 
 

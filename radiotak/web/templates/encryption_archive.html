@@ -12,8 +12,17 @@
     <a class="btn btn-sm" href="/encryption/export?format=json">JSON</a>
     <a class="btn btn-sm" href="/encryption/export?format=jsonl">JSONL</a>
     <a class="btn btn-sm" href="/modules/sdr#traffic-keys">Traffic keys</a>
+    <form method="post" action="/encryption/clear" style="display:inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+      <button class="btn btn-sm btn-danger" type="submit"
+        data-confirm="Delete all encryption archive rows and observed radios? Approved units and traffic keys are kept."
+        data-confirm-title="Clear heard history?"
+        data-confirm-ok="Clear history">Clear heard history</button>
+    </form>
   </div>
 </div>
+
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
 
 <p class="card-desc" style="margin-bottom:16px">This archive records what the decoder heard (ALGID, KID, radio, talkgroup, site). It does <strong>not</strong> recover unknown keys, decrypt audio, or forward encrypted artifacts to TAK. Authorized TEKs stay in secrets storage, never in these rows or exports.</p>
 

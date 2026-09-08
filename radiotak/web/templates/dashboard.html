@@ -102,8 +102,8 @@
   </div>
   <div class="gauge {{ gauges.gauge_age_class | default('') }}" id="gauge-age">
     <div class="gauge-label">Last event</div>
-    <div class="gauge-value" id="gauge-age-value">
-      {% if gauges.last_event_age_s is not none %}{{ gauges.last_event_age_s }}s ago{% else %}—{% endif %}
+    <div class="gauge-value" id="gauge-age-value"{% if gauges.last_event_age_s is not none %} title="{{ gauges.last_event_age }} ago"{% endif %}>
+      {{ gauges.last_event_age | default('—') }}
     </div>
   </div>
 </div>
@@ -354,7 +354,20 @@
       if (mpm) mpm.textContent = g.messages_per_min != null ? g.messages_per_min : '0';
       if (lock) lock.textContent = g.cc_lock || 'idle';
       if (age) {
-        age.textContent = g.last_event_age_s != null ? g.last_event_age_s + 's ago' : '—';
+        var label = g.last_event_age;
+        if (!label) {
+          label = (g.last_event_age_s != null && typeof window.RadioTakFormatElapsed === 'function')
+            ? window.RadioTakFormatElapsed(g.last_event_age_s)
+            : (g.last_event_age_s != null ? g.last_event_age_s + 's' : '—');
+        }
+        age.textContent = label;
+        if (g.last_event_age_s != null && label && label !== '—') {
+          age.title = label + ' ago';
+          age.setAttribute('aria-label', 'Last event ' + label + ' ago');
+        } else {
+          age.removeAttribute('title');
+          age.setAttribute('aria-label', 'Last event unknown');
+        }
       }
       setGaugeClass(document.getElementById('gauge-mpm'), g.gauge_mpm_class);
       setGaugeClass(document.getElementById('gauge-lock'), g.cc_lock_class);

@@ -519,6 +519,16 @@ def export_events(
     )
 
 
+def clear_all(db: Session) -> int:
+    """Delete every archive row. Does not touch traffic keys or approved units."""
+    result = db.execute(delete(EncryptedTrafficEvent))
+    db.commit()
+    count = result.rowcount or 0
+    if count:
+        log_event("encryption", "archive_cleared", detail=f"removed={count}")
+    return count
+
+
 def purge_expired(db: Session) -> int:
     cfg = archive_settings()
     days = int(cfg["metadata_retention_days"])

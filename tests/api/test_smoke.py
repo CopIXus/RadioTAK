@@ -268,6 +268,7 @@ def test_sdr_page_reports_decoder_build_and_feed_status(client):
     assert b"data-listen-toggle" in page.content
     assert b"/static/js/listen.js" in page.content
     assert b"sdr-feed-audio" in page.content
+    assert b'id="fill-gmrs"' in page.content
     assert body["upgrade"]["running"] is False
 
 
@@ -280,12 +281,16 @@ def test_units_and_events_show_encryption_status(client):
     assert b'data-gps-filter="no"' in units.content
     assert b"Has GPS" in units.content
     assert b"No GPS" in units.content
+    assert b'action="/units/clear-history"' in units.content
+    assert b"Clear heard history" in units.content
     events = client.get("/events")
     assert events.status_code == 200
     assert b"encrypted" in events.content.lower() or b"Encrypted" in events.content
+    assert b'action="/events/clear"' in events.content
     archive = client.get("/encryption")
     assert archive.status_code == 200
     assert b"Encryption archive" in archive.content
+    assert b'action="/encryption/clear"' in archive.content
     stats = client.get("/api/v1/encryption/stats")
     assert stats.status_code == 200
     assert "encrypted_events" in stats.json()
@@ -325,6 +330,51 @@ def test_units_page_marks_observed_gps_for_filter(client):
     assert 'data-gps="no"' in text
     assert "1015461" in text
     assert "1015468" in text
+
+
+def test_clear_heard_history_from_units_page(client):
+    import re
+    from datetime import UTC, datetime
+
+    from sqlalchemy import func, select
+
+    from radiotak.db import EncryptedTrafficEvent, RadioIdentity, get_session_factory
+
+    _login(client)
+    Session = get_session_factory()
+    db = Session()
+    try:
+        db.add(RadioIdentity(radio_id="OBS-CLEAR", forward_to_tak=False))
+        db.add(RadioIdentity(radio_id="OK-KEEP", forward_to_tak=True, callsign="Keep"))
+        db.add(
+            EncryptedTrafficEvent(
+                observed_at=datetime.now(UTC),
+                source_radio_id="OBS-CLEAR",
+                encrypted=True,
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    page = client.get("/units")
+    m = re.search(r'action="/units/clear-history".*?name="csrf_token" value="([^"]+)"', page.text, re.S)
+    assert m
+    r = client.post(
+        "/units/clear-history",
+        data={"csrf_token": m.group(1)},
+        follow_redirects=False,
+    )
+    assert r.status_code in (303, 302)
+    assert "Cleared" in (r.headers.get("location") or "")
+
+    db = Session()
+    try:
+        radios = {row.radio_id: row.forward_to_tak for row in db.scalars(select(RadioIdentity))}
+        assert radios == {"OK-KEEP": True}
+        assert db.scalar(select(func.count()).select_from(EncryptedTrafficEvent)) == 0
+    finally:
+        db.close()
 
 
 def test_store_traffic_key_hides_hex(client):

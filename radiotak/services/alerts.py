@@ -16,7 +16,7 @@ from typing import Any
 from radiotak.gateway.events import status_bus
 from radiotak.platform import get_platform
 from radiotak.services import modules as modules_svc
-from radiotak.services.hearing import hearing_gauges
+from radiotak.services.hearing import format_elapsed, hearing_gauges
 
 SEVERITY_RANK = {"info": 0, "warning": 1, "error": 2, "critical": 3}
 
@@ -300,7 +300,7 @@ def collect_alerts(
                     severity="info",
                     source="SDR",
                     title="Spectrum feed idle",
-                    detail=f"Last waterfall frame was {last_frame:.0f}s ago.",
+                    detail=f"Last waterfall frame was {format_elapsed(last_frame)} ago.",
                     href="/modules/sdr",
                     created_at=now,
                 )

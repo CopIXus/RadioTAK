@@ -55,3 +55,5 @@ def test_units_template_exposes_gps_filter():
     assert "1015461" in html
     assert "1015468" in html
     assert "radiotak.units.gpsFilter" in html
+    assert 'action="/units/clear-history"' in html
+    assert "Clear heard history" in html

@@ -34,6 +34,9 @@ class EventBus:
     def unsubscribe(self, q: asyncio.Queue) -> None:
         self._subscribers.discard(q)
 
+    def clear(self) -> None:
+        self.history.clear()
+
 
 event_bus = EventBus()
 status_bus = EventBus(maxlen=50)

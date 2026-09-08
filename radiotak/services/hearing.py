@@ -9,6 +9,26 @@ from typing import Any
 from radiotak.platform import get_platform
 
 
+def format_elapsed(seconds: float | int | None) -> str:
+    """Growing elapsed clock: 12s → 5:03 → 2:13:34 → 3d 23:13:34."""
+    if seconds is None:
+        return "—"
+    try:
+        secs = max(0, int(round(float(seconds))))
+    except (TypeError, ValueError):
+        return "—"
+    days, rem = divmod(secs, 86400)
+    hours, rem = divmod(rem, 3600)
+    mins, sec = divmod(rem, 60)
+    if days:
+        return f"{days}d {hours:02d}:{mins:02d}:{sec:02d}"
+    if hours:
+        return f"{hours}:{mins:02d}:{sec:02d}"
+    if mins:
+        return f"{mins}:{sec:02d}"
+    return f"{secs}s"
+
+
 class HearingGauges:
     def __init__(self, window_s: float = 60.0) -> None:
         self.window_s = window_s
@@ -60,6 +80,7 @@ class HearingGauges:
         return {
             "messages_per_min": mpm,
             "last_event_age_s": age,
+            "last_event_age": format_elapsed(age),
             "decoder_running": decoder_on,
             "cc_lock": lock,
             "cc_lock_class": lock_class,

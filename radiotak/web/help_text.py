@@ -158,7 +158,7 @@ HELP: dict[str, dict[str, str]] = {
     "sdr.frequencies": {
         "label": "Frequencies (MHz)",
         "what": "Control-channel frequencies for trunked P25/DMR, or conventional NFM voice channels. NFM playlists also enable MDC-1200 / FleetSync / Tait ANI burst decoders.",
-        "where": "RadioReference / FCC license / agency programming — enter CC for trunked systems, the actual voice frequency for NFM conventional. Sullivan Co Simulcast: 854.5625 / 856.7375 (P25 LSM).",
+        "where": "RadioReference / FCC license / agency programming — enter CC for trunked systems, the actual voice frequency for NFM conventional. Sullivan Co Simulcast: 854.5625 / 856.7375 (P25 LSM). GMRS: 462.550–462.725 NFM (repeater outputs + interstitial simplex).",
         "example": "854.5625",
     },
     "sdr.protocol": {

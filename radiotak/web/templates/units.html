@@ -24,6 +24,13 @@
       <button type="button" class="seg-btn" data-gps-filter="no" aria-pressed="false">No GPS</button>
     </div>
   </div>
+  <form method="post" action="/units/clear-history" class="unit-clear-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+    <button class="btn btn-sm btn-danger" type="submit"
+      data-confirm="Delete all observed radios and encryption archive rows? Approved units and traffic keys are kept."
+      data-confirm-title="Clear heard history?"
+      data-confirm-ok="Clear history">Clear heard history</button>
+  </form>
 </div>
 
 <div data-tabs>

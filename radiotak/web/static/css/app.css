@@ -367,6 +367,7 @@ body::before {
   margin-bottom: 0;
 }
 .unit-gps-field { flex: 0 0 auto; margin-bottom: 0; }
+.unit-clear-form { margin-left: auto; margin-bottom: 0; }
 .seg-filter {
   display: inline-flex;
   background: rgba(15, 23, 42, .6);
@@ -631,7 +632,7 @@ body::before {
 .checklist .todo { color: var(--text-dim); }
 
 .gauge-strip {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 12px; margin-bottom: 20px;
 }
 .gauge {
@@ -640,6 +641,11 @@ body::before {
 }
 .gauge-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); }
 .gauge-value { font-size: 20px; font-weight: 700; margin-top: 4px; }
+#gauge-age-value {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  letter-spacing: -0.03em;
+}
 .gauge.ok .gauge-value { color: var(--green); }
 .gauge.warn .gauge-value { color: var(--amber); }
 .gauge.bad .gauge-value { color: var(--red); }
@@ -1140,6 +1146,7 @@ tr[hidden],
   .header-subtitle { font-size: 16px; }
   .section-title { font-size: 16px; margin-bottom: 18px; }
   .metric-value, .gauge-value { font-size: 42px; }
+  #gauge-age-value { font-size: 32px; }
   .metric-label, .gauge-label, .pipeline-label { font-size: 14px; letter-spacing: .12em; }
   .metric-detail, .pipeline-detail, .card-desc { font-size: 15px; }
   .status-pill { font-size: 14px; padding: 6px 12px; }

@@ -225,6 +225,7 @@
       <button type="button" class="btn btn-sm" id="fill-elizabethton" title="Fill Elizabethton TACN control channels (P25 C4FM)">Fill Elizabethton (P25)</button>
       <button type="button" class="btn btn-sm" id="fill-buffalo-mtn" title="Fill Buffalo Mountain simulcast CCs (P25 LSM)">Fill Buffalo Mtn (LSM)</button>
       <button type="button" class="btn btn-sm" id="fill-sullivan-co" title="Fill Sullivan County TACN simulcast CCs (P25 LSM, site 50, NAC 2AC)">Fill Sullivan Co (LSM)</button>
+      <button type="button" class="btn btn-sm" id="fill-gmrs" title="Fill GMRS 462 MHz repeater outputs and interstitial simplex (NFM, MDC/FleetSync/Tait GPS bursts)">Fill GMRS (NFM)</button>
     </div>
     <p class="card-desc" style="margin:8px 0 0;font-size:12px">Fill buttons only populate the form — Save when ready. One RTL-SDR typically listens to one trunked system.</p>
     <form id="add-radio-system" method="post" action="/modules/sdr/systems" style="margin-top:12px" data-busy="Saving…">
@@ -370,6 +371,22 @@
       });
     });
   }
+  var gmrs = document.getElementById('fill-gmrs');
+  if (gmrs) {
+    gmrs.addEventListener('click', function () {
+      fillSample({
+        name: 'GMRS',
+        protocol: 'NFM',
+        site: '1',
+        frequencies: [
+          '462.5500', '462.5625', '462.5750', '462.5875',
+          '462.6000', '462.6125', '462.6250', '462.6375',
+          '462.6500', '462.6625', '462.6750', '462.6875',
+          '462.7000', '462.7125', '462.7250'
+        ].join('\n')
+      });
+    });
+  }
 })();
 </script>
 {% if waterfall_enabled | default(true) %}
@@ -426,7 +443,10 @@
           var decN = geo.decode_received || 0;
           var encN = geo.encrypted_received || 0;
           if (geo.lines_received > 0) {
-            geoEl.textContent = gpsN + ' GPS, ' + decN + ' calls (' + encN + ' encrypted), last ' + geo.last_line_age + ' s ago';
+            var ageTxt = (typeof window.RadioTakFormatElapsed === 'function')
+              ? window.RadioTakFormatElapsed(geo.last_line_age)
+              : (geo.last_line_age + 's');
+            geoEl.textContent = gpsN + ' GPS, ' + decN + ' calls (' + encN + ' encrypted), last ' + ageTxt + ' ago';
           } else if (geo.clients > 0) {
             geoEl.textContent = 'exporter connected, no GPS or call events yet';
           } else if (s.build && !s.build.has_exporters) geoEl.textContent = 'no exporter — stock SDRTrunk build';

@@ -1,0 +1,40 @@
+{
+  "title": "GMRS conventional",
+  "system_name": "GMRS",
+  "notes": [
+    "GMRS is analog NFM, not a trunked control channel. Use protocol NFM conventional so SDRTrunk attaches MDC-1200, FleetSync II, and Tait 1200 ANI/GPS burst decoders.",
+    "Frequencies are FCC Part 95 462 MHz repeater outputs (ch 15–22) plus interstitial simplex (ch 1–7). One RTL-SDR scans this 175 kHz slice as a multi-frequency NFM channel.",
+    "GPS appears only if a radio sends an in-band location burst (MDC / FleetSync / Tait). Encrypted P25/DMR GMRS clones will not yield GPS here.",
+    "467 MHz repeater inputs are 5 MHz away and need a separate listen if you want HT-side GPS into a repeater.",
+    "Only monitor systems you own, administer, or are explicitly authorized to monitor."
+  ],
+  "sources": [
+    "https://www.fcc.gov/wireless/bureau-divisions/mobility-division/general-mobile-radio-service-gmrs"
+  ],
+  "systems": [
+    {
+      "id": "gmrs_462",
+      "name": "GMRS",
+      "protocol": "NFM",
+      "site": "1",
+      "modulation_note": "NFM conventional — 462 MHz simplex and repeater outputs.",
+      "frequencies_mhz": [
+        "462.5500",
+        "462.5625",
+        "462.5750",
+        "462.5875",
+        "462.6000",
+        "462.6125",
+        "462.6250",
+        "462.6375",
+        "462.6500",
+        "462.6625",
+        "462.6750",
+        "462.6875",
+        "462.7000",
+        "462.7125",
+        "462.7250"
+      ]
+    }
+  ]
+}

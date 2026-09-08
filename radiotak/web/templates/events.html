@@ -9,8 +9,17 @@
   <div class="header-actions">
     <span class="ws-badge" id="ws-badge"><span class="dot"></span><span id="ws-label">Connecting…</span></span>
     <button type="button" class="btn btn-sm" id="ws-reconnect">Reconnect</button>
+    <form method="post" action="/events/clear" style="display:inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+      <button class="btn btn-sm" type="submit"
+        data-confirm="Clear the live event stream on this console? Observed radios and the encryption archive are unchanged."
+        data-confirm-title="Clear live events?"
+        data-confirm-ok="Clear events">Clear live events</button>
+    </form>
   </div>
 </div>
+
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
 
 <div class="event-stream" id="events" aria-live="polite">
   {% for e in history %}

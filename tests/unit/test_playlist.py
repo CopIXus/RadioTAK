@@ -87,6 +87,39 @@ def test_nfm_playlist_enables_ani_aux_decoders(tmp_path):
     assert "154785000" in xml
 
 
+def test_gmrs_sample_writes_nfm_scan_playlist(tmp_path):
+    import json
+
+    root = Path(__file__).resolve().parents[2]
+    data = json.loads(
+        (root / "modules" / "sdr_location_gateway" / "samples" / "gmrs.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    sys0 = data["systems"][0]
+    freqs = parse_frequencies(" ".join(sys0["frequencies_mhz"]))
+    assert len(freqs) == 15
+    assert freqs[0] == 462550000
+    path = write_playlist(
+        tmp_path / "gmrs.xml",
+        [
+            {
+                "name": sys0["name"],
+                "protocol": sys0["protocol"],
+                "site": sys0["site"],
+                "frequencies_hz": freqs,
+                "auto_start": True,
+            }
+        ],
+    )
+    xml = path.read_text(encoding="utf-8")
+    assert 'type="decodeConfigNBFM"' in xml
+    assert "sourceConfigTunerMultipleFrequency" in xml
+    assert "<aux_decoder>MDC1200</aux_decoder>" in xml
+    assert "462550000" in xml
+    assert "462725000" in xml
+
+
 def test_p25_playlist_does_not_enable_nfm_aux(tmp_path):
     import xml.etree.ElementTree as ET
 

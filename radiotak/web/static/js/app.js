@@ -242,6 +242,24 @@
     return window.RadioTakFormatTime(iso);
   };
 
+  window.RadioTakFormatElapsed = function (seconds) {
+    if (seconds == null || seconds === '') return '—';
+    var secs = Math.round(Number(seconds));
+    if (!isFinite(secs)) return '—';
+    if (secs < 0) secs = 0;
+    var days = Math.floor(secs / 86400);
+    var rem = secs % 86400;
+    var hours = Math.floor(rem / 3600);
+    rem = rem % 3600;
+    var mins = Math.floor(rem / 60);
+    var sec = rem % 60;
+    function pad(n) { return n < 10 ? '0' + n : String(n); }
+    if (days) return days + 'd ' + pad(hours) + ':' + pad(mins) + ':' + pad(sec);
+    if (hours) return hours + ':' + pad(mins) + ':' + pad(sec);
+    if (mins) return mins + ':' + pad(sec);
+    return secs + 's';
+  };
+
   window.RadioTakFormatStamp = function (ms) {
     var d = new Date(ms);
     if (isNaN(d.getTime())) return '';
