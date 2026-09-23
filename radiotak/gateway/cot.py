@@ -14,7 +14,7 @@ from radiotak.gateway.constants import (
     SA_COT_TYPE,
     SA_ENDPOINT,
 )
-from radiotak.gateway.marker_style import argb_from_hex
+from radiotak.gateway.marker_style import argb_from_hex, iconset_path_for_wire
 
 __all__ = [
     "DEFAULT_STALE_SECONDS",
@@ -96,10 +96,15 @@ def build_cot_xml(
         SubElement(detail, "contact", contact_attrs)
     if as_contact and group_name:
         SubElement(detail, "__group", {"name": group_name, "role": group_role})
-    if iconset_path:
-        SubElement(detail, "usericon", {"iconsetpath": iconset_path})
+    wire_icon = iconset_path_for_wire(
+        iconset_path, cot_type=cot_type, marker_color=marker_color
+    )
+    if wire_icon:
+        SubElement(detail, "usericon", {"iconsetpath": wire_icon})
     if marker_color:
-        SubElement(detail, "color", {"argb": argb_from_hex(marker_color)})
+        # Signed ARGB int + value= (node-cot / ATAK); opaque so markers are visible.
+        argb = argb_from_hex(marker_color, alpha=255)
+        SubElement(detail, "color", {"argb": argb, "value": argb})
     remark_text = remarks or (
         f"Location source: authorized radio telemetry via RadioTAK (radio_id={radio_id})"
     )

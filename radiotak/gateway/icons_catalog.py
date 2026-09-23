@@ -17,6 +17,16 @@ CLOUDTAK_POINTS_UID = "34ae1613-9645-4222-a9d2-e5f243dea2865"
 
 MARKER_ICONS: list[dict[str, Any]] = [
     {
+        "id": "atak-spot-map",
+        "label": "Colored spot (ATAK + CloudTAK)",
+        "group": "Dual-client",
+        "iconset_path": "",
+        "type2525b": "b-m-p-s-m",
+        "how": "h-g-i-g-o",
+        "shape": "disc",
+        "hint": "Recommended. Built-in Spot Map — colored marker on ATAK and CloudTAK with no iconset install.",
+    },
+    {
         "id": "cloudtak-hiking-star",
         "label": "Star (CloudTAK Hiking)",
         "group": "CloudTAK",
@@ -24,7 +34,7 @@ MARKER_ICONS: list[dict[str, Any]] = [
         "type2525b": "a-f-G-U-U-S-R",
         "how": "h-g-i-g-o",
         "shape": "star",
-        "hint": "CloudTAK Gnd/RADIO UNIT + Hiking/star. ATAK needs the iconset or shows 2525 radio.",
+        "hint": "CloudTAK star when that iconset exists. ATAK needs the Hiking iconset installed or the icon fails.",
     },
     {
         "id": "cloudtak-hiking-circle",
@@ -34,7 +44,7 @@ MARKER_ICONS: list[dict[str, Any]] = [
         "type2525b": "a-f-G-U-U-S-R",
         "how": "h-g-i-g-o",
         "shape": "disc",
-        "hint": "CloudTAK Hiking/circle point.",
+        "hint": "CloudTAK Hiking/circle — ATAK needs the same iconset.",
     },
     {
         "id": "cloudtak-hiking-triangle",
@@ -44,7 +54,7 @@ MARKER_ICONS: list[dict[str, Any]] = [
         "type2525b": "a-f-G-U-U-S-R",
         "how": "h-g-i-g-o",
         "shape": "triangle",
-        "hint": "CloudTAK Hiking/triangle point.",
+        "hint": "CloudTAK Hiking/triangle — ATAK needs the same iconset.",
     },
     {
         "id": "cloudtak-hiking-square",
@@ -54,17 +64,7 @@ MARKER_ICONS: list[dict[str, Any]] = [
         "type2525b": "a-f-G-U-U-S-R",
         "how": "h-g-i-g-o",
         "shape": "square",
-        "hint": "CloudTAK Hiking/square point.",
-    },
-    {
-        "id": "atak-spot-map",
-        "label": "Colored spot (ATAK Spot Map)",
-        "group": "ATAK-safe",
-        "iconset_path": "",
-        "type2525b": "b-m-p-s-m",
-        "how": "h-g-i-g-o",
-        "shape": "disc",
-        "hint": "No custom iconset — ATAK/CloudTAK tint the Spot Map marker from marker color.",
+        "hint": "CloudTAK Hiking/square — ATAK needs the same iconset.",
     },
     {
         "id": "friendly-radio-2525",
@@ -74,17 +74,17 @@ MARKER_ICONS: list[dict[str, Any]] = [
         "type2525b": "a-f-G-U-U-S-R",
         "how": "h-g-i-g-o",
         "shape": "radio",
-        "hint": "MIL-STD friendly ground radio unit — works on ATAK without iconsets.",
+        "hint": "MIL-STD friendly radio — no custom icon; works on ATAK without iconsets.",
     },
     {
         "id": "neutral-ground",
         "label": "Neutral ground (named marker)",
-        "group": "ATAK-safe",
+        "group": "Legacy",
         "iconset_path": "",
         "type2525b": "a-n-G",
         "how": "m-g",
         "shape": "square",
-        "hint": "Default RadioTAK type — appears as a green square in ATAK without a custom icon.",
+        "hint": "Legacy default — green square in ATAK without a custom icon. Prefer Colored spot.",
     },
 ]
 

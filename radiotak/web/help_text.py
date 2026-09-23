@@ -67,8 +67,8 @@ HELP: dict[str, dict[str, str]] = {
     },
     "tak.iconset_path": {
         "label": "Iconset path",
-        "what": "ATAK/CloudTAK usericon path: iconset UUID + group/name. Prefer the Point icon picker. CloudTAK renders paths it knows; ATAK needs the iconset installed or falls back to the CoT type symbol.",
-        "where": "Marker Appearance; CloudTAK Hiking/star uses 34ae1613-…:Hiking/star.",
+        "what": "CloudTAK form UUID:Group/name is stored here; RadioTAK emits ATAK wire form UUID/Group/name.png on the CoT stream. Spot Map (b-m-p-s-m) uses the built-in COT_MAPPING_SPOTMAP path.",
+        "where": "Marker Appearance; prefer Colored spot for ATAK + CloudTAK without installing iconsets.",
         "example": "34ae1613-9645-4222-a9d2-e5f243dea2865:Hiking/star",
     },
     "tak.marker_color": {

@@ -60,11 +60,60 @@ def resolve_style(
     }
 
 
-def argb_from_hex(hex_color: str) -> str:
-    """Return 8-digit ARGB hex (opaque) for CoT color elements."""
+def argb_from_hex(hex_color: str, *, alpha: int = 255) -> str:
+    """Return signed 32-bit ARGB as a decimal string (ATAK / node-cot wire form).
+
+    CloudTAK GeoJSON uses ``#RRGGBB``; node-cot packs opaque ARGB into a signed
+    int32 on ``<color argb="…"/>``. Hex strings like ``ff0010eb`` are ignored by
+    ATAK and break Spot Map coloring.
+    """
     h = (hex_color or "").strip().lstrip("#")
     if len(h) == 3:
         h = "".join(c * 2 for c in h)
     if len(h) != 6:
         h = "06b6d4"
-    return "ff" + h.lower()
+    try:
+        r = int(h[0:2], 16)
+        g = int(h[2:4], 16)
+        b = int(h[4:6], 16)
+    except ValueError:
+        r, g, b = 0x06, 0xB6, 0xD4
+    a = max(0, min(255, int(alpha)))
+    unsigned = ((a & 0xFF) << 24) | (r << 16) | (g << 8) | b
+    if unsigned >= 2**31:
+        unsigned -= 2**32
+    return str(unsigned)
+
+
+def iconset_path_for_wire(
+    iconset_path: str | None,
+    *,
+    cot_type: str | None = None,
+    marker_color: str | None = None,
+) -> str | None:
+    """Normalize icon path to ATAK / node-cot wire form.
+
+    CloudTAK stores ``UUID:Group/name``; the CoT stream must use
+    ``UUID/Group/name.png``. Spot Map (``b-m-p-s-m``) uses the built-in
+    ``COT_MAPPING_SPOTMAP/b-m-p-s-m/{signedARGB}`` path (works on ATAK without
+    a custom iconset).
+    """
+    ctype = (cot_type or "").strip()
+    if ctype == "b-m-p-s-m":
+        return f"COT_MAPPING_SPOTMAP/b-m-p-s-m/{argb_from_hex(marker_color or '#06b6d4')}"
+
+    path = (iconset_path or "").strip()
+    if not path:
+        return None
+    # Already ATAK Spot Map path
+    if path.startswith("COT_MAPPING_SPOTMAP/"):
+        return path
+    # CloudTAK storage form → wire form
+    if ":" in path:
+        path = path.replace(":", "/", 1)
+        if not path.lower().endswith(".png"):
+            path += ".png"
+        return path
+    if not path.lower().endswith(".png") and "/" in path:
+        path += ".png"
+    return path

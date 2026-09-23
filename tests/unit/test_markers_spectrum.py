@@ -23,16 +23,36 @@ def test_cot_includes_usericon_and_color():
         how="m-g",
         default_ce_m=609.6,
     )
-    assert 'iconsetpath="abc:Hiking/star"' in xml
-    assert 'argb="ff1100ff"' in xml
+    # Wire form: colon → slash + .png; signed ARGB int (not hex)
+    assert 'iconsetpath="abc/Hiking/star.png"' in xml
+    assert 'argb="-15662849"' in xml  # 0xFF1100FF as signed int32
+    assert 'value="-15662849"' in xml
     assert 'callsign="Radio"' in xml
     assert 'ce="609.6"' in xml
 
 
+def test_cot_spot_map_uses_builtin_iconset():
+    xml = build_cot_xml(
+        radio_id="2",
+        latitude=36.0,
+        longitude=-82.0,
+        observed_at=datetime(2026, 9, 4, 12, 0, 0, tzinfo=UTC),
+        callsign="Spot",
+        cot_type="b-m-p-s-m",
+        iconset_path="",
+        marker_color="#0010eb",
+        how="h-g-i-g-o",
+    )
+    assert 'type="b-m-p-s-m"' in xml
+    assert 'iconsetpath="COT_MAPPING_SPOTMAP/b-m-p-s-m/-16772885"' in xml
+    assert 'argb="-16772885"' in xml
+
+
 def test_feet_to_meters_and_argb():
     assert abs(feet_to_meters(2000) - 609.6) < 0.1
-    assert argb_from_hex("#1100ff") == "ff1100ff"
-    assert argb_from_hex("#abc") == "ffaabbcc"
+    assert argb_from_hex("#1100ff") == "-15662849"
+    assert argb_from_hex("#0010eb") == "-16772885"
+    assert argb_from_hex("#abc") == "-5588020"  # ffaabbcc signed
 
 
 def test_resolve_style_unit_overrides_server():
