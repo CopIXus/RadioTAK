@@ -69,9 +69,10 @@ async def aprs_save_settings(
     rtl_device: str = Form("0"),
     rtl_gain: int = Form(40),
     frequency_hz: int = Form(144390000),
+    csrf_token: str = Form(""),
     _user=Depends(require_auth),
-    _csrf=Depends(verify_csrf),
 ):
+    verify_csrf(request, csrf_token)
     save_settings(
         {
             "mycall": mycall,
@@ -100,9 +101,10 @@ async def aprs_service_action(
     action: str,
     request: Request,
     confirm: str = Form(""),
+    csrf_token: str = Form(""),
     _user=Depends(require_auth),
-    _csrf=Depends(verify_csrf),
 ):
+    verify_csrf(request, csrf_token)
     if action not in ("start", "stop", "restart"):
         return redirect("/modules/aprs?error=bad+action")
     if action in ("start", "restart"):
