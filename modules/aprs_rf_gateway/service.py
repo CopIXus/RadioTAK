@@ -17,7 +17,7 @@ from radiotak.services.logging_setup import log_event
 
 from .aprs_map import message_from_packet, parse_tnc2, position_to_ndjson
 from .kiss_client import ax25_ui_to_tnc2, kiss_frames
-from .settings import load_settings
+from .settings import aprs_passcode, load_settings
 
 log = logging.getLogger("radiotak.aprs")
 
@@ -233,6 +233,8 @@ async def _is_loop(stop: asyncio.Event) -> None:
 
         mycall = str(cfg.get("mycall") or "N0CALL-15")
         passcode = int(cfg.get("aprs_is_passcode") or -1)
+        if passcode < 0:
+            passcode = aprs_passcode(mycall)
         server = str(cfg.get("aprs_is_server") or "rotate.aprs2.net")
         port = int(cfg.get("aprs_is_port") or 14580)
         filt = str(cfg.get("aprs_is_filter") or "")

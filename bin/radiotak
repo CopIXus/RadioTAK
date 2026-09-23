@@ -63,7 +63,7 @@ case "$cmd" in
       git -c "safe.directory=$INSTALL_DIR" -C "$INSTALL_DIR" checkout --force -B "$BRANCH" FETCH_HEAD
     fi
     if [[ -x "$INSTALL_DIR/.venv/bin/pip" ]]; then
-      "$INSTALL_DIR/.venv/bin/pip" install -r requirements.txt -q
+      "$INSTALL_DIR/.venv/bin/pip" install -r "$INSTALL_DIR/requirements.txt" -q
       "$INSTALL_DIR/.venv/bin/pip" install -e "$INSTALL_DIR" -q
     fi
     if [[ $EUID -eq 0 ]]; then

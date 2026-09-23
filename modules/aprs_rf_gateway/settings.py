@@ -55,19 +55,40 @@ def load_settings() -> dict[str, Any]:
     return data
 
 
+def aprs_passcode(callsign: str) -> int:
+    """Standard APRS-IS passcode from callsign (SSID stripped)."""
+    base = (callsign or "N0CALL").split("-", 1)[0].upper()
+    h = 0x73E2
+    i = 0
+    while i < len(base):
+        h ^= ord(base[i]) << 8
+        if i + 1 < len(base):
+            h ^= ord(base[i + 1])
+        i += 2
+    return h & 0x7FFF
+
+
 def save_settings(data: dict[str, Any]) -> dict[str, Any]:
     merged = dict(DEFAULTS)
     merged.update(data)
     # Normalize types
     merged["kiss_port"] = int(merged.get("kiss_port") or 8001)
     merged["aprs_is_port"] = int(merged.get("aprs_is_port") or 14580)
-    merged["aprs_is_passcode"] = int(merged.get("aprs_is_passcode") or -1)
     merged["rtl_gain"] = int(merged.get("rtl_gain") or 40)
     merged["frequency_hz"] = int(merged.get("frequency_hz") or 144390000)
     merged["enable_rf"] = bool(merged.get("enable_rf"))
     merged["enable_is"] = bool(merged.get("enable_is"))
     merged["mycall"] = str(merged.get("mycall") or "N0CALL-15").strip().upper()
     merged["chatroom"] = str(merged.get("chatroom") or "APRS").strip() or "APRS"
+    # -1 means derive from MYCALL (receive still needs a valid amateur call)
+    raw_pc = merged.get("aprs_is_passcode", -1)
+    try:
+        pc = int(raw_pc)
+    except (TypeError, ValueError):
+        pc = -1
+    if pc < 0:
+        pc = aprs_passcode(merged["mycall"])
+    merged["aprs_is_passcode"] = pc
     path = settings_path()
     path.write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
     _sync_direwolf_mycall(merged["mycall"])

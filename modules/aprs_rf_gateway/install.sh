@@ -11,17 +11,10 @@ die() { echo "aprs-install: $*" >&2; exit 1; }
 
 export DEBIAN_FRONTEND=noninteractive
 
-echo "Installing direwolf, rtl-sdr, airspy, csdr, sox…"
-apt-get install -y -qq direwolf rtl-sdr airspy csdr sox \
-  || apt-get install -y -qq direwolf rtl-sdr sox \
-  || die "apt-get install failed (need at least direwolf + rtl-sdr)"
-# csdr is optional but required for Airspy FM demod; warn if missing
-if ! command -v csdr >/dev/null 2>&1; then
-  echo "csdr not installed — Airspy RF path unavailable; RTL-SDR or APRS-IS still work" >&2
-fi
-if ! command -v airspy_rx >/dev/null 2>&1; then
-  echo "airspy tools not installed — RTL-SDR or APRS-IS still work" >&2
-fi
+echo "Installing direwolf, rtl-sdr, airspy, sox…"
+apt-get install -y -qq direwolf rtl-sdr sox || die "apt-get install failed (need direwolf)"
+apt-get install -y -qq airspy libairspy0 || echo "airspy package skipped" >&2
+# csdr is not in Debian bookworm — Airspy RF needs a separate build; APRS-IS still works.
 
 # APRS packet parse dependency for the in-process gateway
 if [[ -x "$INSTALL_DIR/.venv/bin/pip" ]]; then
