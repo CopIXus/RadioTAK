@@ -21,6 +21,7 @@ DEFAULTS: dict[str, Any] = {
     "aprs_is_filter": "r/36.35/-82.21/50",
     "chatroom": "APRS",
     "marti_dest_group": "",
+    "auto_approve_units": False,
     "rtl_device": "0",
     "rtl_gain": 40,
     "frequency_hz": 144390000,
@@ -69,7 +70,8 @@ def aprs_passcode(callsign: str) -> int:
 
 
 def save_settings(data: dict[str, Any]) -> dict[str, Any]:
-    merged = dict(DEFAULTS)
+    # Preserve keys not in the form (e.g. sdr_backend) across UI saves.
+    merged = load_settings()
     merged.update(data)
     # Normalize types
     merged["kiss_port"] = int(merged.get("kiss_port") or 8001)
@@ -78,6 +80,7 @@ def save_settings(data: dict[str, Any]) -> dict[str, Any]:
     merged["frequency_hz"] = int(merged.get("frequency_hz") or 144390000)
     merged["enable_rf"] = bool(merged.get("enable_rf"))
     merged["enable_is"] = bool(merged.get("enable_is"))
+    merged["auto_approve_units"] = bool(merged.get("auto_approve_units"))
     merged["mycall"] = str(merged.get("mycall") or "N0CALL-15").strip().upper()
     merged["chatroom"] = str(merged.get("chatroom") or "APRS").strip() or "APRS"
     # -1 means derive from MYCALL (receive still needs a valid amateur call)

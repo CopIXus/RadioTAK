@@ -51,7 +51,11 @@ from radiotak.gateway.events import event_bus
 from radiotak.gateway.identities import hear_status
 from radiotak.gateway.marker_style import resolve_style
 from radiotak.gateway.tak import ConnectionState, TakConnectionManager, tak_registry
-from radiotak.gateway.tak.enrollment import enroll_with_pytak, import_pkcs12
+from radiotak.gateway.tak.enrollment import (
+    enroll_with_pytak,
+    import_integration_cert_zip,
+    import_pkcs12,
+)
 from radiotak.gateway.tak.marti import list_groups, set_active_groups
 from radiotak.platform import get_platform
 from radiotak.services import diagnostics as diagnostics_svc
@@ -76,6 +80,13 @@ from radiotak.services.branding import (
 )
 from radiotak.services.heard_history import clear_heard_history
 from radiotak.services.hearing import hearing_gauges
+from radiotak.services.listening import (
+    ensure_aprs_rf,
+    ensure_sdrtrunk_for_listen,
+    listening_summary,
+    start_direwolf,
+    stop_direwolf,
+)
 from radiotak.services.settings_store import load_settings_file, update_settings
 from radiotak.services.timezone import apply_timezone, timezone_context
 from radiotak.web.deps import TEMPLATES, base_context, redirect, require_auth, verify_csrf
@@ -140,6 +151,19 @@ def _any_tak_connected(servers: list[TakServer]) -> bool:
 
 def _tak_server_view(server: TakServer) -> SimpleNamespace:
     status, last_error = _live_tak_status(server.id, server.status, server.last_error)
+    mgr = tak_registry.get(server.id)
+    metrics = None
+    if mgr:
+        m = mgr.metrics
+        metrics = SimpleNamespace(
+            cot_generated=m.cot_generated,
+            cot_sent=m.cot_sent,
+            cot_dropped=m.cot_dropped,
+            last_successful_send=m.last_successful_send,
+            last_latency_ms=m.last_latency_ms,
+            connection_attempts=m.connection_attempts,
+        )
+    profile = (getattr(server, "connection_profile", None) or "standard").strip().lower()
     return SimpleNamespace(
         id=server.id,
         name=server.name,
@@ -149,6 +173,9 @@ def _tak_server_view(server: TakServer) -> SimpleNamespace:
         enrollment_port=server.enrollment_port,
         api_port=server.api_port,
         connection_mode=server.connection_mode,
+        connection_profile=profile,
+        send_presence=bool(getattr(server, "send_presence", True)),
+        is_streaming_feed=profile == "streaming_feed",
         tls_verify=server.tls_verify,
         username=server.username,
         client_cert_path=server.client_cert_path,
@@ -167,6 +194,7 @@ def _tak_server_view(server: TakServer) -> SimpleNamespace:
         active_groups=server.active_groups,
         status=status,
         last_error=last_error,
+        metrics=metrics,
         certificate_subject=server.certificate_subject,
         certificate_issuer=server.certificate_issuer,
         certificate_not_before=server.certificate_not_before,
@@ -321,17 +349,37 @@ def _build_checklist(
     has_tak_server: bool,
     has_enrolled_cert: bool,
     has_approved_unit: bool,
-    sdr_installed: bool,
-    has_radio_system: bool,
-    decoder_running: bool,
+    any_module: bool,
+    any_listening: bool,
+    feed_connected: bool,
 ) -> list[dict[str, Any]]:
     return [
-        {"done": has_tak_server, "label": "Add a TAK server", "href": "/tak"},
-        {"done": has_enrolled_cert, "label": "Enroll TAK certificate", "href": "/tak"},
-        {"done": has_approved_unit, "label": "Approve at least one radio unit", "href": "/units"},
-        {"done": sdr_installed, "label": "Install SDR Location Gateway", "href": "/marketplace"},
-        {"done": has_radio_system, "label": "Configure a radio system", "href": "/modules/sdr"},
-        {"done": decoder_running, "label": "Start the decoder", "href": "/modules/sdr"},
+        {"done": has_tak_server, "label": "Add a TAK server / streaming feed", "href": "/tak"},
+        {
+            "done": has_enrolled_cert,
+            "label": "Import Portal certs or enroll certificate",
+            "href": "/tak",
+        },
+        {
+            "done": feed_connected,
+            "label": "Connect streaming feed (or standard CoT)",
+            "href": "/tak",
+        },
+        {
+            "done": any_module,
+            "label": "Install a radio module (SDR and/or APRS)",
+            "href": "/marketplace",
+        },
+        {
+            "done": any_listening,
+            "label": "Start listening on Radio Systems",
+            "href": "/systems",
+        },
+        {
+            "done": has_approved_unit,
+            "label": "Approve units (or enable APRS auto-approve)",
+            "href": "/units",
+        },
     ]
 
 
@@ -509,104 +557,133 @@ def _tak_alert_rows(servers: list[TakServer]) -> list[dict[str, Any]]:
 
 def _pipeline_status(
     *,
-    sdr_on: bool,
-    decoder_on: bool,
-    has_radio_system: bool,
+    listening: dict[str, Any],
     stats: dict[str, Any],
     servers: list[TakServer],
     connected: bool,
 ) -> list[dict[str, Any]]:
-    if not sdr_on:
-        sdr = {
-            "key": "sdr",
-            "label": "SDR",
+    sources = listening.get("sources") or []
+    active = [s for s in sources if s.get("listening")]
+    if not listening.get("sdr_installed") and not listening.get("aprs_installed"):
+        sources_step = {
+            "key": "sources",
+            "label": "Sources",
             "state": "Not installed",
             "class": "status-idle",
             "href": "/marketplace",
-            "detail": "Install from Marketplace",
+            "detail": "Install SDR or APRS from Marketplace",
+        }
+    elif active:
+        labels = ", ".join(f"{s['name']}" for s in active[:3])
+        sources_step = {
+            "key": "sources",
+            "label": "Sources",
+            "state": "Listening",
+            "class": "status-running",
+            "href": "/systems",
+            "detail": labels + (f" · {len(active)} active" if len(active) > 3 else ""),
         }
     else:
-        sdr = {
-            "key": "sdr",
-            "label": "SDR",
-            "state": "Ready",
-            "class": "status-running",
-            "href": "/modules/sdr",
-            "detail": "Module installed",
-        }
-    if not sdr_on:
-        decoder = {
-            "key": "decoder",
-            "label": "Decoder",
-            "state": "Unavailable",
-            "class": "status-idle",
-            "href": "/marketplace",
-            "detail": "Needs SDR module",
-        }
-    elif decoder_on:
-        decoder = {
-            "key": "decoder",
-            "label": "Decoder",
-            "state": "Running",
-            "class": "status-running",
-            "href": "/modules/sdr",
-            "detail": "SDRTrunk active",
-        }
-    elif has_radio_system:
-        decoder = {
-            "key": "decoder",
-            "label": "Decoder",
-            "state": "Stopped",
-            "class": "status-stopped",
-            "href": "/modules/sdr",
-            "detail": "Start on SDR page",
-        }
-    else:
-        decoder = {
-            "key": "decoder",
-            "label": "Decoder",
+        sources_step = {
+            "key": "sources",
+            "label": "Sources",
             "state": "Idle",
             "class": "status-idle",
-            "href": "/modules/sdr",
-            "detail": "Configure a radio system",
+            "href": "/systems",
+            "detail": "No radio system listening",
         }
+
+    decode_bits = []
+    if listening.get("sdrtrunk_active"):
+        decode_bits.append("SDRTrunk")
+    if listening.get("direwolf_active"):
+        decode_bits.append("Direwolf")
+    if listening.get("aprs", {}).get("is_connected"):
+        decode_bits.append("APRS-IS")
+    if decode_bits:
+        decode_step = {
+            "key": "decode",
+            "label": "Decode",
+            "state": "Running",
+            "class": "status-running",
+            "href": "/systems",
+            "detail": " · ".join(decode_bits),
+        }
+    elif active:
+        decode_step = {
+            "key": "decode",
+            "label": "Decode",
+            "state": "Stopped",
+            "class": "status-stopped",
+            "href": "/systems",
+            "detail": "Source set to listen — start decoder",
+        }
+    else:
+        decode_step = {
+            "key": "decode",
+            "label": "Decode",
+            "state": "Idle",
+            "class": "status-idle",
+            "href": "/systems",
+            "detail": "Waiting for a listening source",
+        }
+
     hears = int(stats.get("total_hears") or 0)
-    locations = {
-        "key": "locations",
-        "label": "Locations",
+    units_step = {
+        "key": "units",
+        "label": "Units",
         "state": "Active" if hears > 0 else "Waiting",
         "class": "status-running" if hears > 0 else "status-idle",
         "href": "/units",
         "detail": f"{stats.get('approved', 0)} approved · {stats.get('observed', 0)} observed",
     }
+
+    feed_views = []
+    for s in servers:
+        profile = (getattr(s, "connection_profile", None) or "standard").strip().lower()
+        st, _ = _live_tak_status(s.id, s.status, s.last_error)
+        feed_views.append((s, profile, st))
+    streaming = [x for x in feed_views if x[1] == "streaming_feed"]
     if connected:
+        mgr_detail_parts = []
+        for s, profile, st in feed_views:
+            if st != "connected":
+                continue
+            mgr = tak_registry.get(s.id)
+            sent = mgr.metrics.cot_sent if mgr else 0
+            label = "feed" if profile == "streaming_feed" else "CoT"
+            mgr_detail_parts.append(f"{s.name} {label} · {sent} sent")
         tak = {
             "key": "tak",
-            "label": "TAK",
+            "label": "TAK feed",
             "state": "Connected",
             "class": "status-running",
             "href": "/tak",
-            "detail": f"{len(servers)} server(s)",
+            "detail": (
+                " · ".join(mgr_detail_parts) if mgr_detail_parts else f"{len(servers)} server(s)"
+            ),
         }
     elif servers:
+        hint = "streaming feed" if streaming else "server(s)"
         tak = {
             "key": "tak",
-            "label": "TAK",
+            "label": "TAK feed",
             "state": "Configured",
             "class": "status-warn",
             "href": "/tak",
-            "detail": f"{len(servers)} server(s) · not connected",
+            "detail": f"{len(servers)} {hint} · not connected",
         }
     else:
         tak = {
             "key": "tak",
-            "label": "TAK",
+            "label": "TAK feed",
             "state": "Not configured",
             "class": "status-idle",
             "href": "/tak",
-            "detail": "Add a TAK server",
+            "detail": "Add Portal streaming feed or TAK server",
         }
-    return [sdr, decoder, locations, tak]
+    return [sources_step, decode_step, units_step, tak]
+
 
 
 @pages.get("/", response_class=HTMLResponse)
@@ -621,13 +698,14 @@ async def dashboard(request: Request, _user=Depends(require_auth)):
         cc_markers = _cc_markers_hz(db)
         has_radio_system = bool(db.scalar(select(func.count()).select_from(RadioSystem)))
         has_enrolled_cert = any(PathExists(s.client_cert_path) for s in servers)
+        listening = listening_summary(db)
     finally:
         db.close()
 
     cfg = load_settings_file()
     novnc = cfg.get("novnc") or {}
-    sdr_on = modules_svc.is_installed("sdr_location_gateway")
-    decoder_on = bool(sdr_on and get_platform().service_active("sdrtrunk"))
+    sdr_on = listening["sdr_installed"]
+    decoder_on = listening["sdrtrunk_active"]
     connected = _any_tak_connected(servers)
     metrics = get_platform().system_info()
     gauges = hearing_gauges.snapshot()
@@ -640,16 +718,18 @@ async def dashboard(request: Request, _user=Depends(require_auth)):
         tak_servers=_tak_alert_rows(servers),
         stats=stats,
     )
+    aprs_ok = bool(listening.get("aprs", {}).get("auto_approve"))
     checklist = _build_checklist(
         has_tak_server=bool(servers),
         has_enrolled_cert=has_enrolled_cert,
-        has_approved_unit=stats["approved"] > 0,
-        sdr_installed=sdr_on,
-        has_radio_system=has_radio_system,
-        decoder_running=decoder_on,
+        has_approved_unit=stats["approved"] > 0 or aprs_ok,
+        any_module=sdr_on or listening["aprs_installed"],
+        any_listening=listening["any_listening"],
+        feed_connected=connected,
     )
     incomplete = [c for c in checklist if not c["done"]]
-    decoder_href = "/modules/sdr" if sdr_on else "/marketplace"
+    decoder_href = "/systems"
+    active_names = [s["name"] for s in listening["sources"] if s.get("listening")]
     ctx = base_context(
         request,
         nav="dashboard",
@@ -663,36 +743,66 @@ async def dashboard(request: Request, _user=Depends(require_auth)):
         alert_counts=alert_summary(alerts),
         recent_ops=recent_ops_events(12),
         pipeline=_pipeline_status(
-            sdr_on=sdr_on,
-            decoder_on=decoder_on,
-            has_radio_system=has_radio_system,
+            listening=listening,
             stats=stats,
             servers=servers,
             connected=connected,
         ),
+        listening=listening,
         latest_json=json.dumps(latest),
         latest_count=len(latest),
         cc_markers_hz=json.dumps(cc_markers),
         novnc_enabled=bool(novnc.get("enabled")),
         novnc_url=novnc.get("url") or "/novnc/",
         sdr_installed=sdr_on,
-        sdr_href="/modules/sdr" if sdr_on else "/marketplace",
+        sdr_href="/systems",
         decoder_href=decoder_href,
-        sdr_summary="Open SDR to set frequencies and start the decoder"
-        if sdr_on
-        else "Install SDR Location Gateway from Marketplace",
-        sdr_status="Ready" if sdr_on else "Not installed",
-        sdr_status_class="status-running" if sdr_on else "status-idle",
-        decoder_summary="Listening via SDRTrunk"
-        if decoder_on
-        else (
-            "Configure frequencies on the SDR page" if sdr_on else "Install the SDR module first"
+        sdr_summary=(
+            f"Listening: {', '.join(active_names)}"
+            if active_names
+            else "Open Radio Systems to choose what this device listens to"
         ),
-        decoder_status="Running" if decoder_on else "Idle",
-        decoder_status_class="status-running" if decoder_on else "status-idle",
-        tak_summary=f"{len(servers)} server(s)",
+        sdr_status=(
+            "Listening"
+            if listening["any_listening"]
+            else ("Ready" if (sdr_on or listening["aprs_installed"]) else "Not installed")
+        ),
+        sdr_status_class="status-running" if listening["any_listening"] else "status-idle",
+        decoder_summary=" · ".join(
+            [
+                x
+                for x in [
+                    "SDRTrunk" if decoder_on else None,
+                    "Direwolf" if listening.get("direwolf_active") else None,
+                    "APRS-IS" if listening.get("aprs", {}).get("is_connected") else None,
+                ]
+                if x
+            ]
+        )
+        or "No decoder running",
+        decoder_status=(
+            "Running"
+            if (
+                decoder_on
+                or listening.get("direwolf_active")
+                or listening.get("aprs", {}).get("is_connected")
+            )
+            else "Idle"
+        ),
+        decoder_status_class=(
+            "status-running"
+            if (
+                decoder_on
+                or listening.get("direwolf_active")
+                or listening.get("aprs", {}).get("is_connected")
+            )
+            else "status-idle"
+        ),
+        tak_summary=f"{len(servers)} feed(s)",
         tak_status="Connected" if connected else ("Configured" if servers else "Not configured"),
-        tak_status_class="status-running" if connected else ("status-warn" if servers else "status-idle"),
+        tak_status_class=(
+            "status-running" if connected else ("status-warn" if servers else "status-idle")
+        ),
     )
     return TEMPLATES.TemplateResponse(request, "dashboard.html", ctx)
 
@@ -889,6 +999,143 @@ async def marketplace_uninstall(
     return redirect("/marketplace")
 
 
+# ----- Radio Systems hub -----
+
+
+@pages.get("/systems", response_class=HTMLResponse)
+async def systems_hub(request: Request, _user=Depends(require_auth)):
+    Session = get_session_factory()
+    db = Session()
+    try:
+        listening = listening_summary(db)
+    finally:
+        db.close()
+    confirm_action = request.query_params.get("confirm_action") or ""
+    confirm_hidden: dict[str, str] = {}
+    if "/listen" in confirm_action:
+        confirm_hidden["listen"] = "1"
+    return TEMPLATES.TemplateResponse(
+        request,
+        "systems.html",
+        base_context(
+            request,
+            nav="systems",
+            sources=listening["sources"],
+            listening=listening,
+            tuner_count=listening["tuner_count"],
+            sdr_installed=listening["sdr_installed"],
+            aprs_installed=listening["aprs_installed"],
+            message=request.query_params.get("msg"),
+            error=request.query_params.get("err"),
+            conflict=request.query_params.get("conflict"),
+            confirm_action=confirm_action,
+            confirm_hidden=confirm_hidden,
+        ),
+    )
+
+
+@pages.post("/systems/sdr/{system_id}/listen")
+async def systems_sdr_listen(
+    system_id: str,
+    request: Request,
+    listen: str = Form("0"),
+    confirm: str = Form(""),
+    csrf_token: str = Form(""),
+    _user=Depends(require_auth),
+):
+    verify_csrf(request, csrf_token)
+    on = listen.strip() in ("1", "true", "on", "yes")
+    if on:
+        conflict = ensure_sdrtrunk_for_listen(confirm=confirm.strip() in ("1", "true", "on", "yes"))
+        if conflict:
+            return redirect(
+                "/systems?conflict="
+                + quote(conflict)
+                + "&confirm_action="
+                + quote(f"/systems/sdr/{system_id}/listen")
+                + "&err="
+                + quote("Confirmation required")
+            )
+    from modules.sdr_location_gateway.router import _rebuild_playlist, _restart_decoder
+    from modules.sdr_location_gateway.sdrtrunk.playlist import set_row_listening
+
+    Session = get_session_factory()
+    db = Session()
+    name = "System"
+    try:
+        row = db.get(RadioSystem, system_id)
+        if not row:
+            return redirect("/systems?err=" + quote("System not found"))
+        name = row.name
+        set_row_listening(row, on)
+        db.commit()
+        _rebuild_playlist(db)
+    finally:
+        db.close()
+    if on:
+        _restart_decoder()
+    state = "listening" if on else "off"
+    return redirect("/systems?msg=" + quote(f"{name} {state}"))
+
+
+@pages.post("/systems/sdrtrunk/start")
+async def systems_sdrtrunk_start(
+    request: Request,
+    confirm: str = Form(""),
+    csrf_token: str = Form(""),
+    _user=Depends(require_auth),
+):
+    verify_csrf(request, csrf_token)
+    conflict = ensure_sdrtrunk_for_listen(confirm=confirm.strip() in ("1", "true", "on", "yes"))
+    if conflict:
+        return redirect("/systems?conflict=" + quote(conflict) + "&confirm_action=/systems/sdrtrunk/start")
+    from modules.sdr_location_gateway.router import _restart_decoder
+
+    code, out = _restart_decoder()
+    if code != 0:
+        return redirect("/systems?err=" + quote(out or "SDRTrunk start failed"))
+    return redirect("/systems?msg=" + quote("SDRTrunk started"))
+
+
+@pages.post("/systems/sdrtrunk/stop")
+async def systems_sdrtrunk_stop(
+    request: Request, csrf_token: str = Form(""), _user=Depends(require_auth)
+):
+    verify_csrf(request, csrf_token)
+    from radiotak.services.listening import stop_sdrtrunk
+
+    stop_sdrtrunk()
+    return redirect("/systems?msg=" + quote("SDRTrunk stopped"))
+
+
+@pages.post("/systems/aprs/rf/start")
+async def systems_aprs_rf_start(
+    request: Request,
+    confirm: str = Form(""),
+    csrf_token: str = Form(""),
+    _user=Depends(require_auth),
+):
+    verify_csrf(request, csrf_token)
+    conflict = ensure_aprs_rf(confirm=confirm.strip() in ("1", "true", "on", "yes"))
+    if conflict:
+        return redirect(
+            "/systems?conflict=" + quote(conflict) + "&confirm_action=/systems/aprs/rf/start"
+        )
+    code, out = start_direwolf()
+    if code != 0 and get_platform().__class__.__name__ != "DevPlatform":
+        return redirect("/systems?err=" + quote(out or "Direwolf start failed"))
+    return redirect("/systems?msg=" + quote("APRS RF (Direwolf) started"))
+
+
+@pages.post("/systems/aprs/rf/stop")
+async def systems_aprs_rf_stop(
+    request: Request, csrf_token: str = Form(""), _user=Depends(require_auth)
+):
+    verify_csrf(request, csrf_token)
+    stop_direwolf()
+    return redirect("/systems?msg=" + quote("APRS RF stopped"))
+
+
 # ----- TAK -----
 
 
@@ -923,10 +1170,14 @@ async def tak_add(
     enrollment_port: int = Form(8446),
     api_port: int = Form(8443),
     callsign: str = Form("RadioTAK"),
+    connection_profile: str = Form("streaming_feed"),
     csrf_token: str = Form(""),
     _user=Depends(require_auth),
 ):
     verify_csrf(request, csrf_token)
+    profile = (connection_profile or "standard").strip().lower()
+    if profile not in ("standard", "streaming_feed"):
+        profile = "standard"
     Session = get_session_factory()
     db = Session()
     try:
@@ -937,6 +1188,8 @@ async def tak_add(
             enrollment_port=enrollment_port,
             api_port=api_port,
             callsign=callsign,
+            connection_profile=profile,
+            send_presence=profile != "streaming_feed",
         )
         db.add(s)
         db.commit()
@@ -948,13 +1201,16 @@ async def tak_add(
         server_id=sid,
         host=host.strip(),
         cot_port=cot_port,
+        api_port=api_port,
         callsign=callsign,
         dry_run=True,
+        connection_profile=profile,
+        send_presence=profile != "streaming_feed",
     )
-    tak_registry.upsert(mgr)
+    await tak_registry.replace(mgr)
     await mgr.start()
     write_audit("tak_add", actor=_actor(request), target=sid)
-    return redirect(f"/tak/{sid}")
+    return redirect(f"/tak/{sid}?msg=" + quote("Added — import Portal certs or enroll"))
 
 
 @pages.get("/tak/{server_id}", response_class=HTMLResponse)
@@ -1056,6 +1312,92 @@ async def tak_enroll(
         db.close()
     q = f"msg={quote(msg)}" if msg else f"err={quote(err or 'Enrollment failed')}"
     return redirect(f"/tak/{server_id}?{q}")
+
+
+@pages.post("/tak/{server_id}/profile")
+async def tak_profile(
+    server_id: str,
+    request: Request,
+    connection_profile: str = Form("standard"),
+    cot_port: int = Form(8089),
+    host: str = Form(...),
+    send_presence: str | None = Form(None),
+    csrf_token: str = Form(""),
+    _user=Depends(require_auth),
+):
+    verify_csrf(request, csrf_token)
+    profile = (connection_profile or "standard").strip().lower()
+    if profile not in ("standard", "streaming_feed"):
+        profile = "standard"
+    Session = get_session_factory()
+    db = Session()
+    try:
+        server = db.get(TakServer, server_id)
+        if not server:
+            return redirect("/tak")
+        server.connection_profile = profile
+        server.cot_port = int(cot_port)
+        server.host = host.strip()
+        # Streaming feeds never send presence; standard may toggle.
+        if profile == "streaming_feed":
+            server.send_presence = False
+        else:
+            server.send_presence = send_presence is not None
+        db.commit()
+        await tak_runtime.restart(server_id)
+        write_audit("tak_profile", actor=_actor(request), target=server_id, detail={"profile": profile})
+    finally:
+        db.close()
+    return redirect(f"/tak/{server_id}?msg=" + quote("Feed settings saved"))
+
+
+@pages.post("/tak/{server_id}/import-portal-zip")
+async def tak_import_portal_zip(
+    server_id: str,
+    request: Request,
+    cert_zip: UploadFile = File(...),
+    password: str = Form(""),
+    csrf_token: str = Form(""),
+    _user=Depends(require_auth),
+):
+    verify_csrf(request, csrf_token)
+    data = await cert_zip.read()
+    Session = get_session_factory()
+    db = Session()
+    try:
+        server = db.get(TakServer, server_id)
+        if not server:
+            return redirect("/tak")
+        try:
+            result = import_integration_cert_zip(server_id, data, password or None)
+            meta = result.get("meta") or {}
+            server.client_cert_path = str(get_settings().secrets_dir / server_id / "client.pem")
+            server.client_key_path = str(get_settings().secrets_dir / server_id / "client.key")
+            p12_path = get_settings().secrets_dir / server_id / "client.p12"
+            if p12_path.exists():
+                server.pkcs12_path = str(p12_path)
+            if result.get("ca_path"):
+                server.server_ca_path = result["ca_path"]
+            server.certificate_subject = meta.get("subject")
+            server.certificate_issuer = meta.get("issuer")
+            server.certificate_not_before = meta.get("not_before")
+            server.certificate_not_after = meta.get("not_after")
+            server.certificate_fingerprint = meta.get("fingerprint")
+            if not server.connection_profile:
+                server.connection_profile = "streaming_feed"
+            if server.connection_profile == "streaming_feed":
+                server.send_presence = False
+            server.last_error = None
+            db.commit()
+            await tak_runtime.restart(server_id)
+            write_audit("tak_import_portal_zip", actor=_actor(request), target=server_id)
+            return redirect(f"/tak/{server_id}?msg=" + quote("Portal certs imported"))
+        except Exception as exc:  # noqa: BLE001
+            server.last_error = str(exc)
+            db.commit()
+            return redirect(f"/tak/{server_id}?err={quote(str(exc))}")
+    finally:
+        db.close()
 
 
 @pages.post("/tak/{server_id}/import-p12")
@@ -1861,6 +2203,7 @@ async def status(_user=Depends(require_auth)):
         stats = _dashboard_stats(db)
         servers = list(db.scalars(select(TakServer)))
         has_radio_system = bool(db.scalar(select(func.count()).select_from(RadioSystem)))
+        listening = listening_summary(db)
     finally:
         db.close()
     last_age = None
@@ -1868,8 +2211,8 @@ async def status(_user=Depends(require_auth)):
         last_age = round(time.time() - spectrum_hub.last_frame_at, 1)
     metrics = get_platform().system_info()
     gauges = hearing_gauges.snapshot()
-    sdr_on = modules_svc.is_installed("sdr_location_gateway")
-    decoder_on = bool(sdr_on and get_platform().service_active("sdrtrunk"))
+    sdr_on = listening["sdr_installed"]
+    decoder_on = listening["sdrtrunk_active"]
     spectrum = {
         "frames_received": spectrum_hub.frames_received,
         "last_frame_age": last_age,
@@ -1899,6 +2242,13 @@ async def status(_user=Depends(require_auth)):
                 "state": m.state.value,
                 "sent": m.metrics.cot_sent,
                 "dropped": m.metrics.cot_dropped,
+                "last_send": (
+                    m.metrics.last_successful_send.isoformat()
+                    if m.metrics.last_successful_send
+                    else None
+                ),
+                "profile": m.connection_profile,
+                "port": m.cot_port,
             }
             for m in tak_registry.all()
         ],
@@ -1908,13 +2258,12 @@ async def status(_user=Depends(require_auth)):
         "alerts": alerts,
         "alert_counts": alert_summary(alerts),
         "pipeline": _pipeline_status(
-            sdr_on=sdr_on,
-            decoder_on=decoder_on,
-            has_radio_system=has_radio_system,
+            listening=listening,
             stats=stats,
             servers=servers,
             connected=connected,
         ),
+        "listening": listening,
         "recent_ops": recent_ops_events(12),
     }
 

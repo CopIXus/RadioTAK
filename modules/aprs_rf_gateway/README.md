@@ -8,7 +8,7 @@ RX-only APRS decode via **Direwolf** into RadioTAK: positions use the same `sdr2
 2. Marketplace → install **APRS RF Gateway** (pulls `direwolf` + `rtl-sdr` via apt, installs `direwolf-aprs.service`).
 3. Open **APRS** in the sidebar: set **MYCALL** to your amateur callsign-SSID for logging (RX-only).
 4. Start **Direwolf**. RadioTAK’s in-process KISS client connects to `127.0.0.1:8001`.
-5. Allowlist heard callsigns under **Units** (`RADIOTAK-APRS-{CALL}`) and enable **Forward to TAK**.
+5. Either enable **Auto-approve heard callsigns for TAK** (uses Settings default stale), or allowlist callsigns under **Units** (`RADIOTAK-APRS-{CALL}`) and enable **Forward to TAK**.
 
 Default RF: **144.390 MHz**, 1200 baud, `rtl_fm` → Direwolf stdin.
 

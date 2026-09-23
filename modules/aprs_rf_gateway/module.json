@@ -1,7 +1,7 @@
 {
   "id": "aprs_rf_gateway",
   "name": "APRS RF Gateway",
-  "description": "RX-only APRS via Direwolf (RTL-SDR/audio) → allowlisted map CoT + GeoChat room APRS. Optional APRS-IS ingest.",
+  "description": "RX-only APRS via Direwolf (RTL-SDR/audio) → map CoT + GeoChat room APRS (optional auto-approve). Optional APRS-IS ingest.",
   "version": "0.1.0",
   "status": "available",
   "icon": "📡",

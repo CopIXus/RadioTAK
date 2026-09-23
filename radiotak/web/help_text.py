@@ -18,10 +18,22 @@ HELP: dict[str, dict[str, str]] = {
         "example": "tak.example.org",
     },
     "tak.cot_port": {
-        "label": "CoT / streaming port",
-        "what": "TLS port where RadioTAK sends Cursor-on-Target events.",
-        "where": "TAK Server CoreConfig connector (default 8089) or infra-TAK TAK Server page.",
-        "example": "8089",
+        "label": "Feed / CoT TLS port",
+        "what": "For Portal streaming integrations use the data-feed port assigned when you created the Integration. Standard CoT is usually 8089.",
+        "where": "TAK → Add or Feed tab.",
+        "example": "8090",
+    },
+    "tak.connection_profile": {
+        "label": "Connection profile",
+        "what": "Portal streaming data feed publishes into WRITE filter groups on a dedicated port (no Marti channel PUT, no gateway presence SA). Standard CoT uses 8089 plus selected channels.",
+        "where": "TAK Servers → Add or configure → Feed.",
+        "example": "streaming_feed",
+    },
+    "tak.send_presence": {
+        "label": "Send gateway presence SA",
+        "what": "When on, RadioTAK publishes its own SA contact. Streaming feeds leave this off so the feed is not a mutual-location contact.",
+        "where": "TAK server → Feed tab.",
+        "example": "",
     },
     "tak.enrollment_port": {
         "label": "Enrollment port",
@@ -232,6 +244,12 @@ HELP: dict[str, dict[str, str]] = {
         "what": "US VHF APRS is 144.390 MHz (144390000 Hz). Change only for regional exceptions.",
         "where": "APRS page; applied when direwolf-aprs.service starts.",
         "example": "144390000",
+    },
+    "aprs.auto_approve": {
+        "label": "Auto-approve APRS units",
+        "what": "When on, every heard APRS callsign is approved for TAK forwarding with unit stale = 0 (uses Settings → Forwarding default, usually 20 minutes). Turn a unit off under Units to hard-block it.",
+        "where": "APRS page → Settings.",
+        "example": "",
     },
     "tailscale.auth_key": {
         "label": "Tailscale auth key",

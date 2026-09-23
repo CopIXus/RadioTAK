@@ -16,11 +16,11 @@
   <div class="help-card-body">
     <p>After install, open the console at <code class="block">https://&lt;pi-ip&gt;:5001</code> and complete first-run setup if prompted.</p>
     <p>Typical flow:</p>
-    <p>1. Marketplace → install <strong>SDR Location Gateway</strong><br/>
-    2. SDR → discover dongle, add radio system control-channel frequencies (MHz), start decoder<br/>
-    3. Units → approve observed radios for TAK forwarding<br/>
-    4. TAK Servers → enroll certificate and select channels</p>
-    <p>Use the Console dashboard to confirm hearing activity (messages/min, CC lock) and the mini-map for live positions.</p>
+    <p>1. Marketplace → install <strong>SDR Location Gateway</strong> and/or <strong>APRS RF Gateway</strong><br/>
+    2. Radio Systems → listen on trunked SDR and/or start APRS<br/>
+    3. TAK Servers → Portal streaming WRITE feed (import certs + feed port) or standard enroll<br/>
+    4. Units → approve observed radios (or enable APRS auto-approve)</p>
+    <p>Use the Console dashboard to confirm Sources → Decode → Units → TAK feed and watch Sent / last send on the feed.</p>
   </div>
 </div>
 
@@ -30,9 +30,9 @@
     <span class="dim">▼</span>
   </div>
   <div class="help-card-body">
-    <p>Each TAK server supports username/password enrollment against Marti TLS (default port <strong>8446</strong>), PKCS#12 import, or PEM cert/key upload. Uncheck Verify TLS if the enrollment certificate is self-signed.</p>
-    <p>After enrollment, RadioTAK queries Marti on port <strong>8443</strong> for groups/channels. Select active channels on the server detail page. Channel membership is pushed to TAK Server after the CoT stream is connected — a 400 from <code class="block">/groups/activebits</code> while disconnected is expected and is not a failed enrollment.</p>
-    <p>CoT streaming uses TLS port <strong>8089</strong> by default. When connected, RadioTAK publishes a presence user with the <strong>gateway callsign</strong> so it appears in the TAK Server client dashboard. Radio detections are named map markers and are not ATAK contacts unless you choose a friendly-unit CoT type. Use <strong>Test</strong> on the TAK list to queue a test marker.</p>
+    <p>Preferred path for radio markers: create a TAK Portal <strong>Integration</strong> with Streaming Data Feed and <code>*_WRITE</code> groups only, Download Certs, then import the zip under TAK → Import certs and set the data-feed port. Users join the matching READ channel. See the enrollment doc for details.</p>
+    <p>Each TAK server also supports username/password enrollment against Marti TLS (default port <strong>8446</strong>), PKCS#12 import, or PEM cert/key upload. Uncheck Verify TLS if the enrollment certificate is self-signed.</p>
+    <p>On a <strong>standard</strong> CoT profile, RadioTAK queries Marti on port <strong>8443</strong> for groups/channels. Streaming feeds skip channel selection (Portal filter groups handle WRITE).</p>
     <p>Certificate expiry warnings appear at 30 / 14 / 7 days. Re-enroll before expiry to avoid forwarding interruption.</p>
   </div>
 </div>

@@ -64,6 +64,7 @@
   {{ field('kiss_port', 'KISS port', value=settings.kiss_port) }}
   {{ check('enable_rf', 'Enable RF (Direwolf KISS)', checked=settings.enable_rf) }}
   {{ check('enable_is', 'Enable APRS-IS (internet)', checked=settings.enable_is) }}
+  {{ check('auto_approve_units', 'Auto-approve heard callsigns for TAK', checked=settings.auto_approve_units, help_key='aprs.auto_approve') }}
   {{ field('aprs_is_server', 'APRS-IS server', value=settings.aprs_is_server) }}
   {{ field('aprs_is_port', 'APRS-IS port', value=settings.aprs_is_port) }}
   {{ field('aprs_is_passcode', 'APRS-IS passcode (−1 for RX-only)', value=settings.aprs_is_passcode, help_key='aprs.passcode') }}
@@ -78,8 +79,12 @@
 
 <div class="section-title">Policy</div>
 <p class="card-desc">
-  Callsigns show up under <a href="/units">Units</a> as <code>RADIOTAK-APRS-{CALL}</code>.
-  Enable <strong>Forward to TAK</strong> before positions or GeoChat leave the gateway.
+  Callsigns show up under <a href="/units">Units</a> as system <code>APRS</code>
+  (CoT UID <code>RADIOTAK-APRS-{CALL}</code>).
+  With <strong>Auto-approve</strong> on, heard stations get Forward to TAK immediately
+  and use the Settings default stale time (unit stale = 0).
+  Otherwise enable Forward to TAK per unit before positions or GeoChat leave the gateway.
+  Disable a unit under Units to hard-block it even when auto-approve is on.
   Decode/receive does not require a license; transmitting APRS or IGating does (GMRS does not cover APRS TX).
   TX / digipeat / IGate are out of scope for this module.
 </p>

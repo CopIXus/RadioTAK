@@ -74,18 +74,15 @@
     <a class="nav-item {% if nav=='map' %}active{% endif %}" href="/map" title="Map" aria-label="Map">
       <span class="nav-icon"><svg><use href="/static/icons.svg#icon-map-pin"/></svg></span><span class="label">Map</span>
     </a>
-    {% if sdr_installed %}
-    <a class="nav-item {% if nav=='sdr' %}active{% endif %}" href="/modules/sdr" title="SDR" aria-label="SDR">
-      <span class="nav-icon"><svg><use href="/static/icons.svg#icon-radio"/></svg></span><span class="label">SDR</span>
+    {% if sdr_installed or aprs_installed %}
+    <a class="nav-item {% if nav=='systems' or nav=='sdr' or nav=='aprs' %}active{% endif %}" href="/systems" title="Radio Systems" aria-label="Radio Systems">
+      <span class="nav-icon"><svg><use href="/static/icons.svg#icon-radio"/></svg></span><span class="label">Radio Systems</span>
     </a>
+    {% if sdr_installed and trunked_listening %}
     <a class="nav-item {% if nav=='encryption' %}active{% endif %}" href="/encryption" title="Encryption Archive" aria-label="Encryption Archive">
       <span class="nav-icon"><svg><use href="/static/icons.svg#icon-lock"/></svg></span><span class="label">Encryption</span>
     </a>
     {% endif %}
-    {% if aprs_installed %}
-    <a class="nav-item {% if nav=='aprs' %}active{% endif %}" href="/modules/aprs" title="APRS" aria-label="APRS">
-      <span class="nav-icon"><svg><use href="/static/icons.svg#icon-activity"/></svg></span><span class="label">APRS</span>
-    </a>
     {% endif %}
 
     <div class="nav-section-label">Connect</div>

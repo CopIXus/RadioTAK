@@ -63,6 +63,12 @@ def base_context(request: Request, nav: str = "", **extra):
     has_logo = logo_path() is not None
     title = cfg.get("title", "RadioTAK")
     banner_display = _banner_display_text(cust, title)
+    show_encryption = is_installed("sdr_location_gateway")
+    if "trunked_listening" in extra:
+        trunked_listening = bool(extra.pop("trunked_listening"))
+    else:
+        # Show Encryption under Operate when SDR is installed (trunked digital context).
+        trunked_listening = show_encryption
     return {
         "request": request,
         "nav": nav,
@@ -76,6 +82,7 @@ def base_context(request: Request, nav: str = "", **extra):
         "username": session.get("u", ""),
         "sdr_installed": is_installed("sdr_location_gateway"),
         "aprs_installed": is_installed("aprs_rf_gateway"),
+        "trunked_listening": trunked_listening,
         "hide_sidebar": False,
         "help_json": help_as_json(),
         "display_timezone": display_timezone(),

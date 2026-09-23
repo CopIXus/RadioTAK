@@ -381,11 +381,23 @@ async def sdr_system_listen(
     system_id: str,
     request: Request,
     listen: str = Form("0"),
+    confirm: str = Form(""),
     csrf_token: str = Form(""),
     _user=Depends(require_auth),
 ):
     verify_csrf(request, csrf_token)
     on = listen.strip() in ("1", "true", "on", "yes")
+    if on:
+        from radiotak.services.listening import ensure_sdrtrunk_for_listen
+
+        conflict = ensure_sdrtrunk_for_listen(confirm=confirm.strip() in ("1", "true", "on", "yes"))
+        if conflict:
+            return redirect(
+                "/systems?conflict="
+                + quote(conflict)
+                + "&confirm_action="
+                + quote(f"/systems/sdr/{system_id}/listen")
+            )
     Session = get_session_factory()
     db = Session()
     name = "System"

@@ -7,10 +7,12 @@ import logging
 import time
 from typing import Any
 
-from radiotak.db import get_session_factory
+from sqlalchemy.orm import Session
+
+from radiotak.db import RadioIdentity, get_session_factory
 from radiotak.gateway.cot import build_geochat_xml
 from radiotak.gateway.events import event_bus
-from radiotak.gateway.identities import is_forward_allowed, observe_or_create
+from radiotak.gateway.identities import find_identity, is_forward_allowed, observe_or_create
 from radiotak.gateway.pipeline import pipeline
 from radiotak.gateway.tak import tak_registry
 from radiotak.services.logging_setup import log_event
@@ -63,10 +65,57 @@ def stats_snapshot() -> dict[str, Any]:
         "settings": {
             "enable_rf": load_settings().get("enable_rf"),
             "enable_is": load_settings().get("enable_is"),
+            "auto_approve_units": load_settings().get("auto_approve_units"),
             "chatroom": load_settings().get("chatroom"),
             "mycall": load_settings().get("mycall"),
         },
     }
+
+
+def ensure_aprs_unit_approved(
+    db: Session,
+    radio_id: str,
+    *,
+    alias: str | None = None,
+) -> RadioIdentity:
+    """Approve an APRS callsign for TAK using Settings default stale (unit stale=0).
+
+    Does not bump observation_count (pipeline / observe_or_create still owns that).
+    Operator hard-block: if ``enabled`` is False, leave the unit alone.
+    """
+    call = alias or radio_id
+    identity = find_identity(db, radio_id, "APRS")
+    if identity is None:
+        identity = RadioIdentity(
+            radio_id=radio_id,
+            system_id="APRS",
+            enabled=True,
+            forward_to_tak=True,
+            callsign=call,
+            display_name=call,
+            stale_seconds=0,
+        )
+        db.add(identity)
+        db.commit()
+        db.refresh(identity)
+        return identity
+    if not identity.enabled:
+        return identity
+    if not identity.forward_to_tak:
+        identity.forward_to_tak = True
+        # 0 = use Settings → Forwarding "Radio marker stale" (default 20 min)
+        identity.stale_seconds = 0
+        db.commit()
+        db.refresh(identity)
+    return identity
+
+
+def _maybe_auto_approve(db: Session, radio_id: str, cfg: dict[str, Any]) -> None:
+    if not cfg.get("auto_approve_units"):
+        return
+    if not radio_id:
+        return
+    ensure_aprs_unit_approved(db, radio_id, alias=radio_id)
 
 
 def _note_packet(call: str | None, source: str) -> None:
@@ -84,11 +133,13 @@ def _note_packet(call: str | None, source: str) -> None:
         _stats["last_callsign"] = call
 
 
-def _handle_position(loc: dict[str, Any]) -> bool:
+def _handle_position(loc: dict[str, Any], cfg: dict[str, Any]) -> bool:
     """Feed position through LocationPipeline once (no TCP loopback / double enqueue)."""
-    Session = get_session_factory()
-    db = Session()
+    SessionLocal = get_session_factory()
+    db = SessionLocal()
     try:
+        rid = str(loc.get("radio_id") or "")
+        _maybe_auto_approve(db, rid, cfg)
         result = pipeline.process_dict(db, loc)
         if result.reason and str(result.reason).startswith("schema:"):
             _stats["last_error"] = result.reason
@@ -105,9 +156,10 @@ def _handle_position(loc: dict[str, Any]) -> bool:
 
 def _handle_message(msg: dict[str, Any], cfg: dict[str, Any]) -> None:
     call = msg["from"]
-    Session = get_session_factory()
-    db = Session()
+    SessionLocal = get_session_factory()
+    db = SessionLocal()
     try:
+        _maybe_auto_approve(db, call, cfg)
         identity = observe_or_create(db, radio_id=call, system_id="APRS", alias=call)
         allowed, reason = is_forward_allowed(identity)
         event_bus.publish(
@@ -168,7 +220,7 @@ async def _ingest_packet(packet: dict[str, Any], *, source: str, cfg: dict[str, 
 
     loc = position_to_ndjson(packet, source=source)
     if loc:
-        await asyncio.to_thread(_handle_position, loc)
+        await asyncio.to_thread(_handle_position, loc, cfg)
 
 
 async def _rf_loop(stop: asyncio.Event) -> None:

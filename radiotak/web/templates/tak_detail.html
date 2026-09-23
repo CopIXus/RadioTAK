@@ -5,7 +5,10 @@
 <div class="header">
   <div>
     <div class="header-title">{{ server.name }}</div>
-    <div class="header-subtitle">{{ server.host }} · CoT {{ server.cot_port }}</div>
+    <div class="header-subtitle">
+      {{ server.host }} · {% if server.is_streaming_feed %}streaming feed{% else %}CoT{% endif %} port {{ server.cot_port }}
+      {% if server.metrics %} · sent {{ server.metrics.cot_sent }}{% if server.metrics.last_successful_send %} · last {{ server.metrics.last_successful_send | localtime }}{% endif %}{% endif %}
+    </div>
   </div>
   <a class="btn btn-sm" href="/tak">Back</a>
 </div>
@@ -15,14 +18,54 @@
 
 <div data-tabs>
   <div class="tabs">
-    <button type="button" class="tab-btn active" data-tab="tab-enroll">Enroll</button>
-    <button type="button" class="tab-btn" data-tab="tab-import">Import</button>
+    <button type="button" class="tab-btn active" data-tab="tab-feed">Feed</button>
+    <button type="button" class="tab-btn" data-tab="tab-enroll">Enroll</button>
+    <button type="button" class="tab-btn" data-tab="tab-import">Import certs</button>
     <button type="button" class="tab-btn" data-tab="tab-marker">Marker Appearance</button>
+    {% if not server.is_streaming_feed %}
     <button type="button" class="tab-btn" data-tab="tab-channels">Channels</button>
+    {% endif %}
     <button type="button" class="tab-btn" data-tab="tab-danger">Danger</button>
   </div>
 
-  <div class="tab-panel active" id="tab-enroll" data-panel="tab-enroll">
+  <div class="tab-panel active" id="tab-feed" data-panel="tab-feed">
+    <div class="form-panel">
+      <form method="post" action="/tak/{{ server.id }}/profile" data-busy="Saving…">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+        {{ select('connection_profile', 'Connection profile', [
+          ('streaming_feed', 'Portal streaming data feed (WRITE)'),
+          ('standard', 'Standard CoT (8089 + channels)'),
+        ], value=server.connection_profile or 'standard', help_key='tak.connection_profile') }}
+        {{ field('cot_port', 'Feed / CoT TLS port', type='number', value=server.cot_port, help_key='tak.cot_port') }}
+        {{ field('host', 'Host / FQDN', value=server.host, help_key='tak.host', required=True) }}
+        {{ check('send_presence', 'Send gateway presence SA', checked=server.send_presence and not server.is_streaming_feed, help_key='tak.send_presence') }}
+        <p class="card-desc">
+          Streaming feeds use Portal filter groups on the data-feed port — presence SA is off by default so the feed is not a mutual-location contact.
+          Confirm in Portal Integrations that status is Connected and watch Sent / last send here.
+        </p>
+        <button class="btn btn-primary" type="submit">Save feed settings</button>
+      </form>
+    </div>
+    {% if server.status %}
+    <div class="card card-static" style="margin-top:16px;max-width:560px">
+      <div class="card-title">Live publish</div>
+      <div class="card-desc">
+        State: {{ server.status }}<br/>
+        {% if server.metrics %}
+        Generated {{ server.metrics.cot_generated }} · sent {{ server.metrics.cot_sent }} · dropped {{ server.metrics.cot_dropped }}<br/>
+        {% if server.metrics.last_successful_send %}Last send: {{ server.metrics.last_successful_send | localtime }}{% endif %}
+        {% endif %}
+        {% if server.last_error %}<br/>Error: {{ server.last_error }}{% endif %}
+      </div>
+      <form method="post" action="/tak/{{ server.id }}/test" style="margin-top:10px">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+        <button class="btn btn-sm" type="submit">Test publish marker</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="tab-panel" id="tab-enroll" data-panel="tab-enroll">
     <div class="form-panel">
       <form method="post" action="/tak/{{ server.id }}/enroll" data-busy="Enrolling…">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
@@ -46,6 +89,17 @@
 
   <div class="tab-panel" id="tab-import" data-panel="tab-import">
     <div class="form-panel">
+      <form method="post" action="/tak/{{ server.id }}/import-portal-zip" enctype="multipart/form-data" data-busy="Importing…">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+        <div class="form-field">
+          <label class="field-label" for="id_portal_zip">Portal Download Certs zip</label>
+          <input id="id_portal_zip" type="file" name="cert_zip" accept=".zip" required/>
+        </div>
+        {{ field('password', 'PKCS#12 password (if needed)', type='password', help_key='tak.password', input_id='id_zip_password') }}
+        <p class="card-desc">From TAK Portal → Integrations → Download Certs (pem/key/p12).</p>
+        <button class="btn btn-primary" type="submit">Import Portal certs</button>
+      </form>
+      <hr style="margin:20px 0;border-color:var(--border)"/>
       <form method="post" action="/tak/{{ server.id }}/import-p12" enctype="multipart/form-data" data-busy="Importing…">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
         <div class="form-field">
@@ -53,7 +107,7 @@
           <input id="id_p12" type="file" name="p12" accept=".p12,.pfx" required/>
         </div>
         {{ field('password', 'Password', type='password', help_key='tak.password', input_id='id_p12_password') }}
-        <button class="btn btn-primary" type="submit">Import certificate</button>
+        <button class="btn btn-primary" type="submit">Import PKCS#12</button>
       </form>
     </div>
   </div>
@@ -87,6 +141,7 @@
     </div>
   </div>
 
+  {% if not server.is_streaming_feed %}
   <div class="tab-panel" id="tab-channels" data-panel="tab-channels">
     <div class="form-panel" style="max-width:640px">
       <form method="post" action="/tak/{{ server.id }}/channels" data-busy="Saving channels…">
@@ -109,6 +164,7 @@
       </form>
     </div>
   </div>
+  {% endif %}
 
   <div class="tab-panel" id="tab-danger" data-panel="tab-danger">
     <div class="form-panel">

@@ -59,6 +59,7 @@ async def aprs_save_settings(
     kiss_port: int = Form(8001),
     enable_rf: str | None = Form(None),
     enable_is: str | None = Form(None),
+    auto_approve_units: str | None = Form(None),
     aprs_is_server: str = Form("rotate.aprs2.net"),
     aprs_is_port: int = Form(14580),
     aprs_is_passcode: int = Form(-1),
@@ -78,6 +79,7 @@ async def aprs_save_settings(
             "kiss_port": kiss_port,
             "enable_rf": enable_rf is not None,
             "enable_is": enable_is is not None,
+            "auto_approve_units": auto_approve_units is not None,
             "aprs_is_server": aprs_is_server,
             "aprs_is_port": aprs_is_port,
             "aprs_is_passcode": aprs_is_passcode,
@@ -97,11 +99,25 @@ async def aprs_save_settings(
 async def aprs_service_action(
     action: str,
     request: Request,
+    confirm: str = Form(""),
     _user=Depends(require_auth),
     _csrf=Depends(verify_csrf),
 ):
     if action not in ("start", "stop", "restart"):
         return redirect("/modules/aprs?error=bad+action")
+    if action in ("start", "restart"):
+        from radiotak.services.listening import ensure_aprs_rf
+
+        conflict = ensure_aprs_rf(confirm=confirm.strip() in ("1", "true", "on", "yes"))
+        if conflict:
+            from urllib.parse import quote
+
+            return redirect(
+                "/systems?conflict="
+                + quote(conflict)
+                + "&confirm_action="
+                + quote("/modules/aprs/service/" + action)
+            )
     code, out = get_platform().service_action(SERVICE_UNIT, action)
     write_audit(f"aprs.service.{action}", detail={"exit": code, "out": (out or "")[:200]})
     if code != 0 and get_platform().__class__.__name__ != "DevPlatform":

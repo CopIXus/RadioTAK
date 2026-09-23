@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Radio Systems — {{ title or 'RadioTAK' }}{% endblock %}
+{% block content %}
+<div class="header">
+  <div>
+    <div class="header-title">Radio Systems</div>
+    <div class="header-subtitle">What this device is listening to · {{ tuner_count }} tuner(s)</div>
+  </div>
+</div>
+
+{% if message %}<div class="alert alert-ok">{{ message }}</div>{% endif %}
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+{% if conflict %}
+<div class="alert alert-error">
+  {{ conflict }}
+  <form method="post" action="{{ confirm_action }}" style="margin-top:10px" class="btn-row">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+    {% for k,v in confirm_hidden.items() %}
+    <input type="hidden" name="{{ k }}" value="{{ v }}"/>
+    {% endfor %}
+    <input type="hidden" name="confirm" value="1"/>
+    <button class="btn btn-sm btn-primary" type="submit">Confirm — stop conflicting service</button>
+    <a class="btn btn-sm" href="/systems">Cancel</a>
+  </form>
+</div>
+{% endif %}
+
+{% if not sources %}
+<div class="empty-state">
+  No radio modules installed yet.
+  <a href="/marketplace">Install SDR Location Gateway or APRS RF Gateway</a> from Marketplace.
+</div>
+{% else %}
+<div class="cards-grid">
+  {% for s in sources %}
+  <div class="card card-static">
+    <div class="card-title">{{ s.name }}</div>
+    <div class="card-desc">{{ s.protocol }} · {{ s.detail }}</div>
+    <div class="status-pill {% if s.listening %}status-running{% elif s.listen_state == 'stopped' %}status-warn{% else %}status-idle{% endif %}">
+      <span class="dot"></span>
+      {% if s.listening %}Listening{% elif s.listen_state == 'stopped' %}Stopped{% else %}Off{% endif %}
+    </div>
+    <div class="btn-row" style="margin-top:12px">
+      {% if s.kind == 'trunked' %}
+        {% set sid = s.id.replace('sdr:', '') %}
+        {% if s.listening %}
+        <form method="post" action="/systems/sdr/{{ sid }}/listen">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+          <input type="hidden" name="listen" value="0"/>
+          <button class="btn btn-sm" type="submit">Stop listen</button>
+        </form>
+        {% else %}
+        <form method="post" action="/systems/sdr/{{ sid }}/listen">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+          <input type="hidden" name="listen" value="1"/>
+          <button class="btn btn-sm btn-primary" type="submit">Listen</button>
+        </form>
+        {% endif %}
+        <a class="btn btn-sm" href="/modules/sdr">SDR details</a>
+        {% if sdr_installed %}
+        <a class="btn btn-sm" href="/encryption">Encryption</a>
+        {% endif %}
+      {% elif s.kind == 'aprs' %}
+        {% if listening.direwolf_active %}
+        <form method="post" action="/systems/aprs/rf/stop">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+          <button class="btn btn-sm" type="submit">Stop APRS RF</button>
+        </form>
+        {% else %}
+        <form method="post" action="/systems/aprs/rf/start">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+          <button class="btn btn-sm btn-primary" type="submit">Start APRS RF</button>
+        </form>
+        {% endif %}
+        <a class="btn btn-sm" href="/modules/aprs">APRS settings</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if sdr_installed %}
+<div class="section-title">Trunked decoder</div>
+<div class="btn-row">
+  {% if listening.sdrtrunk_active %}
+  <form method="post" action="/systems/sdrtrunk/stop">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+    <button class="btn btn-sm" type="submit">Stop SDRTrunk</button>
+  </form>
+  {% else %}
+  <form method="post" action="/systems/sdrtrunk/start">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+    <button class="btn btn-sm btn-primary" type="submit">Start SDRTrunk</button>
+  </form>
+  {% endif %}
+  <a class="btn btn-sm" href="/modules/sdr">Manage frequencies &amp; keys</a>
+</div>
+<p class="card-desc" style="margin-top:10px">
+  Shared tuners cannot run SDRTrunk and Direwolf APRS RF at the same time.
+  APRS-IS (internet) can run alongside trunked SDR.
+</p>
+{% endif %}
+{% endblock %}

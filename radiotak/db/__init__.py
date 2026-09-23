@@ -141,6 +141,9 @@ class TakServer(Base):
     enrollment_port: Mapped[int] = mapped_column(Integer, default=8446)
     api_port: Mapped[int] = mapped_column(Integer, default=8443)
     connection_mode: Mapped[str] = mapped_column(String(32), default="tls")
+    # standard = CoT 8089 + Marti groups; streaming_feed = Portal Integration data-feed port
+    connection_profile: Mapped[str] = mapped_column(String(32), default="standard")
+    send_presence: Mapped[bool] = mapped_column(Boolean, default=True)
     tls_verify: Mapped[bool] = mapped_column(Boolean, default=True)
     server_ca_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
     username: Mapped[str | None] = mapped_column(String(128), nullable=True)
@@ -416,6 +419,8 @@ def _sqlite_add_missing_columns(engine) -> None:
         "ALTER TABLE encrypted_traffic_events ADD COLUMN lra VARCHAR(64)",
         "ALTER TABLE encrypted_traffic_events ADD COLUMN encryption_header_present BOOLEAN DEFAULT 0",
         "ALTER TABLE encrypted_traffic_events ADD COLUMN emergency BOOLEAN DEFAULT 0",
+        "ALTER TABLE tak_servers ADD COLUMN connection_profile VARCHAR(32) DEFAULT 'standard'",
+        "ALTER TABLE tak_servers ADD COLUMN send_presence BOOLEAN DEFAULT 1",
     ]
     with engine.begin() as conn:
         for sql in statements:

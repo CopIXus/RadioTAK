@@ -29,6 +29,13 @@ def _manager_for(server: TakServer) -> TakConnectionManager:
     stale = float(fwd.get("stale_seconds") or DEFAULT_STALE_SECONDS)
     device_uid = server.device_uid or f"RadioTAK-{server.id[:8]}"
     groups = list(server.active_groups or [])
+    profile = (getattr(server, "connection_profile", None) or "standard").strip().lower()
+    if profile not in ("standard", "streaming_feed"):
+        profile = "standard"
+    # Streaming data feeds publish into Portal WRITE filter groups — no gateway SA.
+    send_presence = bool(getattr(server, "send_presence", True))
+    if profile == "streaming_feed":
+        send_presence = False
     return TakConnectionManager(
         server_id=server.id,
         host=server.host,
@@ -46,6 +53,8 @@ def _manager_for(server: TakServer) -> TakConnectionManager:
         presence_lon=float(server.presence_lon or 0.0),
         app_version=current_version(),
         stale_drop_seconds=max(stale, 60.0),
+        connection_profile=profile,
+        send_presence=send_presence,
     )
 
 

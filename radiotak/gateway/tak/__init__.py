@@ -102,6 +102,9 @@ class TakConnectionManager:
     presence_lat: float = 0.0
     presence_lon: float = 0.0
     app_version: str = "0.0.0"
+    # standard: Marti groups + presence SA; streaming_feed: Portal DF port, no groups PUT
+    connection_profile: str = "standard"
+    send_presence: bool = True
 
     state: ConnectionState = ConnectionState.DISCONNECTED
     last_error: str | None = None
@@ -162,7 +165,13 @@ class TakConnectionManager:
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, self.reconnect_max)
 
+    @property
+    def is_streaming_feed(self) -> bool:
+        return (self.connection_profile or "standard").strip().lower() == "streaming_feed"
+
     async def _apply_groups(self) -> None:
+        if self.is_streaming_feed:
+            return
         if not self.active_groups or not self.cert_path or not self.key_path:
             return
         try:
@@ -217,7 +226,7 @@ class TakConnectionManager:
             last_presence = 0.0
             while not self._stop.is_set():
                 now = time.monotonic()
-                if now - last_presence >= PRESENCE_INTERVAL_SECONDS:
+                if self.send_presence and now - last_presence >= PRESENCE_INTERVAL_SECONDS:
                     await self._write_xml(self._presence_xml())
                     last_presence = now
                 await self._drain_queue()
@@ -252,27 +261,30 @@ class TakConnectionManager:
         self.state = ConnectionState.CONNECTED
         self.last_error = None
         try:
-            await self._write_xml(self._presence_xml(), writer)
+            if self.send_presence:
+                await self._write_xml(self._presence_xml(), writer)
             await self._apply_groups()
-            await self._write_xml(self._presence_xml(), writer)
+            if self.send_presence:
+                await self._write_xml(self._presence_xml(), writer)
             last_presence = time.monotonic()
             while not self._stop.is_set():
                 now = time.monotonic()
-                if now - last_presence >= PRESENCE_INTERVAL_SECONDS:
+                if self.send_presence and now - last_presence >= PRESENCE_INTERVAL_SECONDS:
                     await self._write_xml(self._presence_xml(), writer)
                     last_presence = now
                 await self._drain_queue(writer)
                 await asyncio.sleep(0.05)
         finally:
-            try:
-                await self._write_xml(
-                    build_disconnect_xml(
-                        uid=self.presence_uid(), callsign=self.callsign or "RadioTAK"
-                    ),
-                    writer,
-                )
-            except Exception:  # noqa: BLE001
-                pass
+            if self.send_presence:
+                try:
+                    await self._write_xml(
+                        build_disconnect_xml(
+                            uid=self.presence_uid(), callsign=self.callsign or "RadioTAK"
+                        ),
+                        writer,
+                    )
+                except Exception:  # noqa: BLE001
+                    pass
             writer.close()
             try:
                 await writer.wait_closed()

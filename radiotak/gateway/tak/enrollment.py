@@ -415,3 +415,79 @@ def import_pkcs12(
         chain = b"".join(c.public_bytes(Encoding.PEM) for c in additional)
         ca_path = store.write_bytes(f"{server_id}/ca.pem", chain)
     return {"meta": meta, "ca_path": str(ca_path) if ca_path else None}
+
+
+def import_integration_cert_zip(
+    server_id: str,
+    zip_bytes: bytes,
+    password: str | None = None,
+    store: SecretStore | None = None,
+) -> dict[str, Any]:
+    """Import a TAK Portal Integration cert zip (pem/key/p12 + truststore).
+
+    Portal packs ``nodered-….pem``, ``.key``, optional ``.p12``, and an intermediate
+    truststore p12. Prefer explicit pem+key; fall back to client p12.
+    """
+    import io
+    import zipfile
+
+    store = store or SecretStore()
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(zip_bytes))
+    except zipfile.BadZipFile as exc:
+        raise RuntimeError("Not a valid zip file (expected Portal Download Certs bundle)") from exc
+
+    names = zf.namelist()
+    pem_name = next((n for n in names if n.lower().endswith(".pem") and "trust" not in n.lower()), None)
+    key_name = next((n for n in names if n.lower().endswith(".key")), None)
+    p12_names = [
+        n
+        for n in names
+        if n.lower().endswith(".p12") or n.lower().endswith(".pfx")
+    ]
+    client_p12 = next(
+        (n for n in p12_names if "trust" not in n.lower() and "intermediate" not in n.lower()),
+        None,
+    )
+    trust_p12 = next(
+        (n for n in p12_names if "trust" in n.lower() or "intermediate" in n.lower()),
+        None,
+    )
+
+    if pem_name and key_name:
+        cert_pem = zf.read(pem_name)
+        key_pem = zf.read(key_name)
+        result = import_pem_pair(server_id, cert_pem, key_pem, store=store)
+        if client_p12:
+            store.write_bytes(f"{server_id}/client.p12", zf.read(client_p12))
+            if password:
+                store.write_text(f"{server_id}/p12_password", password)
+        if trust_p12 and not result.get("ca_path"):
+            # Best-effort: extract CA chain from truststore when password known / empty
+            try:
+                trust_bytes = zf.read(trust_p12)
+                _key, _cert, additional = pkcs12.load_key_and_certificates(
+                    trust_bytes, password.encode() if password else None
+                )
+                chain_parts = []
+                if _cert:
+                    chain_parts.append(_cert.public_bytes(Encoding.PEM))
+                for c in additional or []:
+                    chain_parts.append(c.public_bytes(Encoding.PEM))
+                if chain_parts:
+                    ca_path = store.write_bytes(f"{server_id}/ca.pem", b"".join(chain_parts))
+                    result["ca_path"] = str(ca_path)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("Could not parse truststore from integration zip: %s", exc)
+        result["source"] = "portal_zip_pem"
+        return result
+
+    if client_p12:
+        result = import_pkcs12(server_id, zf.read(client_p12), password, store=store)
+        result["source"] = "portal_zip_p12"
+        return result
+
+    raise RuntimeError(
+        "Zip missing client cert materials. Expected *.pem + *.key (or a client *.p12) "
+        "from TAK Portal → Integrations → Download Certs."
+    )
