@@ -18,9 +18,12 @@ RTL-SDR → rtl_fm → Direwolf → KISS :8001 → aprs_rf_gateway
                                       └─ messages  → GeoChat b-t-f → tak_registry
 ```
 
-### Dongle conflict
+### Dongle conflict / Airspy
 
-`direwolf-aprs.service` **Conflicts** with `sdrtrunk.service`. Use a **second RTL-SDR** for APRS, or stop SDRTrunk while listening to APRS. Sound-card audio from a radio speaker is also fine: edit `/var/lib/radiotak/modules/aprs_rf_gateway/direwolf.conf` to set `ADEVICE` and run Direwolf without the rtl_fm wrapper.
+`direwolf-aprs.service` **Conflicts** with `sdrtrunk.service` when both need the same tuner.
+On VM 700 the passed-through stick is often an **Airspy** — the launcher auto-detects it and uses `airspy_rx | csdr | direwolf` (needs the `airspy` + `csdr` packages from apt).
+
+For internet-only testing, enable **APRS-IS** and leave Direwolf stopped so SDRTrunk can keep the Airspy.
 
 ### Optional APRS-IS
 

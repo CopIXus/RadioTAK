@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Pipe RTL-SDR FM demod into Direwolf at 24 kHz (US VHF APRS 144.390 MHz).
-# RX-only — no TX, digipeat, or IGate.
+# Pipe SDR FM demod into Direwolf (US VHF APRS 144.390 MHz). RX-only.
+# Prefers RTL-SDR (rtl_fm). Falls back to Airspy (airspy_rx + csdr) when present.
 set -euo pipefail
 
 CONF="${RADIOTAK_DIREWOLF_CONF:-/var/lib/radiotak/modules/aprs_rf_gateway/direwolf.conf}"
 SETTINGS="${RADIOTAK_APRS_SETTINGS:-/var/lib/radiotak/modules/aprs_rf_gateway/settings.json}"
 RATE="${APRS_SAMPLE_RATE:-24000}"
 
-# Defaults; overridden from settings.json when present
 FREQ="${APRS_FREQ_HZ:-144390000}"
 GAIN="${APRS_RTL_GAIN:-40}"
 DEVICE="${APRS_RTL_DEVICE:-0}"
+BACKEND="${APRS_SDR_BACKEND:-auto}"
 
 if [[ -f "$SETTINGS" ]] && command -v python3 >/dev/null; then
   eval "$(python3 - <<PY
@@ -24,13 +24,66 @@ except Exception:
 print(f'FREQ={int(d.get("frequency_hz") or 144390000)}')
 print(f'GAIN={int(d.get("rtl_gain") or 40)}')
 print(f'DEVICE={str(d.get("rtl_device") or "0")!r}')
+print(f'BACKEND={str(d.get("sdr_backend") or "auto")!r}')
 PY
 )"
 fi
 
-command -v rtl_fm >/dev/null || { echo "rtl_fm not found (install rtl-sdr)" >&2; exit 1; }
 command -v direwolf >/dev/null || { echo "direwolf not found" >&2; exit 1; }
 [[ -f "$CONF" ]] || { echo "missing Direwolf config: $CONF" >&2; exit 1; }
 
-exec rtl_fm -d "$DEVICE" -f "$FREQ" -M fm -s "$RATE" -g "$GAIN" - \
-  | direwolf -c "$CONF" -r "$RATE" -t 0 -
+pick_backend() {
+  case "$BACKEND" in
+    rtl|rtl-sdr|rtlsdr) echo rtl; return ;;
+    airspy) echo airspy; return ;;
+  esac
+  if lsusb 2>/dev/null | grep -qiE '0bda:283[28]|Realtek.*RTL283'; then
+    echo rtl
+    return
+  fi
+  if lsusb 2>/dev/null | grep -qiE '1d50:60a1|Airspy'; then
+    echo airspy
+    return
+  fi
+  if command -v rtl_fm >/dev/null 2>&1; then
+    echo rtl
+    return
+  fi
+  if command -v airspy_rx >/dev/null 2>&1; then
+    echo airspy
+    return
+  fi
+  echo none
+}
+
+BE=$(pick_backend)
+echo "aprs-direwolf: backend=$BE freq=$FREQ rate=$RATE" >&2
+
+case "$BE" in
+  rtl)
+    command -v rtl_fm >/dev/null || { echo "rtl_fm not found (install rtl-sdr)" >&2; exit 1; }
+    exec rtl_fm -d "$DEVICE" -f "$FREQ" -M fm -s "$RATE" -g "$GAIN" - \
+      | direwolf -c "$CONF" -r "$RATE" -t 0 -
+    ;;
+  airspy)
+    command -v airspy_rx >/dev/null || { echo "airspy_rx not found (install airspy)" >&2; exit 1; }
+    command -v csdr >/dev/null || { echo "csdr not found (needed for Airspy FM demod → Direwolf)" >&2; exit 1; }
+    # 2.5 Msps IQ → decimate → FM demod → 25 kHz audio for Direwolf
+    AIRSPY_RATE=2500000
+    DECIM=100
+    AUDIO_RATE=$((AIRSPY_RATE / DECIM))
+    AG=${GAIN}
+    if [[ "$AG" -gt 21 ]]; then AG=15; fi
+    exec airspy_rx -r "$AIRSPY_RATE" -f "$FREQ" -a 1 -g "$AG" - \
+      | csdr convert_s16_f \
+      | csdr fir_decimate_cc "$DECIM" 0.05 \
+      | csdr fmdemod_quadri_cf \
+      | csdr limit_ff \
+      | csdr convert_f_s16 \
+      | direwolf -c "$CONF" -r "$AUDIO_RATE" -t 0 -
+    ;;
+  *)
+    echo "No usable SDR backend (need RTL-SDR or Airspy)" >&2
+    exit 1
+    ;;
+esac

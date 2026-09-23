@@ -24,6 +24,7 @@ DEFAULTS: dict[str, Any] = {
     "rtl_device": "0",
     "rtl_gain": 40,
     "frequency_hz": 144390000,
+    "sdr_backend": "auto",
 }
 
 

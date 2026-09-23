@@ -11,9 +11,17 @@ die() { echo "aprs-install: $*" >&2; exit 1; }
 
 export DEBIAN_FRONTEND=noninteractive
 
-echo "Installing direwolf, rtl-sdr, and alsa-utils…"
-apt-get install -y -qq direwolf rtl-sdr alsa-utils \
-  || die "apt-get install failed (need direwolf + rtl-sdr)"
+echo "Installing direwolf, rtl-sdr, airspy, csdr, sox…"
+apt-get install -y -qq direwolf rtl-sdr airspy csdr sox \
+  || apt-get install -y -qq direwolf rtl-sdr sox \
+  || die "apt-get install failed (need at least direwolf + rtl-sdr)"
+# csdr is optional but required for Airspy FM demod; warn if missing
+if ! command -v csdr >/dev/null 2>&1; then
+  echo "csdr not installed — Airspy RF path unavailable; RTL-SDR or APRS-IS still work" >&2
+fi
+if ! command -v airspy_rx >/dev/null 2>&1; then
+  echo "airspy tools not installed — RTL-SDR or APRS-IS still work" >&2
+fi
 
 # APRS packet parse dependency for the in-process gateway
 if [[ -x "$INSTALL_DIR/.venv/bin/pip" ]]; then
@@ -53,15 +61,17 @@ if [[ ! -f "$MOD_DIR/settings.json" ]]; then
   "kiss_host": "127.0.0.1",
   "kiss_port": 8001,
   "enable_rf": true,
-  "enable_is": false,
+  "enable_is": true,
   "aprs_is_server": "rotate.aprs2.net",
   "aprs_is_port": 14580,
+  "aprs_is_passcode": -1,
   "aprs_is_filter": "r/36.35/-82.21/50",
   "chatroom": "APRS",
   "marti_dest_group": "",
   "rtl_device": "0",
   "rtl_gain": 40,
-  "frequency_hz": 144390000
+  "frequency_hz": 144390000,
+  "sdr_backend": "auto"
 }
 JSON
   chown radiotak:radiotak "$MOD_DIR/settings.json"
@@ -85,7 +95,7 @@ PY
 
 cat > /etc/systemd/system/direwolf-aprs.service <<EOF
 [Unit]
-Description=Direwolf APRS RX (RadioTAK) via RTL-SDR
+Description=Direwolf APRS RX (RadioTAK) via RTL-SDR/Airspy
 After=network.target
 Conflicts=sdrtrunk.service
 
