@@ -106,11 +106,12 @@
     return L.tileLayer(entry.url, opts);
   }
 
-  function cotIcon(color) {
+  function cotIcon(color, shape) {
     var c = color || '#06b6d4';
+    var s = shape || 'disc';
     return L.divIcon({
       className: '',
-      html: '<div class="cot-marker" style="background:' + c + '"></div>',
+      html: '<div class="marker-glyph shape-' + s + '" style="color:' + c + ';width:18px;height:18px"></div>',
       iconSize: [18, 18],
       iconAnchor: [9, 9],
       popupAnchor: [0, -10]
@@ -168,7 +169,8 @@
       (points || []).forEach(function (p) {
         if (p.lat == null || p.lon == null) return;
         var color = p.marker_color || '#06b6d4';
-        var m = L.marker([p.lat, p.lon], { icon: cotIcon(color) });
+        var shape = p.shape || 'disc';
+        var m = L.marker([p.lat, p.lon], { icon: cotIcon(color, shape) });
         var label = p.callsign || p.radio_id || 'Radio';
         m.bindTooltip(label, {
           permanent: true,

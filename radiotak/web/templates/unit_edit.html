@@ -3,12 +3,14 @@
 {% block title %}Edit unit — {{ title or 'RadioTAK' }}{% endblock %}
 {% block content %}
 {% set cot_types = [
+  ('a-f-G-U-U-S-R', 'Friendly radio unit (Gnd/RADIO UNIT)'),
   ('a-n-G', 'Neutral ground (named marker, not a contact)'),
   ('a-u-G', 'Unknown ground (named marker, not a contact)'),
   ('a-f-G-E-V', 'Friendly ground equipment (vehicle)'),
   ('a-h-G', 'Hostile ground'),
   ('a-f-G-U-C', 'Friendly ground unit (shows as ATAK contact)'),
   ('a-f-G-U-C-I', 'Friendly ground unit (C2 / contact)'),
+  ('b-m-p-s-m', 'Spot Map point (colored ATAK spot)'),
 ] %}
 
 <div class="header">

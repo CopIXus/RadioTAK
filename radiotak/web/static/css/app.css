@@ -764,6 +764,85 @@ body::before {
   box-shadow: 0 0 0 1px rgba(0,0,0,.35);
 }
 
+.marker-preview-card {
+  background: rgba(15, 23, 42, .55);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 8px;
+}
+.marker-preview-stage {
+  min-height: 110px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background:
+    linear-gradient(rgba(148,163,184,.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148,163,184,.12) 1px, transparent 1px);
+  background-size: 24px 24px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+.marker-preview-callsign {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-shadow: 0 1px 2px rgba(0,0,0,.45);
+}
+.marker-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.marker-icon-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.marker-icon-btn:hover { border-color: var(--border-hover); color: var(--text-primary); }
+.marker-icon-btn.active {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 1px var(--cyan);
+  color: var(--text-primary);
+}
+.marker-icon-label { font-size: 11px; text-align: center; line-height: 1.3; }
+.marker-glyph {
+  width: 28px;
+  height: 28px;
+  display: inline-block;
+  background: currentColor;
+}
+.marker-glyph.shape-disc { border-radius: 50%; }
+.marker-glyph.shape-square { border-radius: 3px; }
+.marker-glyph.shape-triangle {
+  width: 0; height: 0; background: transparent;
+  border-left: 14px solid transparent;
+  border-right: 14px solid transparent;
+  border-bottom: 26px solid currentColor;
+}
+.marker-glyph.shape-star {
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+  background: currentColor;
+}
+.marker-glyph.shape-radio {
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 3px rgba(15,23,42,.55);
+}
+#id_marker_color_picker {
+  width: 42px; height: 36px; padding: 0; border: 1px solid var(--border);
+  border-radius: 8px; background: transparent; cursor: pointer;
+}
+
 .dim { color: var(--text-dim); }
 
 .update-overlay {

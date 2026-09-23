@@ -61,15 +61,15 @@ HELP: dict[str, dict[str, str]] = {
     },
     "tak.cot_type": {
         "label": "Radio CoT type",
-        "what": "CoT type for radio detection markers. Neutral/unknown ground types show a name on the map but do not appear in ATAK Contacts. Friendly unit (a-f-G-U-C) does show as a contact.",
-        "where": "TAK → Configure → Marker Appearance, or override per radio on Units → Edit.",
-        "example": "a-n-G",
+        "what": "CoT type on the wire. a-n-G is ATAK's green square; a-f-G-U-U-S-R is CloudTAK Gnd/RADIO UNIT; b-m-p-s-m is a colored Spot Map. Friendly unit (a-f-G-U-C) shows as an ATAK contact.",
+        "where": "TAK → Configure → Marker Appearance (or icon picker), or override per radio on Units → Edit.",
+        "example": "a-f-G-U-U-S-R",
     },
     "tak.iconset_path": {
         "label": "Iconset path",
-        "what": "ATAK/CloudTAK usericon path: iconset UUID + group/name.",
-        "where": "In CloudTAK/ATAK, inspect a marker's icon property (uuid:Group/name).",
-        "example": "34ae1613-…:Hiking/star",
+        "what": "ATAK/CloudTAK usericon path: iconset UUID + group/name. Prefer the Point icon picker. CloudTAK renders paths it knows; ATAK needs the iconset installed or falls back to the CoT type symbol.",
+        "where": "Marker Appearance; CloudTAK Hiking/star uses 34ae1613-…:Hiking/star.",
+        "example": "34ae1613-9645-4222-a9d2-e5f243dea2865:Hiking/star",
     },
     "tak.marker_color": {
         "label": "Marker color",

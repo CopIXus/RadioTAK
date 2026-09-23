@@ -113,27 +113,58 @@
   </div>
 
   <div class="tab-panel" id="tab-marker" data-panel="tab-marker">
-    <div class="form-panel">
+    <div class="form-panel marker-appearance">
       <form method="post" action="/tak/{{ server.id }}/marker" id="marker-form" data-busy="Saving…">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
-        {{ field('default_callsign', 'Default radio callsign', value=server.default_callsign or 'Radio', help_key='tak.default_callsign') }}
-        {{ select('cot_type_default', 'Radio CoT type', [
+        <input type="hidden" name="icon_id" id="id_icon_id" value="{{ selected_icon_id or '' }}"/>
+
+        <div class="marker-preview-card">
+          <div class="marker-preview-stage">
+            <div id="marker-preview-glyph" class="marker-glyph shape-star" style="color:{{ server.marker_color or '#0010eb' }}"></div>
+            <div id="marker-preview-callsign" class="marker-preview-callsign">{{ server.default_callsign or 'Radio' }}</div>
+          </div>
+          <div class="card-desc" id="marker-preview-hint">
+            Sample of how markers publish to CloudTAK / ATAK. Custom Hiking icons render in CloudTAK when that iconset exists; ATAK falls back to the CoT type symbol if the iconset is not installed.
+          </div>
+        </div>
+
+        <p class="card-desc" style="margin:16px 0 8px">Point icon</p>
+        <div class="marker-icon-grid" id="marker-icon-grid">
+          {% for icon in marker_icons or [] %}
+          <button type="button" class="marker-icon-btn{% if selected_icon_id == icon.id %} active{% endif %}"
+            data-icon-id="{{ icon.id }}"
+            data-path="{{ icon.iconset_path or '' }}"
+            data-type="{{ icon.type2525b }}"
+            data-how="{{ icon.how }}"
+            data-shape="{{ icon.shape }}"
+            data-hint="{{ icon.hint }}"
+            title="{{ icon.label }}">
+            <span class="marker-glyph shape-{{ icon.shape }}" style="color:{{ server.marker_color or '#0010eb' }}"></span>
+            <span class="marker-icon-label">{{ icon.label }}</span>
+          </button>
+          {% endfor %}
+        </div>
+
+        {{ field('default_callsign', 'Default radio callsign', value=server.default_callsign or 'Radio', help_key='tak.default_callsign', input_id='id_default_callsign') }}
+        {{ select('cot_type_default', 'Radio CoT type (ground)', cot_type_choices or [
+          ('a-f-G-U-U-S-R', 'Friendly radio unit (Gnd/RADIO UNIT)'),
           ('a-n-G', 'Neutral ground (named marker, not a contact)'),
           ('a-u-G', 'Unknown ground (named marker, not a contact)'),
           ('a-f-G-E-V', 'Friendly vehicle'),
           ('a-h-G', 'Hostile ground'),
           ('a-f-G-U-C', 'Friendly unit (shows as ATAK contact)'),
+          ('b-m-p-s-m', 'Spot Map point (colored ATAK spot)'),
         ], value=server.cot_type_default or 'a-n-G', help_key='tak.cot_type') }}
-        {{ field('iconset_path', 'Iconset path', value=server.iconset_path or '', help_key='tak.iconset_path', placeholder='uuid:Group/name') }}
-        {{ field('marker_color', 'Marker color', value=server.marker_color or '#06b6d4', help_key='tak.marker_color') }}
-        {{ field('cot_how', 'CoT how', value=server.cot_how or 'm-g', help_key='tak.cot_how') }}
+        {{ field('iconset_path', 'Iconset path', value=server.iconset_path or '', help_key='tak.iconset_path', placeholder='uuid:Group/name', input_id='id_iconset_path') }}
+        <div class="label-row" style="margin-top:12px"><span class="field-label">Marker color</span></div>
+        <div class="btn-row" style="align-items:center;gap:10px;margin-bottom:12px">
+          <input type="color" id="id_marker_color_picker" value="{{ server.marker_color or '#0010eb' }}" aria-label="Marker color picker"/>
+          <input class="input" name="marker_color" id="id_marker_color" value="{{ server.marker_color or '#0010eb' }}" style="max-width:140px" autocomplete="off"/>
+        </div>
+        {{ field('cot_how', 'CoT how', value=server.cot_how or 'm-g', help_key='tak.cot_how', input_id='id_cot_how') }}
         {{ field('default_ce_feet', 'Default CE (feet)', type='number', value=server.default_ce_feet or 2000, step='1', help_key='tak.default_ce_feet') }}
         {{ field('presence_lat', 'RadioTAK user latitude', value=server.presence_lat if server.presence_lat is not none else '', help_key='tak.presence_lat', placeholder='optional') }}
         {{ field('presence_lon', 'RadioTAK user longitude', value=server.presence_lon if server.presence_lon is not none else '', help_key='tak.presence_lon', placeholder='optional') }}
-        <div class="marker-swatch">
-          <span class="dot" id="marker-swatch-dot" style="background:{{ server.marker_color or '#06b6d4' }}"></span>
-          <span class="dim" id="marker-swatch-label">Live preview</span>
-        </div>
         <div class="btn-row">
           <button class="btn btn-primary" type="submit">Save marker appearance</button>
         </div>
@@ -200,12 +231,60 @@
 <script>
 (function () {
   var colorInput = document.getElementById('id_marker_color');
-  var dot = document.getElementById('marker-swatch-dot');
-  if (colorInput && dot) {
-    colorInput.addEventListener('input', function () {
-      dot.style.background = colorInput.value || '#06b6d4';
+  var colorPicker = document.getElementById('id_marker_color_picker');
+  var iconIdInput = document.getElementById('id_icon_id');
+  var pathInput = document.getElementById('id_iconset_path');
+  var typeSelect = document.getElementById('id_cot_type_default');
+  var howInput = document.getElementById('id_cot_how');
+  var callsignInput = document.getElementById('id_default_callsign');
+  var previewGlyph = document.getElementById('marker-preview-glyph');
+  var previewCs = document.getElementById('marker-preview-callsign');
+  var previewHint = document.getElementById('marker-preview-hint');
+  var grid = document.getElementById('marker-icon-grid');
+
+  function syncColor(c) {
+    c = c || '#0010eb';
+    if (colorInput) colorInput.value = c;
+    if (colorPicker) colorPicker.value = /^#[0-9a-fA-F]{6}$/.test(c) ? c : '#0010eb';
+    document.querySelectorAll('.marker-glyph').forEach(function (el) {
+      el.style.color = c;
     });
   }
+
+  function setShape(shape) {
+    if (!previewGlyph) return;
+    previewGlyph.className = 'marker-glyph shape-' + (shape || 'disc');
+  }
+
+  if (colorInput) {
+    colorInput.addEventListener('input', function () { syncColor(colorInput.value); });
+  }
+  if (colorPicker) {
+    colorPicker.addEventListener('input', function () { syncColor(colorPicker.value); });
+  }
+  if (callsignInput && previewCs) {
+    callsignInput.addEventListener('input', function () {
+      previewCs.textContent = callsignInput.value || 'Radio';
+    });
+  }
+
+  if (grid) {
+    grid.querySelectorAll('.marker-icon-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        grid.querySelectorAll('.marker-icon-btn').forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        if (iconIdInput) iconIdInput.value = btn.getAttribute('data-icon-id') || '';
+        if (pathInput) pathInput.value = btn.getAttribute('data-path') || '';
+        if (typeSelect) typeSelect.value = btn.getAttribute('data-type') || typeSelect.value;
+        if (howInput) howInput.value = btn.getAttribute('data-how') || howInput.value;
+        setShape(btn.getAttribute('data-shape'));
+        if (previewHint) previewHint.textContent = btn.getAttribute('data-hint') || '';
+      });
+    });
+    var active = grid.querySelector('.marker-icon-btn.active');
+    if (active) setShape(active.getAttribute('data-shape'));
+  }
+  syncColor((colorInput && colorInput.value) || '#0010eb');
 })();
 </script>
 {% endblock %}

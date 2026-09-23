@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from radiotak.gateway.constants import DETECTION_COT_TYPE
+from radiotak.gateway.icons_catalog import shape_for_path
 
 FEET_TO_METERS = 0.3048
 
@@ -55,6 +56,7 @@ def resolve_style(
         "default_ce_meters": feet_to_meters(float(ce_feet)),
         "remarks": remarks,
         "stale_seconds": stale,
+        "shape": shape_for_path(icon, cot_type),
     }
 
 

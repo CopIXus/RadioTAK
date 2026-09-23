@@ -48,6 +48,12 @@ from radiotak.db import (
 )
 from radiotak.gateway.constants import DEFAULT_STALE_SECONDS, DETECTION_COT_TYPE
 from radiotak.gateway.events import event_bus
+from radiotak.gateway.icons_catalog import (
+    COT_TYPE_CHOICES,
+    find_icon_by_id,
+    find_icon_by_path,
+    list_marker_icons,
+)
 from radiotak.gateway.identities import hear_status
 from radiotak.gateway.marker_style import resolve_style
 from radiotak.gateway.tak import ConnectionState, TakConnectionManager, tak_registry
@@ -337,6 +343,7 @@ def _location_points(
                 "marker_color": style["marker_color"],
                 "icon": style["iconset_path"],
                 "cot_type": style["cot_type"],
+                "shape": style.get("shape") or "disc",
                 "observed_at": unit.last_observed_at.isoformat() if unit.last_observed_at else None,
                 "forward": unit.forward_to_tak,
             }
@@ -1241,6 +1248,12 @@ async def tak_detail(server_id: str, request: Request, _user=Depends(require_aut
         marti_names.discard("")
         saved = list(server.active_groups or [])
         channel_orphans = [n for n in saved if n and n not in marti_names]
+        marker_icons = list_marker_icons()
+        selected_icon = find_icon_by_path(server.iconset_path)
+        if selected_icon is None and (server.cot_type_default or "") == "b-m-p-s-m":
+            selected_icon = find_icon_by_id("atak-spot-map")
+        if selected_icon is None and (server.cot_type_default or "") == "a-f-G-U-U-S-R":
+            selected_icon = find_icon_by_id("friendly-radio-2525")
     finally:
         db.close()
     return TEMPLATES.TemplateResponse(
@@ -1252,6 +1265,9 @@ async def tak_detail(server_id: str, request: Request, _user=Depends(require_aut
             server=server,
             groups=groups,
             channel_orphans=channel_orphans,
+            marker_icons=marker_icons,
+            selected_icon_id=(selected_icon or {}).get("id") or "",
+            cot_type_choices=COT_TYPE_CHOICES,
             message=request.query_params.get("msg"),
             error=request.query_params.get("err"),
         ),
@@ -1503,6 +1519,7 @@ async def tak_marker(
     request: Request,
     default_callsign: str = Form("Radio"),
     cot_type_default: str = Form(DETECTION_COT_TYPE),
+    icon_id: str = Form(""),
     iconset_path: str = Form(""),
     marker_color: str = Form("#06b6d4"),
     cot_how: str = Form("m-g"),
@@ -1515,6 +1532,12 @@ async def tak_marker(
     verify_csrf(request, csrf_token)
     if not _valid_hex_color(marker_color):
         return redirect(f"/tak/{server_id}?err={quote('Invalid marker color')}")
+    catalog = find_icon_by_id(icon_id)
+    if catalog:
+        # Picker selection drives CoT path / 2525 type / how (matches CloudTAK style panel).
+        iconset_path = str(catalog.get("iconset_path") or "")
+        cot_type_default = str(catalog.get("type2525b") or cot_type_default)
+        cot_how = str(catalog.get("how") or cot_how)
     Session = get_session_factory()
     db = Session()
     try:
