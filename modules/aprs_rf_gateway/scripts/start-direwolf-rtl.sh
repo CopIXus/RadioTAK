@@ -68,18 +68,21 @@ case "$BE" in
   airspy)
     command -v airspy_rx >/dev/null || { echo "airspy_rx not found (install airspy)" >&2; exit 1; }
     command -v csdr >/dev/null || { echo "csdr not found (needed for Airspy FM demod → Direwolf)" >&2; exit 1; }
-    # 2.5 Msps IQ → decimate → FM demod → 25 kHz audio for Direwolf
+    # Debian airspy_rx: -f is MHz, -a sample rate, -r output file, -g linearity 0-21, -t 2=INT16_IQ
     AIRSPY_RATE=2500000
     DECIM=100
     AUDIO_RATE=$((AIRSPY_RATE / DECIM))
+    FREQ_MHZ=$(python3 -c "print(f'{int(\"$FREQ\")/1e6:.6f}')")
     AG=${GAIN}
     if [[ "$AG" -gt 21 ]]; then AG=15; fi
-    exec airspy_rx -r "$AIRSPY_RATE" -f "$FREQ" -a 1 -g "$AG" - \
-      | csdr convert_s16_f \
-      | csdr fir_decimate_cc "$DECIM" 0.05 \
-      | csdr fmdemod_quadri_cf \
-      | csdr limit_ff \
-      | csdr convert_f_s16 \
+    export LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH:-}"
+    echo "aprs-direwolf: airspy ${FREQ_MHZ} MHz rate=${AIRSPY_RATE} → audio ${AUDIO_RATE}" >&2
+    exec airspy_rx -r /dev/stdout -f "$FREQ_MHZ" -a "$AIRSPY_RATE" -t 2 -g "$AG" \
+      | csdr convert -i s16 -o float \
+      | csdr firdecimate "$DECIM" 0.05 \
+      | csdr fmdemod \
+      | csdr limit \
+      | csdr convert -i float -o s16 \
       | direwolf -c "$CONF" -r "$AUDIO_RATE" -t 0 -
     ;;
   *)
