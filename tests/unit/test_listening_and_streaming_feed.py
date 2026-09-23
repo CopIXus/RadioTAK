@@ -101,8 +101,8 @@ def test_import_integration_cert_zip_encrypted_key(tmp_path, monkeypatch):
     from cryptography.x509.oid import NameOID
 
     from radiotak.config import get_settings, reload_settings
-    from radiotak.gateway.tak.enrollment import import_integration_cert_zip
     from radiotak.gateway.tak import build_tak_ssl_context
+    from radiotak.gateway.tak.enrollment import import_integration_cert_zip
 
     monkeypatch.setenv("RADIOTAK_DATA_DIR", str(tmp_path))
     reload_settings()
