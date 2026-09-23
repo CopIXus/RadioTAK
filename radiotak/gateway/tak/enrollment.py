@@ -372,16 +372,55 @@ async def enroll_with_pytak(
     )
 
 
+def normalize_private_key_pem(
+    key_pem: bytes,
+    password: str | None = None,
+) -> bytes:
+    """Load a PEM private key and rewrite it unencrypted for ssl.load_cert_chain.
+
+    TAK Portal Integration zips often ship ``*.key`` encrypted with ``atakatak``.
+    Python's ``SSLContext.load_cert_chain`` raises ``OSError: [Errno 22] Invalid
+    argument`` when the key is encrypted and no password is passed.
+    """
+    pwd = password.encode("utf-8") if password else None
+    try:
+        key = serialization.load_pem_private_key(key_pem, password=pwd)
+    except TypeError as exc:
+        # Encrypted key but password was None
+        raise RuntimeError(
+            "Private key is password-protected. Re-import with the PKCS#12 / key "
+            "password (Portal default is usually atakatak)."
+        ) from exc
+    except ValueError as exc:
+        if password:
+            raise RuntimeError(
+                "Could not decrypt private key — check the certificate password "
+                "(Portal Download Certs default is usually atakatak)."
+            ) from exc
+        # Retry common Portal default when the form left password blank
+        try:
+            key = serialization.load_pem_private_key(key_pem, password=b"atakatak")
+        except Exception as retry_exc:  # noqa: BLE001
+            raise RuntimeError(
+                "Could not load private key. If the key is encrypted, enter the "
+                "password (usually atakatak) on Import certs."
+            ) from retry_exc
+    return key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption())
+
+
 def import_pem_pair(
     server_id: str,
     cert_pem: bytes,
     key_pem: bytes,
     ca_pem: bytes | None = None,
     store: SecretStore | None = None,
+    password: str | None = None,
 ) -> dict[str, Any]:
     store = store or SecretStore()
     store.write_bytes(f"{server_id}/client.pem", cert_pem)
-    store.write_bytes(f"{server_id}/client.key", key_pem)
+    store.write_bytes(f"{server_id}/client.key", normalize_private_key_pem(key_pem, password))
+    if password:
+        store.write_text(f"{server_id}/p12_password", password)
     ca_path = None
     if ca_pem:
         ca_path = store.write_bytes(f"{server_id}/ca.pem", ca_pem)
@@ -457,7 +496,9 @@ def import_integration_cert_zip(
     if pem_name and key_name:
         cert_pem = zf.read(pem_name)
         key_pem = zf.read(key_name)
-        result = import_pem_pair(server_id, cert_pem, key_pem, store=store)
+        result = import_pem_pair(
+            server_id, cert_pem, key_pem, store=store, password=password
+        )
         if client_p12:
             store.write_bytes(f"{server_id}/client.p12", zf.read(client_p12))
             if password:

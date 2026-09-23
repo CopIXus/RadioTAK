@@ -1234,6 +1234,13 @@ async def tak_detail(server_id: str, request: Request, _user=Depends(require_aut
                 )
             except Exception:  # noqa: BLE001
                 groups = []
+        marti_names = {
+            str(g.get("name") if isinstance(g, dict) else getattr(g, "name", "") or "")
+            for g in groups
+        }
+        marti_names.discard("")
+        saved = list(server.active_groups or [])
+        channel_orphans = [n for n in saved if n and n not in marti_names]
     finally:
         db.close()
     return TEMPLATES.TemplateResponse(
@@ -1244,6 +1251,7 @@ async def tak_detail(server_id: str, request: Request, _user=Depends(require_aut
             nav="tak",
             server=server,
             groups=groups,
+            channel_orphans=channel_orphans,
             message=request.query_params.get("msg"),
             error=request.query_params.get("err"),
         ),
@@ -1383,10 +1391,9 @@ async def tak_import_portal_zip(
             server.certificate_not_before = meta.get("not_before")
             server.certificate_not_after = meta.get("not_after")
             server.certificate_fingerprint = meta.get("fingerprint")
-            if not server.connection_profile:
-                server.connection_profile = "streaming_feed"
-            if server.connection_profile == "streaming_feed":
-                server.send_presence = False
+            # Portal Download Certs are for Integration data feeds, not 8089 CoT.
+            server.connection_profile = "streaming_feed"
+            server.send_presence = False
             server.last_error = None
             db.commit()
             await tak_runtime.restart(server_id)

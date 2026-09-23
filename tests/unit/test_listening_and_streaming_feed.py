@@ -91,6 +91,54 @@ async def test_streaming_feed_dry_run_no_presence():
     await mgr.stop()
 
 
+def test_import_integration_cert_zip_encrypted_key(tmp_path, monkeypatch):
+    """Portal keys are often PKCS#8 encrypted; import must unwrap for ssl."""
+    import datetime as dt
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.x509.oid import NameOID
+
+    from radiotak.config import get_settings, reload_settings
+    from radiotak.gateway.tak.enrollment import import_integration_cert_zip
+    from radiotak.gateway.tak import build_tak_ssl_context
+
+    monkeypatch.setenv("RADIOTAK_DATA_DIR", str(tmp_path))
+    reload_settings()
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    subject = issuer = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "nodered-enc")])
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(issuer)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(dt.datetime.now(dt.UTC) - dt.timedelta(days=1))
+        .not_valid_after(dt.datetime.now(dt.UTC) + dt.timedelta(days=30))
+        .sign(key, hashes.SHA256())
+    )
+    pem = cert.public_bytes(serialization.Encoding.PEM)
+    key_pem = key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.BestAvailableEncryption(b"atakatak"),
+    )
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("nodered-enc.pem", pem)
+        zf.writestr("nodered-enc.key", key_pem)
+    import_integration_cert_zip("srv-enc", buf.getvalue(), password="atakatak")
+    secrets = get_settings().secrets_dir / "srv-enc"
+    # Must load without a password after normalize
+    build_tak_ssl_context(
+        cert_path=str(secrets / "client.pem"),
+        key_path=str(secrets / "client.key"),
+        tls_verify=False,
+    )
+
+
 def test_import_integration_cert_zip_pem(tmp_path, monkeypatch):
     import datetime as dt
 

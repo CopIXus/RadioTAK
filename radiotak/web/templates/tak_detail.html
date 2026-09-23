@@ -95,8 +95,8 @@
           <label class="field-label" for="id_portal_zip">Portal Download Certs zip</label>
           <input id="id_portal_zip" type="file" name="cert_zip" accept=".zip" required/>
         </div>
-        {{ field('password', 'PKCS#12 password (if needed)', type='password', help_key='tak.password', input_id='id_zip_password') }}
-        <p class="card-desc">From TAK Portal → Integrations → Download Certs (pem/key/p12).</p>
+        {{ field('password', 'Key / PKCS#12 password (usually atakatak)', type='password', help_key='tak.password', input_id='id_zip_password') }}
+        <p class="card-desc">Portal Integration keys are often encrypted. Enter <code>atakatak</code> if you did not set a custom password. This import also switches the feed to <strong>Portal streaming WRITE</strong>.</p>        <p class="card-desc">From TAK Portal → Integrations → Download Certs (pem/key/p12).</p>
         <button class="btn btn-primary" type="submit">Import Portal certs</button>
       </form>
       <hr style="margin:20px 0;border-color:var(--border)"/>
@@ -146,20 +146,37 @@
     <div class="form-panel" style="max-width:640px">
       <form method="post" action="/tak/{{ server.id }}/channels" data-busy="Saving channels…">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+        {% set saved = server.active_groups or [] %}
+        {% set orphans = channel_orphans or [] %}
+        {% if saved %}
+        <p class="card-desc" style="margin-bottom:8px">Saved selection: <strong>{{ saved | join(', ') }}</strong></p>
+        {% endif %}
+        {% if orphans %}
+        <div class="alert alert-info" style="margin-bottom:12px">
+          These saved names are not in the current Marti list (often a Portal display name vs Marti group name).
+          Uncheck to drop them, or check the matching Marti row below and Save.
+        </div>
+        {% for oname in orphans %}
+          <label style="display:block;margin:6px 0;font-size:13px">
+            <input type="checkbox" name="groups" value="{{ oname }}" checked/>
+            {{ oname }} <span class="card-desc">(saved, not in Marti list)</span>
+          </label>
+        {% endfor %}
+        {% endif %}
         {% if groups %}
         <p class="card-desc" style="margin-bottom:12px">Select groups from Marti. Saved locally and applied to TAK Server after RadioTAK is connected on the CoT port.</p>
         {% for g in groups %}
           {% set gname = g.name if g.name is defined else g.get('name') %}
           <label style="display:block;margin:6px 0;font-size:13px">
             <input type="checkbox" name="groups" value="{{ gname }}"
-              {% if gname in (server.active_groups or []) %}checked{% endif %}/>
+              {% if gname in saved %}checked{% endif %}/>
             {{ gname }}
           </label>
         {% endfor %}
         {% else %}
         <div class="alert alert-info">Enroll a certificate first, then refresh to load groups from Marti. You can also type channel names below.</div>
-        {{ field('groups_text', 'Active groups (comma-separated)', value=(server.active_groups or []) | join(', ')) }}
         {% endif %}
+        {{ field('groups_text', 'Or type names (comma-separated; used if no boxes checked)', value=saved | join(', ')) }}
         <button class="btn btn-primary" type="submit" style="margin-top:12px">Save active channels</button>
       </form>
     </div>

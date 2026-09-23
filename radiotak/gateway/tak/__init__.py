@@ -49,7 +49,15 @@ def build_tak_ssl_context(
                 "TAK TLS verify requested but no server CA is stored; skipping verification"
             )
     if cert_path and key_path:
-        ctx.load_cert_chain(certfile=cert_path, keyfile=key_path)
+        try:
+            ctx.load_cert_chain(certfile=cert_path, keyfile=key_path)
+        except OSError as exc:
+            if getattr(exc, "errno", None) == 22 or "Invalid argument" in str(exc):
+                raise RuntimeError(
+                    "Client private key could not be loaded (often still encrypted). "
+                    "Re-import Portal Download Certs with password atakatak on Import certs."
+                ) from exc
+            raise
     return ctx
 
 
