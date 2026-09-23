@@ -133,6 +133,7 @@ radiotak replay tests/fixtures/encryption/p25_des_metadata.jsonl
 | Module | Status |
 |--------|--------|
 | SDR Location Gateway | P25/DMR GPS + call metadata via SDRTrunk → TAK / archive |
+| APRS RF Gateway | RX-only Direwolf (RTL-SDR) → map CoT + GeoChat room `APRS` (Pi/Debian) |
 | Zello Audio Bridge | Coming soon — talkgroup audio → Zello Channel API |
 
 ## License

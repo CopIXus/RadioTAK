@@ -82,6 +82,11 @@
       <span class="nav-icon"><svg><use href="/static/icons.svg#icon-lock"/></svg></span><span class="label">Encryption</span>
     </a>
     {% endif %}
+    {% if aprs_installed %}
+    <a class="nav-item {% if nav=='aprs' %}active{% endif %}" href="/modules/aprs" title="APRS" aria-label="APRS">
+      <span class="nav-icon"><svg><use href="/static/icons.svg#icon-activity"/></svg></span><span class="label">APRS</span>
+    </a>
+    {% endif %}
 
     <div class="nav-section-label">Connect</div>
     <a class="nav-item {% if nav=='tak' %}active{% endif %}" href="/tak" title="TAK Servers" aria-label="TAK Servers">

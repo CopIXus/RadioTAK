@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% from "_macros.html" import field, check %}
+{% block title %}APRS — {{ title or 'RadioTAK' }}{% endblock %}
+{% block content %}
+<div class="header">
+  <div>
+    <div class="header-title">APRS RF Gateway</div>
+    <div class="header-subtitle">Direwolf RX on 144.390 → map markers + GeoChat room {{ settings.chatroom or 'APRS' }}</div>
+  </div>
+</div>
+
+{% if request.query_params.get('message') %}<div class="alert alert-ok">{{ request.query_params.get('message') }}</div>{% endif %}
+{% if request.query_params.get('error') %}<div class="alert alert-error">{{ request.query_params.get('error') }}</div>{% endif %}
+
+<div class="cards-grid">
+  <div class="card card-static">
+    <div class="card-title">Direwolf</div>
+    <div class="card-desc">RTL-SDR → Direwolf 1200 baud (RX-only). Conflicts with SDRTrunk on the same dongle.</div>
+    {% if direwolf_running %}
+    <div class="status-pill status-running"><span class="dot"></span>Running</div>
+    {% else %}
+    <div class="status-pill status-idle"><span class="dot"></span>Stopped</div>
+    {% endif %}
+    <div class="btn-row">
+      <form method="post" action="/modules/aprs/service/start">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+        <button class="btn btn-sm btn-primary" type="submit">Start</button>
+      </form>
+      <form method="post" action="/modules/aprs/service/stop">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+        <button class="btn btn-sm" type="submit">Stop</button>
+      </form>
+      <form method="post" action="/modules/aprs/service/restart">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+        <button class="btn btn-sm" type="submit">Restart</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card card-static">
+    <div class="card-title">Gateway</div>
+    <div class="card-desc">KISS client inside RadioTAK → location pipeline + GeoChat.</div>
+    {% if gateway.running %}
+    <div class="status-pill status-running"><span class="dot"></span>Running</div>
+    {% else %}
+    <div class="status-pill status-idle"><span class="dot"></span>Stopped</div>
+    {% endif %}
+    <div class="card-desc" id="aprs-stats" style="margin-top:10px">
+      KISS: <span id="aprs-kiss">{{ 'up' if gateway.kiss_connected else 'down' }}</span>
+      · IS: <span id="aprs-is">{{ 'up' if gateway.is_connected else 'off' }}</span>
+      · <span id="aprs-ppm">{{ gateway.packets_per_min }}</span>/min
+      · last <span id="aprs-call">{{ gateway.last_callsign or '—' }}</span>
+      · RF <span id="aprs-rf">{{ gateway.rf_packets }}</span>
+      · IS pkts <span id="aprs-isp">{{ gateway.is_packets }}</span>
+    </div>
+  </div>
+</div>
+
+<div class="section-title">Settings</div>
+<form method="post" action="/modules/aprs/settings" class="card card-static" data-busy="Saving…">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+  {{ field('mycall', 'MYCALL (SSID)', value=settings.mycall, help_key='aprs.mycall') }}
+  {{ field('kiss_host', 'KISS host', value=settings.kiss_host) }}
+  {{ field('kiss_port', 'KISS port', value=settings.kiss_port) }}
+  {{ check('enable_rf', 'Enable RF (Direwolf KISS)', checked=settings.enable_rf) }}
+  {{ check('enable_is', 'Enable APRS-IS (internet)', checked=settings.enable_is) }}
+  {{ field('aprs_is_server', 'APRS-IS server', value=settings.aprs_is_server) }}
+  {{ field('aprs_is_port', 'APRS-IS port', value=settings.aprs_is_port) }}
+  {{ field('aprs_is_passcode', 'APRS-IS passcode (−1 for RX-only)', value=settings.aprs_is_passcode, help_key='aprs.passcode') }}
+  {{ field('aprs_is_filter', 'APRS-IS filter', value=settings.aprs_is_filter, help_key='aprs.filter') }}
+  {{ field('chatroom', 'GeoChat room', value=settings.chatroom) }}
+  {{ field('marti_dest_group', 'Marti dest group (optional)', value=settings.marti_dest_group or '', help_key='aprs.marti') }}
+  {{ field('rtl_device', 'RTL device index', value=settings.rtl_device) }}
+  {{ field('rtl_gain', 'RTL gain', value=settings.rtl_gain) }}
+  {{ field('frequency_hz', 'Frequency Hz', value=settings.frequency_hz, help_key='aprs.freq') }}
+  <button class="btn btn-primary" type="submit">Save settings</button>
+</form>
+
+<div class="section-title">Policy</div>
+<p class="card-desc">
+  Callsigns show up under <a href="/units">Units</a> as <code>RADIOTAK-APRS-{CALL}</code>.
+  Enable <strong>Forward to TAK</strong> before positions or GeoChat leave the gateway.
+  Decode/receive does not require a license; transmitting APRS or IGating does (GMRS does not cover APRS TX).
+  TX / digipeat / IGate are out of scope for this module.
+</p>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  function tick() {
+    fetch('/modules/aprs/status.json', { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var g = d.gateway || {};
+        var el = function (id) { return document.getElementById(id); };
+        if (el('aprs-kiss')) el('aprs-kiss').textContent = g.kiss_connected ? 'up' : 'down';
+        if (el('aprs-is')) el('aprs-is').textContent = g.is_connected ? 'up' : (g.settings && g.settings.enable_is ? 'down' : 'off');
+        if (el('aprs-ppm')) el('aprs-ppm').textContent = g.packets_per_min != null ? g.packets_per_min : '0';
+        if (el('aprs-call')) el('aprs-call').textContent = g.last_callsign || '—';
+        if (el('aprs-rf')) el('aprs-rf').textContent = g.rf_packets != null ? g.rf_packets : '0';
+        if (el('aprs-isp')) el('aprs-isp').textContent = g.is_packets != null ? g.is_packets : '0';
+      })
+      .catch(function () {});
+  }
+  setInterval(tick, 3000);
+})();
+</script>
+{% endblock %}

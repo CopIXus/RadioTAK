@@ -223,8 +223,8 @@ def load_module_routers():
         if not is_installed(mid) and meta.get("status") not in ("bundled", "available"):
             if meta.get("status") == "coming_soon":
                 continue
-            # Still mount SDR module pages in stub mode for UX
-            if mid != "sdr_location_gateway":
+            # Still mount SDR / APRS module pages in stub mode for UX
+            if mid not in ("sdr_location_gateway", "aprs_rf_gateway"):
                 continue
         import importlib.util
 

@@ -37,6 +37,35 @@ async def _ndjson_listen() -> None:
         log.warning("NDJSON listen failed: %s", exc)
 
 
+async def _aprs_gateway() -> None:
+    """Start/stop the APRS KISS+IS client when the marketplace module is installed."""
+    try:
+        from radiotak.services.modules import is_installed
+
+        while True:
+            while not is_installed("aprs_rf_gateway"):
+                await asyncio.sleep(5.0)
+
+            from modules.aprs_rf_gateway.service import start_service, stop_service
+
+            await start_service()
+            try:
+                while is_installed("aprs_rf_gateway"):
+                    await asyncio.sleep(5.0)
+            finally:
+                await stop_service()
+    except asyncio.CancelledError:
+        try:
+            from modules.aprs_rf_gateway.service import stop_service
+
+            await stop_service()
+        except Exception:  # noqa: BLE001
+            pass
+        raise
+    except Exception as exc:  # noqa: BLE001
+        log.warning("APRS gateway failed: %s", exc)
+
+
 async def _spectrum_listen() -> None:
     try:
         from modules.sdr_location_gateway.sdrtrunk.spectrum import listen_spectrum_tcp
@@ -93,6 +122,7 @@ async def lifespan(app: FastAPI):
     ndjson_task = asyncio.create_task(_ndjson_listen())
     spectrum_task = asyncio.create_task(_spectrum_listen())
     audio_task = asyncio.create_task(_audio_listen())
+    aprs_task = asyncio.create_task(_aprs_gateway())
 
     # Keep the SDRTrunk fork build in step with this RadioTAK checkout.
     try:
@@ -116,7 +146,7 @@ async def lifespan(app: FastAPI):
     except Exception as exc:  # noqa: BLE001
         log.warning("TAK shutdown failed: %s", exc)
 
-    for t in (ndjson_task, spectrum_task, audio_task, task):
+    for t in (ndjson_task, spectrum_task, audio_task, aprs_task, task):
         t.cancel()
         try:
             await t

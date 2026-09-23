@@ -203,6 +203,36 @@ HELP: dict[str, dict[str, str]] = {
         "where": "Console encryption card, Encryption page, Settings → Encryption archive.",
         "example": "",
     },
+    "aprs.mycall": {
+        "label": "MYCALL",
+        "what": "Amateur callsign-SSID used by Direwolf for RX/logging (e.g. N0CALL-15). RX-only — this module never digipeats or IGates.",
+        "where": "APRS page settings; written into direwolf.conf.",
+        "example": "W4ABC-15",
+    },
+    "aprs.passcode": {
+        "label": "APRS-IS passcode",
+        "what": "Use −1 for receive-only APRS-IS. A real passcode is only needed if you later opt into TX/IGate (out of scope here).",
+        "where": "APRS page → APRS-IS.",
+        "example": "-1",
+    },
+    "aprs.filter": {
+        "label": "APRS-IS filter",
+        "what": "Server-side filter to limit internet stations. East TN example: r/lat/lon/km.",
+        "where": "APRS page → APRS-IS filter.",
+        "example": "r/36.35/-82.21/50",
+    },
+    "aprs.marti": {
+        "label": "Marti dest group",
+        "what": "Optional TAK Server Marti channel name for GeoChat routing (same pattern as drone room alerts). Leave blank to rely on the enrolled connection’s active groups.",
+        "where": "APRS page; only if your TAK Server uses Marti groups for chat.",
+        "example": "APRS_WRITE",
+    },
+    "aprs.freq": {
+        "label": "APRS frequency",
+        "what": "US VHF APRS is 144.390 MHz (144390000 Hz). Change only for regional exceptions.",
+        "where": "APRS page; applied when direwolf-aprs.service starts.",
+        "example": "144390000",
+    },
     "tailscale.auth_key": {
         "label": "Tailscale auth key",
         "what": "One-time or reusable key that joins this Pi to your tailnet.",

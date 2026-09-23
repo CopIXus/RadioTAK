@@ -75,6 +75,7 @@ def base_context(request: Request, nav: str = "", **extra):
         "csrf_token": session.get("csrf", ""),
         "username": session.get("u", ""),
         "sdr_installed": is_installed("sdr_location_gateway"),
+        "aprs_installed": is_installed("aprs_rf_gateway"),
         "hide_sidebar": False,
         "help_json": help_as_json(),
         "display_timezone": display_timezone(),

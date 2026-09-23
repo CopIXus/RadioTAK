@@ -17,6 +17,11 @@
       <div class="status-pill status-idle"><span class="dot"></span>Coming soon</div>
     {% elif mod.installed %}
       <div class="status-pill status-running"><span class="dot"></span>Installed</div>
+      {% if mid == 'sdr_location_gateway' %}
+      <p class="card-desc"><a href="/modules/sdr">Open SDR page</a></p>
+      {% elif mid == 'aprs_rf_gateway' %}
+      <p class="card-desc"><a href="/modules/aprs">Open APRS page</a></p>
+      {% endif %}
       <form method="post" action="/marketplace/{{ mid }}/uninstall" class="btn-row">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
         <button class="btn btn-sm btn-danger" type="submit"

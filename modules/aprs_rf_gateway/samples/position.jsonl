@@ -1,0 +1,1 @@
+{"schema":"sdr2tak.location.v1","decoder":"direwolf","protocol":"APRS","system_id":"APRS","system_name":"APRS","radio_id":"W4TEST-9","source_alias":"W4TEST-9","latitude":36.29531,"longitude":-82.27922,"altitude_m":480.0,"speed_mps":12.86,"heading_deg":180.0,"observed_at":"2026-09-23T16:00:00.000000Z","raw_event_type":"aprs_uncompressed_rf","emergency":false}
