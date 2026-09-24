@@ -69,6 +69,8 @@ async def aprs_save_settings(
     rtl_device: str = Form("0"),
     rtl_gain: int = Form(40),
     frequency_hz: int = Form(144390000),
+    marker_color_rf: str = Form("#22c55e"),
+    marker_color_is: str = Form("#3b82f6"),
     csrf_token: str = Form(""),
     _user=Depends(require_auth),
 ):
@@ -90,6 +92,8 @@ async def aprs_save_settings(
             "rtl_device": rtl_device,
             "rtl_gain": rtl_gain,
             "frequency_hz": frequency_hz,
+            "marker_color_rf": marker_color_rf,
+            "marker_color_is": marker_color_is,
         }
     )
     write_audit("aprs.settings", detail={"mycall": mycall.strip().upper()})

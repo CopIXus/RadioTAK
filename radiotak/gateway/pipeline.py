@@ -28,6 +28,22 @@ from radiotak.services.logging_setup import log_event
 from radiotak.services.settings_store import load_settings_file
 
 
+def _aprs_marker_color(event: LocationEventIn) -> str | None:
+    """Override TAK Marker Appearance color for APRS RF vs APRS-IS packets."""
+    protocol = (event.protocol or "").strip().upper()
+    system = (event.system_id or "").strip().upper()
+    if protocol != "APRS" and system != "APRS":
+        return None
+    try:
+        from modules.aprs_rf_gateway.settings import (
+            aprs_transport_from_raw_event,
+            marker_color_for_transport,
+        )
+    except Exception:  # noqa: BLE001
+        return None
+    return marker_color_for_transport(aprs_transport_from_raw_event(event.raw_event_type))
+
+
 def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     r = 6371000.0
     p1, p2 = math.radians(lat1), math.radians(lat2)
@@ -312,6 +328,7 @@ class LocationPipeline:
             )
             stale_s = style["stale_seconds"] or int(fwd.get("stale_seconds", DEFAULT_STALE_SECONDS))
             ce_m = event.accuracy_m if event.accuracy_m is not None else style["default_ce_meters"]
+            marker_color = _aprs_marker_color(event) or style["marker_color"]
             cot_xml = build_cot_xml(
                 radio_id=event.radio_id,
                 latitude=event.latitude,
@@ -328,7 +345,7 @@ class LocationPipeline:
                 how=style["how"],
                 uid=cot_uid,
                 iconset_path=style["iconset_path"] or None,
-                marker_color=style["marker_color"],
+                marker_color=marker_color,
             )
             if first_xml is None:
                 first_xml = cot_xml

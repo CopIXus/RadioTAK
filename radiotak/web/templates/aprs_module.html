@@ -12,10 +12,16 @@
 {% if request.query_params.get('message') %}<div class="alert alert-ok">{{ request.query_params.get('message') }}</div>{% endif %}
 {% if request.query_params.get('error') %}<div class="alert alert-error">{{ request.query_params.get('error') }}</div>{% endif %}
 
+<div class="alert" style="margin-bottom:16px">
+  <strong>Feeds:</strong> APRS-IS (internet) runs alongside SDRTrunk with no tuner.
+  Direwolf RF needs an SDR — with one stick it stays stopped while SDRTrunk is active;
+  add a second RTL-SDR and set <em>RTL device index</em>, or stop SDRTrunk, to hear RF APRS.
+</div>
+
 <div class="cards-grid">
   <div class="card card-static">
-    <div class="card-title">Direwolf</div>
-    <div class="card-desc">RTL-SDR → Direwolf 1200 baud (RX-only). Conflicts with SDRTrunk on the same dongle.</div>
+    <div class="card-title">Direwolf (RF)</div>
+    <div class="card-desc">SDR → Direwolf 1200 baud (RX-only). Not required for APRS-IS.</div>
     {% if direwolf_running %}
     <div class="status-pill status-running"><span class="dot"></span>Running</div>
     {% else %}
@@ -39,7 +45,7 @@
 
   <div class="card card-static">
     <div class="card-title">Gateway</div>
-    <div class="card-desc">KISS client inside RadioTAK → location pipeline + GeoChat.</div>
+    <div class="card-desc">KISS + APRS-IS inside RadioTAK → location pipeline + GeoChat.</div>
     {% if gateway.running %}
     <div class="status-pill status-running"><span class="dot"></span>Running</div>
     {% else %}
@@ -71,9 +77,29 @@
   {{ field('aprs_is_filter', 'APRS-IS filter', value=settings.aprs_is_filter, help_key='aprs.filter') }}
   {{ field('chatroom', 'GeoChat room', value=settings.chatroom) }}
   {{ field('marti_dest_group', 'Marti dest group (optional)', value=settings.marti_dest_group or '', help_key='aprs.marti') }}
-  {{ field('rtl_device', 'RTL device index', value=settings.rtl_device) }}
+  {{ field('rtl_device', 'RTL device index', value=settings.rtl_device, help_key='aprs.rtl_device') }}
   {{ field('rtl_gain', 'RTL gain', value=settings.rtl_gain) }}
   {{ field('frequency_hz', 'Frequency Hz', value=settings.frequency_hz, help_key='aprs.freq') }}
+  <div class="form-field">
+    <div class="label-row">
+      <label class="field-label" for="id_marker_color_rf">RF marker color</label>
+      <button type="button" class="help-icon" data-help="aprs.color_rf" aria-label="Help: RF marker color" title="Help">?</button>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="color" id="id_marker_color_rf_picker" value="{{ settings.marker_color_rf or '#22c55e' }}" aria-label="RF marker color picker"/>
+      <input class="input" name="marker_color_rf" id="id_marker_color_rf" value="{{ settings.marker_color_rf or '#22c55e' }}" style="max-width:140px" autocomplete="off"/>
+    </div>
+  </div>
+  <div class="form-field">
+    <div class="label-row">
+      <label class="field-label" for="id_marker_color_is">APRS-IS marker color</label>
+      <button type="button" class="help-icon" data-help="aprs.color_is" aria-label="Help: IS marker color" title="Help">?</button>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="color" id="id_marker_color_is_picker" value="{{ settings.marker_color_is or '#3b82f6' }}" aria-label="IS marker color picker"/>
+      <input class="input" name="marker_color_is" id="id_marker_color_is" value="{{ settings.marker_color_is or '#3b82f6' }}" style="max-width:140px" autocomplete="off"/>
+    </div>
+  </div>
   <button class="btn btn-primary" type="submit">Save settings</button>
 </form>
 
@@ -93,6 +119,17 @@
 {% block scripts %}
 <script>
 (function () {
+  function bindColor(pickerId, textId) {
+    var picker = document.getElementById(pickerId);
+    var text = document.getElementById(textId);
+    if (!picker || !text) return;
+    picker.addEventListener('input', function () { text.value = picker.value; });
+    text.addEventListener('input', function () {
+      if (/^#[0-9A-Fa-f]{6}$/.test(text.value)) picker.value = text.value;
+    });
+  }
+  bindColor('id_marker_color_rf_picker', 'id_marker_color_rf');
+  bindColor('id_marker_color_is_picker', 'id_marker_color_is');
   function tick() {
     fetch('/modules/aprs/status.json', { credentials: 'same-origin' })
       .then(function (r) { return r.json(); })

@@ -181,16 +181,27 @@ def list_listening_sources(db: Session) -> list[ListeningSource]:
 
 
 def exclusivity_conflict(*, want_aprs_rf: bool = False, want_sdrtrunk: bool = False) -> str | None:
-    """Return a human conflict message if RF front-end would collide."""
+    """Return a human conflict message if RF front-end would collide.
+
+    APRS-IS never needs the tuner and can always run alongside SDRTrunk.
+    With two or more SDR devices, Direwolf can use ``rtl_device`` for a free stick
+    while SDRTrunk keeps the other — no stop required.
+    """
+    devices = tuner_count()
     if want_aprs_rf and sdrtrunk_active():
+        if devices >= 2:
+            return None
         return (
-            "SDRTrunk is using the tuner. Starting APRS RF will stop SDRTrunk. "
-            "Confirm to continue, or use APRS-IS only."
+            "SDRTrunk is using the only tuner. Starting APRS RF will stop SDRTrunk. "
+            "Confirm to continue, add a second RTL-SDR (set RTL device index), "
+            "or use APRS-IS only (internet) which does not need the dongle."
         )
     if want_sdrtrunk and direwolf_active():
+        if devices >= 2:
+            return None
         return (
-            "Direwolf APRS is using the tuner. Starting the trunked decoder will stop Direwolf. "
-            "Confirm to continue."
+            "Direwolf APRS is using the only tuner. Starting the trunked decoder will stop Direwolf. "
+            "Confirm to continue, or add a second RTL-SDR."
         )
     return None
 

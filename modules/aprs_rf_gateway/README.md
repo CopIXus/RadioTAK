@@ -18,12 +18,19 @@ RTL-SDR → rtl_fm → Direwolf → KISS :8001 → aprs_rf_gateway
                                       └─ messages  → GeoChat b-t-f → tak_registry
 ```
 
-### Dongle conflict / Airspy
+### Feeds: SDRTrunk + APRS
 
-`direwolf-aprs.service` **Conflicts** with `sdrtrunk.service` when both need the same tuner.
+| Combo | Works? | Notes |
+|-------|--------|--------|
+| **APRS-IS + SDRTrunk** | Yes | Internet feed needs no dongle. Enable IS; leave Direwolf stopped. |
+| **APRS RF + SDRTrunk** | Needs 2 SDRs | Set **RTL device index** to the free stick. Soft exclusivity in the UI stops the peer only when a single tuner is present. |
+| **APRS RF alone** | Yes | Start Direwolf; SDRTrunk must be stopped if only one stick. |
+
 On VM 700 the passed-through stick is often an **Airspy** — the launcher auto-detects it and uses `airspy_rx | csdr | direwolf` (needs the `airspy` + `csdr` packages from apt).
 
-For internet-only testing, enable **APRS-IS** and leave Direwolf stopped so SDRTrunk can keep the Airspy.
+### Marker colors
+
+RF and APRS-IS positions use separate TAK marker colors (defaults green / blue) so you can tell them apart on the map. Set them on the APRS page; they override TAK **Marker Appearance** for APRS CoTs only.
 
 ### Optional APRS-IS
 

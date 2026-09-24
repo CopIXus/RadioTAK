@@ -64,7 +64,9 @@ if [[ ! -f "$MOD_DIR/settings.json" ]]; then
   "rtl_device": "0",
   "rtl_gain": 40,
   "frequency_hz": 144390000,
-  "sdr_backend": "auto"
+  "sdr_backend": "auto",
+  "marker_color_rf": "#22c55e",
+  "marker_color_is": "#3b82f6"
 }
 JSON
   chown radiotak:radiotak "$MOD_DIR/settings.json"
@@ -90,7 +92,8 @@ cat > /etc/systemd/system/direwolf-aprs.service <<EOF
 [Unit]
 Description=Direwolf APRS RX (RadioTAK) via RTL-SDR/Airspy
 After=network.target
-Conflicts=sdrtrunk.service
+# Soft exclusivity: RadioTAK UI stops the peer service when only one tuner is present.
+# With two SDRs, set APRS rtl_device to the free stick and run alongside sdrtrunk.
 
 [Service]
 Type=simple
@@ -113,4 +116,5 @@ systemctl enable direwolf-aprs.service || true
 # Do not auto-start — operator starts from the APRS UI (avoids stealing the SDR from SDRTrunk).
 echo "APRS RF Gateway dependencies installed."
 echo "Configure MYCALL on the APRS page, then start direwolf-aprs.service."
-echo "Note: direwolf-aprs Conflicts with sdrtrunk — use a second RTL-SDR or stop SDRTrunk first."
+echo "APRS-IS + SDRTrunk can run together (no dongle for IS)."
+echo "APRS RF + SDRTrunk needs a second RTL-SDR (rtl_device) or stop SDRTrunk first."

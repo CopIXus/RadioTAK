@@ -251,6 +251,25 @@ HELP: dict[str, dict[str, str]] = {
         "where": "APRS page → Settings.",
         "example": "",
     },
+    "aprs.rtl_device": {
+        "label": "RTL device index",
+        "what": "Which SDR Direwolf opens (0 = first). With SDRTrunk on the first stick, set this to 1 (or higher) so RF APRS and trunked decode can run together.",
+        "where": "APRS page → Settings.",
+        "example": "1",
+    },
+    "aprs.color_rf": {
+        "label": "RF marker color",
+        "what": "TAK marker color for stations heard on RF (Direwolf). Overrides the TAK server Marker Appearance color for those CoTs only.",
+        "where": "APRS page → Settings.",
+        "example": "#22c55e",
+    },
+    "aprs.color_is": {
+        "label": "APRS-IS marker color",
+        "what": "TAK marker color for stations heard via APRS-IS (internet). Overrides the TAK server Marker Appearance color for those CoTs only.",
+        "where": "APRS page → Settings.",
+        "example": "#3b82f6",
+    },
+
     "tailscale.auth_key": {
         "label": "Tailscale auth key",
         "what": "One-time or reusable key that joins this Pi to your tailnet.",

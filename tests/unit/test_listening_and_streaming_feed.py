@@ -45,6 +45,7 @@ def test_exclusivity_conflict_messages(monkeypatch):
 
     monkeypatch.setattr(lis, "sdrtrunk_active", lambda: True)
     monkeypatch.setattr(lis, "direwolf_active", lambda: False)
+    monkeypatch.setattr(lis, "tuner_count", lambda: 1)
     assert lis.exclusivity_conflict(want_aprs_rf=True)
     assert lis.ensure_aprs_rf(confirm=False)
     monkeypatch.setattr(lis, "stop_sdrtrunk", lambda: (0, "ok"))

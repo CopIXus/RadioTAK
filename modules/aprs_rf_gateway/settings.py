@@ -26,6 +26,9 @@ DEFAULTS: dict[str, Any] = {
     "rtl_gain": 40,
     "frequency_hz": 144390000,
     "sdr_backend": "auto",
+    # TAK marker colors by transport (override TAK server Marker Appearance for APRS).
+    "marker_color_rf": "#22c55e",
+    "marker_color_is": "#3b82f6",
 }
 
 
@@ -92,10 +95,35 @@ def save_settings(data: dict[str, Any]) -> dict[str, Any]:
     if pc < 0:
         pc = aprs_passcode(merged["mycall"])
     merged["aprs_is_passcode"] = pc
+    for key, default in (("marker_color_rf", "#22c55e"), ("marker_color_is", "#3b82f6")):
+        color = str(merged.get(key) or default).strip()
+        if not re.fullmatch(r"#[0-9A-Fa-f]{6}", color):
+            color = default
+        merged[key] = color.lower()
     path = settings_path()
     path.write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
     _sync_direwolf_mycall(merged["mycall"])
     return merged
+
+
+def aprs_transport_from_raw_event(raw_event_type: str | None) -> str | None:
+    """Return ``rf`` or ``is`` from ``aprs_*_{rf|is}`` raw_event_type suffixes."""
+    text = str(raw_event_type or "").strip().lower()
+    if text.endswith("_rf"):
+        return "rf"
+    if text.endswith("_is"):
+        return "is"
+    return None
+
+
+def marker_color_for_transport(transport: str | None, cfg: dict[str, Any] | None = None) -> str | None:
+    """APRS-specific TAK marker color for RF vs APRS-IS."""
+    settings = cfg or load_settings()
+    if transport == "rf":
+        return str(settings.get("marker_color_rf") or "").strip() or None
+    if transport == "is":
+        return str(settings.get("marker_color_is") or "").strip() or None
+    return None
 
 
 def _sync_direwolf_mycall(mycall: str) -> None:
